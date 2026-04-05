@@ -71,6 +71,15 @@ class Puffin {
         
         this.animFrame++;
         
+        // Play footstep sounds and create dust particles while walking
+        if ((this.state === ST_WALK || this.state === ST_BASH) && this.animFrame % 10 === 0) {
+            if (typeof playSound === 'function') playSound('footstep');
+            // Create dust particles when walking on ground
+            if (getTerrain(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 1)) !== 0) {
+                if (typeof createDustParticles === 'function') createDustParticles(this.x, this.y + PUFFIN_H);
+            }
+        }
+        
         // Bomber logic
         if (this.bomberTicks > 0) {
             this.bomberTicks--;
@@ -149,6 +158,7 @@ class Puffin {
                 this.state = ST_EXITED;
                 gameState.saved++;
                 createParticles(this.x, this.y, 20, PALETTE[7], true, 7);
+                if (typeof playSound === 'function') playSound('exitCheer');
             }
         }
         
@@ -285,6 +295,9 @@ class Puffin {
             if (carved) {
                 updateTerrainPixels(cx - 2, cy - 5, 5, 11);
                 createParticles(cx, cy, 3, [150,150,150]);
+                // Visual polish: Create spark particles when bashing
+                if (typeof createSparkParticles === 'function') createSparkParticles(cx, cy);
+                if (typeof playSound === 'function') playSound('bash');
             } else {
                 // Done bashing if hitting thin air
                 this.state = ST_WALK;
@@ -310,6 +323,7 @@ class Puffin {
             if (carved) {
                 updateTerrainPixels(cx - 3, cy, 7, 4);
                 createParticles(cx, cy, 3, [150,150,150]);
+                if (typeof playSound === 'function') playSound('dig');
             } else {
                 this.state = ST_FALL;
                 this.fallStartY = this.y;
@@ -412,6 +426,8 @@ class Puffin {
             if (this.bricksLayed >= 12) {
                 this.state = ST_WALK;
             }
+            
+            if (typeof playSound === 'function') playSound('build');
         }
     }
     
@@ -438,6 +454,19 @@ class Puffin {
     }
 
     explode() {
+        // Play explosion sound
+        if (typeof playSound === 'function') playSound('explosion');
+        
+        // Visual polish: Screen shake on explosion
+        screenShake = 8;
+        screenShakeIntensity = 5;
+        
+        // Visual polish: Create shockwave particles
+        if (typeof createShockwave === 'function') createShockwave(this.x + PUFFIN_W/2, this.y + PUFFIN_H/2);
+        
+        // Fix: Ensure entrance and exit remain accessible after explosion
+        ensurePathClear();
+        
         let spr = this.getSprite();
         for (let i = 0; i < spr.length; i++) {
             let col = spr[i];
@@ -471,6 +500,16 @@ class Puffin {
                 let dy = Math.abs(ty - (p.y + PUFFIN_H/2));
                 if (dx < 6 && dy < 10) return true;
             }
+        }
+        return false;
+    }
+    
+    // Fix: Allow removing blockers by clicking them again
+    toggleBlocker() {
+        if (this.state === ST_BLOCK) {
+            this.state = ST_WALK;
+            this.vx = 1; // Reset direction
+            return true;
         }
         return false;
     }
@@ -527,11 +566,22 @@ class Puffin {
         
         ctx.restore();
         
-        // Bomber text
+        // Bomber text with flashing effect
         if (this.bomberTicks > 0) {
-            ctx.fillStyle = '#f00';
-            ctx.font = '8px monospace';
-            ctx.fillText(Math.ceil(this.bomberTicks / FPS), Math.floor(this.x)-2, Math.floor(this.y)-2);
+            // Flash faster as timer gets lower
+            let flashRate = this.bomberTicks < FPS * 2 ? 3 : 6;
+            if (this.animFrame % flashRate < flashRate / 2) {
+                ctx.fillStyle = '#f00';
+                ctx.font = 'bold 8px monospace';
+                ctx.fillText(Math.ceil(this.bomberTicks / FPS), Math.floor(this.x)-2, Math.floor(this.y)-2);
+                
+                // Flashing red aura when about to explode
+                if (this.bomberTicks < FPS * 2) {
+                    ctx.strokeStyle = `rgba(255, 0, 0, ${0.5 + Math.sin(this.animFrame * 0.5) * 0.3})`;
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(Math.floor(this.x)-1, Math.floor(this.y)-1, PUFFIN_W+2, PUFFIN_H+2);
+                }
+            }
         }
 
         // Hover highlight

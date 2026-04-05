@@ -16,10 +16,12 @@ In **Puffin Panic 2**, puffins emerge from an entrance and walk blindly through 
 - **9 Unique Skills** - Each with specific use cases and strategic applications
 - **Pixel Art Graphics** - Retro-styled visuals with animated puffin sprites
 - **Destructible Terrain** - Modify the environment to create paths
+- **Sound Effects & Music** - Procedural audio using Web Audio API (no external files needed!)
 - **Speed Control** - Toggle between 1x and 2x game speed
 - **Release Rate Control** - Adjust how quickly puffins emerge
 - **Nuke Mode** - Emergency option to eliminate all remaining puffins
 - **Pause & Retry** - Full game state control
+- **Bug Fixes** - Puffin collision detection, removable blockers, visual bomber countdown, terrain protection
 
 ## 🛠️ Skills
 
@@ -44,6 +46,7 @@ In **Puffin Panic 2**, puffins emerge from an entrance and walk blindly through 
 - **N Key** - Activate the nuke (emergency elimination of all puffins)
 - **Escape** - Pause the game / Deselect skill
 - **Speed Button** - Toggle between 1x and 2x game speed
+- **Sound Button** - Toggle sound effects and background music on/off
 - **Release Rate Slider** - Adjust puffin spawn speed (1 = slowest, 10 = fastest)
 
 ### Gameplay
@@ -74,6 +77,7 @@ Puffin Panic 2/
 │   ├── levels.js       # Level definitions (10 levels with terrain)
 │   ├── particle.js     # Particle system for effects and explosions
 │   ├── puffin.js       # Puffin class with AI and skill behaviors
+│   ├── sound.js        # Procedural audio system (Web Audio API)
 │   └── terrain.js      # Terrain rendering and modification system
 └── README.md           # This file
 ```

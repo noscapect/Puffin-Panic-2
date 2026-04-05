@@ -72,3 +72,37 @@ function createParticles(x, y, count, color, isPermanent = false) {
     }
 }
 
+// Visual Polish: Create dust particles when walking
+function createDustParticles(x, y) {
+    for (let i = 0; i < 2; i++) {
+        let p = new Particle(x + (Math.random() - 0.5) * 6, y, [180, 170, 160, 150], false);
+        p.vx = (Math.random() - 0.5) * 1;
+        p.vy = -Math.random() * 2;
+        p.life = 10 + Math.random() * 10;
+        particles.push(p);
+    }
+}
+
+// Visual Polish: Create spark particles when bashing
+function createSparkParticles(x, y) {
+    for (let i = 0; i < 5; i++) {
+        let p = new Particle(x + (Math.random() - 0.5) * 8, y + (Math.random() - 0.5) * 8, [255, 200 + Math.random() * 55, 50], false);
+        p.vx = (Math.random() - 0.5) * 6;
+        p.vy = (Math.random() - 0.5) * 6;
+        p.life = 5 + Math.random() * 10;
+        particles.push(p);
+    }
+}
+
+// Visual Polish: Create explosion shockwave particles
+function createShockwave(x, y) {
+    for (let i = 0; i < 12; i++) {
+        let angle = (i / 12) * Math.PI * 2;
+        let p = new Particle(x, y, [255, 100, 0], false);
+        p.vx = Math.cos(angle) * 4;
+        p.vy = Math.sin(angle) * 4;
+        p.life = 10 + Math.random() * 5;
+        particles.push(p);
+    }
+}
+

@@ -13,6 +13,35 @@ function setTerrain(x, y, val) {
     terrainData[y * GAME_WIDTH + x] = val;
 }
 
+// Fix: Ensure terrain modifications don't create unreachable areas
+// by keeping entrance and exit paths clear
+function ensurePathClear() {
+    // Clear area around entrance
+    for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+            let ex = ENTRANCE.x + dx;
+            let ey = ENTRANCE.y + dy;
+            if (ex >= 0 && ex < GAME_WIDTH && ey >= 0 && ey < GAME_HEIGHT) {
+                setTerrain(ex, ey, 0);
+            }
+        }
+    }
+    
+    // Clear area around exit
+    for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+            let ex = EXIT.x + dx;
+            let ey = EXIT.y + dy;
+            if (ex >= 0 && ex < GAME_WIDTH && ey >= 0 && ey < GAME_HEIGHT) {
+                setTerrain(ex, ey, 0);
+            }
+        }
+    }
+    
+    updateTerrainPixels(ENTRANCE.x - 2, ENTRANCE.y - 2, 5, 5);
+    updateTerrainPixels(EXIT.x - 2, EXIT.y - 2, EXIT.w + 4, EXIT.h + 4);
+}
+
 function updateTerrainPixels(x, y, w, h) {
     if (x === undefined) {
         renderTerrainToOffscreen();

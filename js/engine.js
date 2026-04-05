@@ -8,6 +8,25 @@ let EXIT = { x: 340, y: 78, w: 20, h: 12 };
 let loopId = null;
 let inputsSetup = false;
 let gameSpeed = 1;
+let soundEnabled = true;
+
+function toggleSound() {
+    Sound.init();
+    soundEnabled = !soundEnabled;
+    let btn = document.getElementById('btn-sound');
+    if (btn) btn.innerText = soundEnabled ? '🔊 Sound' : '🔇 Muted';
+    if (soundEnabled) {
+        Sound.startBGM();
+    } else {
+        Sound.stopBGM();
+    }
+}
+
+function playSound(soundName) {
+    if (soundEnabled && Sound[soundName]) {
+        Sound[soundName]();
+    }
+}
 
 function toggleSpeed() {
     gameSpeed = gameSpeed === 1 ? 2 : 1;
@@ -46,11 +65,14 @@ let mouseX = 0, mouseY = 0;
 let hoveredPuffin = null;
 let nukeActivated = false;
 let nukeCountdown = -1;
+let screenShake = 0;
+let screenShakeIntensity = 0;
 
 function triggerNuke() {
     if (!gameState.active || gameState.paused || nukeActivated) return;
     nukeActivated = true;
     nukeCountdown = FPS * 5; // 5 seconds countdown
+    playSound('nukeWarning');
     
     // Disable nuke button
     let nukeBtn = document.getElementById('btn-nuke');
@@ -99,13 +121,25 @@ function setupInputs() {
             return;
         }
         
-        // Left-click to assign skill
-        if (e.button === 0 && activeSkill) {
-            if (currentSkillCounts[activeSkill] <= 0) return;
-            if (hoveredPuffin && hoveredPuffin.canAcceptSkill(activeSkill)) {
-                hoveredPuffin.assignSkill(activeSkill);
-                currentSkillCounts[activeSkill]--;
-                updateUI();
+        // Left-click to assign skill or toggle blocker
+        if (e.button === 0) {
+            // If no skill selected, try to toggle a blocker
+            if (!activeSkill && hoveredPuffin) {
+                if (hoveredPuffin.toggleBlocker()) {
+                    playSound('click');
+                    return;
+                }
+            }
+            
+            // Assign skill if one is selected
+            if (activeSkill) {
+                if (currentSkillCounts[activeSkill] <= 0) return;
+                if (hoveredPuffin && hoveredPuffin.canAcceptSkill(activeSkill)) {
+                    hoveredPuffin.assignSkill(activeSkill);
+                    currentSkillCounts[activeSkill]--;
+                    updateUI();
+                    playSound('skillAssign');
+                }
             }
         }
     });
@@ -133,6 +167,7 @@ function selectSkill(skillId) {
     if (currentSkillCounts[skillId] > 0) {
         activeSkill = skillId;
         updateUI();
+        playSound('click');
     }
 }
 
@@ -173,12 +208,26 @@ function startGame() {
     loadLevel(levelIndex);
 }
 
+function openLevelEditor() {
+    document.getElementById('start-overlay').style.display = 'none';
+    if (typeof Editor !== 'undefined') {
+        Editor.enter();
+    }
+}
+
 function loadLevel(index) {
     currentLevelIndex = index;
     const lvl = LEVELS[currentLevelIndex];
     
     document.getElementById('game-title').innerText = "Puffin Panic - " + lvl.name;
     document.title = "Puffin Panic - " + lvl.name;
+    
+    // Reset achievements stats
+    if (typeof Achievements !== 'undefined') {
+        Achievements.resetStats();
+        Achievements.stats.total = lvl.total;
+        Achievements.stats.required = lvl.required;
+    }
     
     TOTAL_PUFFINS = lvl.total;
     REQUIRED_PUFFINS = lvl.required;
@@ -299,7 +348,7 @@ function checkEndCondition() {
     
     if (gameState.timeLeft <= 0 || (gameState.spawned === TOTAL_PUFFINS && activePuffins === 0)) {
         gameState.ending = true;
-        setTimeout(() => {
+    setTimeout(() => {
             gameState.active = false;
             let overlay = document.getElementById('message-overlay');
             let title = document.getElementById('message-title');
@@ -311,6 +360,7 @@ function checkEndCondition() {
                 title.innerText = 'LEVEL COMPLETE!';
                 title.style.color = '#5f5';
                 desc.innerText = `You saved ${gameState.saved} puffins. Target was ${REQUIRED_PUFFINS}.`;
+                playSound('levelComplete');
                 if (currentLevelIndex + 1 < LEVELS.length) {
                     btnNext.style.display = 'inline-block';
                 } else {
@@ -321,6 +371,7 @@ function checkEndCondition() {
                 title.innerText = 'LEVEL FAILED';
                 title.style.color = '#f55';
                 desc.innerText = `You only saved ${gameState.saved} puffins. Needed ${REQUIRED_PUFFINS}.`;
+                playSound('levelFail');
                 btnNext.style.display = 'none';
             }
         }, 1500); // 1.5 seconds pause before showing the end screen
@@ -381,6 +432,17 @@ function draw() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     ctx.save();
+    
+    // Visual polish: Apply screen shake
+    if (screenShake > 0) {
+        let shakeX = (Math.random() - 0.5) * screenShakeIntensity * 2;
+        let shakeY = (Math.random() - 0.5) * screenShakeIntensity * 2;
+        ctx.translate(shakeX, shakeY);
+        screenShake--;
+        screenShakeIntensity *= 0.9; // Decay intensity
+        if (screenShakeIntensity < 0.5) screenShakeIntensity = 0;
+    }
+    
     ctx.scale(SCALE, SCALE);
     
     // Draw Stars & Moon (Bg)
@@ -451,5 +513,10 @@ function draw() {
     }
 
     ctx.restore();
+    
+    // Draw achievement notification
+    if (typeof Achievements !== 'undefined') {
+        Achievements.draw(ctx);
+    }
 }
 
