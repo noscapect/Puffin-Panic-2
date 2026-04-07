@@ -583,7 +583,7 @@ class Puffin {
         }
         return false;
     }
-    
+
     draw(ctx) {
         if (this.state === ST_DEAD || this.state === ST_EXITED) return;
 

@@ -68,6 +68,16 @@ let nukeCountdown = -1;
 let screenShake = 0;
 let screenShakeIntensity = 0;
 
+function emitPortalAmbience() {
+    if (!gameState.active || gameState.paused) return;
+    if (typeof createPortalParticles !== 'function') return;
+
+    // Spawn a gentle stream of particles around the exit portal.
+    const px = EXIT.x + EXIT.w / 2 + (Math.random() - 0.5) * 8;
+    const py = EXIT.y + EXIT.h / 2 + (Math.random() - 0.5) * 8;
+    createPortalParticles(px, py, 1 + (Math.random() > 0.7 ? 1 : 0));
+}
+
 function triggerNuke() {
     if (!gameState.active || gameState.paused || nukeActivated) return;
     nukeActivated = true;
@@ -454,6 +464,11 @@ function gameLoop() {
 function update() {
     gameState.ticks++;
     if (gameState.timeLeft > 0) gameState.timeLeft--;
+
+    // Exit portal ambience particles.
+    if (gameState.ticks % 3 === 0) {
+        emitPortalAmbience();
+    }
     
     // Spawning
     if (gameState.ticks % SPAWN_RATE === 0 && gameState.spawned < TOTAL_PUFFINS) {
@@ -673,6 +688,26 @@ function draw() {
         ctx.fillStyle = `rgba(0, 255, 80, ${exitGlow})`;
         ctx.fillRect(EXIT.x + EXIT.w / 2 - 3, EXIT.y - 5, 6, 2);
     }
+
+    // Soft bloom around the portal (additive pass).
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    let portalGlow = ctx.createRadialGradient(
+        EXIT.x + EXIT.w / 2,
+        EXIT.y + EXIT.h / 2,
+        2,
+        EXIT.x + EXIT.w / 2,
+        EXIT.y + EXIT.h / 2,
+        18
+    );
+    portalGlow.addColorStop(0, `rgba(100, 255, 180, ${0.25 + exitGlow * 0.22})`);
+    portalGlow.addColorStop(0.45, `rgba(40, 220, 150, ${0.12 + exitGlow * 0.16})`);
+    portalGlow.addColorStop(1, 'rgba(0, 120, 90, 0)');
+    ctx.fillStyle = portalGlow;
+    ctx.beginPath();
+    ctx.arc(EXIT.x + EXIT.w / 2, EXIT.y + EXIT.h / 2, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
     
     // Draw Terrain
     ctx.drawImage(offscreenCanvas, 0, 0);
@@ -724,6 +759,24 @@ function draw() {
     }
 
     ctx.restore();
+
+    // Subtle post-process: cold grade + vignette.
+    ctx.fillStyle = 'rgba(120, 170, 230, 0.055)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    let vignette = ctx.createRadialGradient(
+        canvas.width * 0.5,
+        canvas.height * 0.48,
+        canvas.height * 0.25,
+        canvas.width * 0.5,
+        canvas.height * 0.5,
+        canvas.width * 0.62
+    );
+    vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vignette.addColorStop(0.72, 'rgba(6, 12, 24, 0.10)');
+    vignette.addColorStop(1, 'rgba(4, 8, 18, 0.30)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     // Draw achievement notification
     if (typeof Achievements !== 'undefined') {

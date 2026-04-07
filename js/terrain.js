@@ -42,6 +42,112 @@ function ensurePathClear() {
     updateTerrainPixels(EXIT.x - 2, EXIT.y - 2, EXIT.w + 4, EXIT.h + 4);
 }
 
+function clampColor(v) {
+    return Math.max(0, Math.min(255, Math.round(v)));
+}
+
+function hashNoise2D(x, y) {
+    let n = (x * 374761393 + y * 668265263) | 0;
+    n = (n ^ (n >> 13)) | 0;
+    n = (n * 1274126177) | 0;
+    return (((n ^ (n >> 16)) >>> 0) / 4294967295);
+}
+
+function getCurrentThemeName() {
+    return (typeof getLevelTheme === 'function') ? getLevelTheme(currentLevelIndex + 1) : 'grass';
+}
+
+function getThemeRenderProfile(themeName) {
+    const profiles = {
+        grass:   { noiseAmp: 12, depthTint: 0.08, crackChance: 0.02, rimBoost: [18, 22, 26], glaze: false },
+        desert:  { noiseAmp: 11, depthTint: 0.10, crackChance: 0.03, rimBoost: [16, 14, 10], glaze: false },
+        snow:    { noiseAmp: 10, depthTint: 0.06, crackChance: 0.015, rimBoost: [26, 30, 34], glaze: true },
+        rock:    { noiseAmp: 14, depthTint: 0.12, crackChance: 0.04, rimBoost: [14, 16, 18], glaze: false },
+        ice:     { noiseAmp: 9,  depthTint: 0.05, crackChance: 0.018, rimBoost: [30, 36, 44], glaze: true },
+        lava:    { noiseAmp: 16, depthTint: 0.15, crackChance: 0.05, rimBoost: [22, 10, 4],  glaze: false },
+        crystal: { noiseAmp: 12, depthTint: 0.08, crackChance: 0.03, rimBoost: [20, 18, 26], glaze: true }
+    };
+    return profiles[themeName] || profiles.grass;
+}
+
+function getTerrainPixelColor(x, y, theme, profile) {
+    const i = y * GAME_WIDTH + x;
+    const v = terrainData[i];
+
+    if (v === 0) return [0, 0, 0, 0];
+
+    if (v >= 10) {
+        const color = PALETTE[v - 10];
+        return color ? [color[0], color[1], color[2], color[3]] : [0, 0, 0, 0];
+    }
+
+    const top = (y > 0) ? terrainData[i - GAME_WIDTH] : 0;
+    const bottom = (y < GAME_HEIGHT - 1) ? terrainData[i + GAME_WIDTH] : 0;
+    const left = (x > 0) ? terrainData[i - 1] : 0;
+    const right = (x < GAME_WIDTH - 1) ? terrainData[i + 1] : 0;
+
+    const isSurface = top === 0;
+    const edgeLeft = left === 0;
+    const edgeRight = right === 0;
+    const edgeBottom = bottom === 0;
+
+    const coarse = Math.sin(x * 0.11 + y * 0.05) + Math.cos(x * 0.07 - y * 0.13);
+    const fine = (hashNoise2D(x, y) - 0.5) * 2;
+    const noise = coarse * (profile.noiseAmp * 0.5) + fine * (profile.noiseAmp * 0.5);
+    const depth = (y / GAME_HEIGHT) * profile.depthTint * 255;
+
+    let r = theme.terrain[0] + noise - depth;
+    let g = theme.terrain[1] + noise * 0.95 - depth * 0.9;
+    let b = theme.terrain[2] + noise * 0.9 - depth * 0.8;
+
+    if (isSurface) {
+        const crust = 8 + Math.sin(x * 0.4) * 5 + (hashNoise2D(x * 2, y * 2) - 0.5) * 6;
+        r = theme.surface[0] + crust;
+        g = theme.surface[1] + crust;
+        b = theme.surface[2] + crust;
+    }
+
+    // Rim-light and edge beveling to make chunks feel authored.
+    if (edgeLeft) {
+        r += profile.rimBoost[0];
+        g += profile.rimBoost[1];
+        b += profile.rimBoost[2];
+    }
+    if (edgeRight) {
+        r -= 10;
+        g -= 12;
+        b -= 14;
+    }
+    if (edgeBottom) {
+        r -= 16;
+        g -= 18;
+        b -= 20;
+    }
+
+    // Crack decals (dark tiny fissures).
+    if (!isSurface) {
+        const crackA = hashNoise2D(x * 3 + 17, y * 2 + 9) < profile.crackChance;
+        const crackB = ((x + y) % 11 === 0) && hashNoise2D(x * 5 + 3, y * 7 + 5) < profile.crackChance * 1.5;
+        if (crackA || crackB) {
+            r -= 30;
+            g -= 32;
+            b -= 34;
+        }
+    }
+
+    // Gloss streaks for icy/snow/crystal themes.
+    if (profile.glaze) {
+        const streak = (Math.abs((x * 13 + y * 7 + 9) % 37 - 18) <= 1);
+        if (streak && !edgeBottom) {
+            r += 12;
+            g += 16;
+            b += 22;
+        }
+    }
+
+    return [clampColor(r), clampColor(g), clampColor(b), 255];
+}
+
 function updateTerrainPixels(x, y, w, h) {
     if (x === undefined) {
         renderTerrainToOffscreen();
@@ -50,6 +156,9 @@ function updateTerrainPixels(x, y, w, h) {
     
     if (!terrainImgData) terrainImgData = new ImageData(GAME_WIDTH, GAME_HEIGHT);
     const data = terrainImgData.data;
+    const themeName = getCurrentThemeName();
+    const theme = getThemeColors();
+    const profile = getThemeRenderProfile(themeName);
     
     let startX = Math.max(0, Math.floor(x));
     let startY = Math.max(0, Math.floor(y));
@@ -61,34 +170,11 @@ function updateTerrainPixels(x, y, w, h) {
         for (let cx = startX; cx < endX; cx++) {
             let i = cy * GAME_WIDTH + cx;
             let idx = i * 4;
-            if (terrainData[i] === 1) {
-                let isSurface = (cy > 0 && terrainData[i - GAME_WIDTH] === 0);
-                if (isSurface) {
-                    // Enhanced snow surface with subtle texture
-                    let surfaceNoise = Math.sin(cx * 0.3) * 5 + Math.cos(cy * 0.5) * 3;
-                    data[idx] = 235 + surfaceNoise; 
-                    data[idx+1] = 240 + surfaceNoise; 
-                    data[idx+2] = 255; 
-                    data[idx+3] = 255;
-                } else {
-                    // Enhanced terrain with more natural noise pattern
-                    let noise = (Math.sin(cx*0.15) * Math.cos(cy*0.12) * 25) + 
-                                (Math.sin(cx*0.05 + cy*0.03) * 15) + 95;
-                    data[idx] = noise * 0.75; 
-                    data[idx+1] = noise * 0.65; 
-                    data[idx+2] = noise * 0.55; 
-                    data[idx+3] = 255;
-                }
-            } else if (terrainData[i] >= 10) {
-                let color = PALETTE[terrainData[i] - 10];
-                if (color) {
-                    data[idx] = color[0]; data[idx+1] = color[1]; data[idx+2] = color[2]; data[idx+3] = color[3];
-                } else {
-                    data[idx] = 0; data[idx+1] = 0; data[idx+2] = 0; data[idx+3] = 0;
-                }
-            } else {
-                data[idx] = 0; data[idx+1] = 0; data[idx+2] = 0; data[idx+3] = 0;
-            }
+            const pxColor = getTerrainPixelColor(cx, cy, theme, profile);
+            data[idx] = pxColor[0];
+            data[idx+1] = pxColor[1];
+            data[idx+2] = pxColor[2];
+            data[idx+3] = pxColor[3];
         }
     }
     
@@ -112,41 +198,20 @@ function _renderTerrainCore(data, terrainImgDataRef, offCtxRef) {
     const d = terrainImgDataRef.data;
     
     // Get theme colors for current level
+    const themeName = getCurrentThemeName();
     const theme = getThemeColors();
+    const profile = getThemeRenderProfile(themeName);
     
     for (let i = 0; i < terrainData.length; i++) {
         let x = i % GAME_WIDTH;
         let y = Math.floor(i / GAME_WIDTH);
         let idx = i * 4;
-        
-        if (terrainData[i] === 1) {
-            let isSurface = (y > 0 && terrainData[i - GAME_WIDTH] === 0);
-            if (isSurface) {
-                // Surface color with subtle texture based on theme
-                let surfaceNoise = Math.sin(x * 0.3) * 5 + Math.cos(y * 0.5) * 3;
-                d[idx] = Math.min(255, theme.surface[0] + surfaceNoise); 
-                d[idx+1] = Math.min(255, theme.surface[1] + surfaceNoise); 
-                d[idx+2] = Math.min(255, theme.surface[2] + surfaceNoise); 
-                d[idx+3] = 255;
-            } else {
-                // Terrain color with natural noise pattern based on theme
-                let noise = (Math.sin(x*0.15) * Math.cos(y*0.12) * 15) + 
-                            (Math.sin(x*0.05 + y*0.03) * 10);
-                d[idx] = Math.max(0, Math.min(255, theme.terrain[0] + noise)); 
-                d[idx+1] = Math.max(0, Math.min(255, theme.terrain[1] + noise)); 
-                d[idx+2] = Math.max(0, Math.min(255, theme.terrain[2] + noise)); 
-                d[idx+3] = 255;
-            }
-        } else if (terrainData[i] >= 10) {
-            let color = PALETTE[terrainData[i] - 10];
-            if (color) {
-                d[idx] = color[0]; d[idx+1] = color[1]; d[idx+2] = color[2]; d[idx+3] = color[3];
-            } else {
-                d[idx] = 0; d[idx+1] = 0; d[idx+2] = 0; d[idx+3] = 0;
-            }
-        } else {
-            d[idx] = 0; d[idx+1] = 0; d[idx+2] = 0; d[idx+3] = 0;
-        }
+
+        const pxColor = getTerrainPixelColor(x, y, theme, profile);
+        d[idx] = pxColor[0];
+        d[idx+1] = pxColor[1];
+        d[idx+2] = pxColor[2];
+        d[idx+3] = pxColor[3];
     }
     offCtxRef.putImageData(terrainImgDataRef, 0, 0);
     return terrainImgDataRef;

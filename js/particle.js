@@ -12,15 +12,28 @@ class Particle {
         this.settled = false;
         this.bounciness = 0.5;
         this.friction = 0.8;
+        this.gravityScale = 1;
+        this.collisionEnabled = true;
+        this.fadeRate = 1;
     }
     update() {
         if (this.settled) return;
 
         if (!this.isPermanent) {
-            this.life--;
+            this.life -= this.fadeRate;
         }
 
-        this.vy += 0.3; // grav
+        this.vy += 0.3 * this.gravityScale; // grav
+
+        if (!this.collisionEnabled) {
+            this.x += this.vx;
+            this.y += this.vy;
+            if (this.y > GAME_HEIGHT + 20 || this.y < -20) {
+                this.life = 0;
+                this.isPermanent = false;
+            }
+            return;
+        }
 
         // Y collision
         let nextY = this.y + this.vy;
@@ -102,6 +115,27 @@ function createShockwave(x, y) {
         p.vx = Math.cos(angle) * 4;
         p.vy = Math.sin(angle) * 4;
         p.life = 10 + Math.random() * 5;
+        particles.push(p);
+    }
+}
+
+// Visual polish: Exit portal ambience wisps
+function createPortalParticles(x, y, count = 2) {
+    const portalColors = [
+        [110, 255, 190],
+        [80, 230, 255],
+        [145, 255, 230]
+    ];
+
+    for (let i = 0; i < count; i++) {
+        let color = portalColors[Math.floor(Math.random() * portalColors.length)];
+        let p = new Particle(x + (Math.random() - 0.5) * 6, y + (Math.random() - 0.5) * 5, color, false);
+        p.vx = (Math.random() - 0.5) * 0.45;
+        p.vy = -0.45 - Math.random() * 0.75;
+        p.gravityScale = -0.04;
+        p.collisionEnabled = false;
+        p.fadeRate = 0.85;
+        p.life = 20 + Math.random() * 24;
         particles.push(p);
     }
 }
