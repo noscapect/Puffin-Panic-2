@@ -613,6 +613,28 @@ class Puffin {
                 ctx.fillRect(px, py, 1, 1);
             }
         }
+
+        // Cuter face pass: bigger eye contrast, tiny sparkle, soft cheek blush.
+        // Keeps the same 8x12 sprite footprint and only repaints a few feature pixels.
+        if (this.state !== ST_SPLAT && this.state !== ST_NUKE_PANIC) {
+            // Eye (2 dark pixels)
+            ctx.fillStyle = '#111';
+            ctx.fillRect(4, 2, 1, 1);
+            ctx.fillRect(4, 3, 1, 1);
+
+            // Eye sparkle
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(5, 2, 1, 1);
+
+            // Cheek blush
+            ctx.fillStyle = 'rgba(255, 170, 170, 0.75)';
+            ctx.fillRect(5, 4, 1, 1);
+
+            // Soft belly highlight to make the body feel rounder.
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+            ctx.fillRect(3, 7, 1, 1);
+            ctx.fillRect(4, 8, 1, 1);
+        }
         
         // Floater umbrella
         if (this.state === ST_FLOAT) {

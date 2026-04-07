@@ -29,7 +29,9 @@ function playSound(soundName) {
 }
 
 function toggleSpeed() {
-    gameSpeed = gameSpeed === 1 ? 2 : 1;
+    if (gameSpeed === 1) gameSpeed = 2;
+    else if (gameSpeed === 2) gameSpeed = 4;
+    else gameSpeed = 1;
     let btn = document.getElementById('btn-speed');
     if (btn) btn.innerText = 'Speed: ' + gameSpeed + 'x';
 }
