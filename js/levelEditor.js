@@ -1,14 +1,59 @@
-// --- Level Editor ---
+
+// --- Enhanced Level Editor ---
 
 let editorMode = false;
-let editorTool = 'terrain'; // terrain, erase, entrance, exit
+let editorTool = 'terrain'; // terrain, erase, fill, line, rect, entrance, exit
 let editorBrushSize = 1;
 let editorLevelData = null;
 let editorEntrance = { x: 70, y: 20 };
 let editorExit = { x: 340, y: 78, w: 20, h: 12 };
+let originalGameActive = false;
+let showGrid = false;
+let gridSize = 10;
+let isDrawing = false;
+let lastDrawX = -1, lastDrawY = -1;
+
+// Undo/Redo system
+let undoStack = [];
+let redoStack = [];
+const MAX_UNDO = 50;
+
+// Shape drawing state
+let shapeStart = null;
+
+function saveUndoState() {
+    undoStack.push(new Uint8Array(editorLevelData));
+    if (undoStack.length > MAX_UNDO) {
+        undoStack.shift();
+    }
+    redoStack = []; // Clear redo on new action
+}
+
+function undo() {
+    if (undoStack.length === 0) return;
+    redoStack.push(new Uint8Array(editorLevelData));
+    editorLevelData = undoStack.pop();
+    renderTerrainToOffscreen();
+}
+
+function redo() {
+    if (redoStack.length === 0) return;
+    undoStack.push(new Uint8Array(editorLevelData));
+    editorLevelData = redoStack.pop();
+    renderTerrainToOffscreen();
+}
 
 function enterEditorMode() {
     editorMode = true;
+    originalGameActive = gameState.active;
+    gameState.active = false;
+    hideGameUI();
+    
+    undoStack = [];
+    redoStack = [];
+    isDrawing = false;
+    shapeStart = null;
+    
     editorLevelData = new Uint8Array(GAME_WIDTH * GAME_HEIGHT);
     
     // Create basic ground
@@ -27,94 +72,415 @@ function enterEditorMode() {
     editorEntrance = { x: 70, y: 20 };
     editorExit = { x: 340, y: 78, w: 20, h: 12 };
     
+    // Save initial state
+    saveUndoState();
+    
+    // Copy editor data to terrain for rendering
+    for (let i = 0; i < GAME_WIDTH * GAME_HEIGHT; i++) {
+        terrainData[i] = editorLevelData[i];
+    }
+    
     renderTerrainToOffscreen();
     showEditorUI();
+    
+    // Add keyboard shortcuts
+    document.addEventListener('keydown', editorKeyDown);
+    
+    // Start editor render loop
+    editorLoop();
+}
+
+function editorKeyDown(e) {
+    if (!editorMode) return;
+    
+    // Ctrl+Z for undo, Ctrl+Y for redo
+    if (e.ctrlKey && e.key === 'z') {
+        e.preventDefault();
+        undo();
+        return;
+    }
+    if (e.ctrlKey && e.key === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+    }
+    
+    // G for grid toggle
+    if (e.key === 'g') {
+        showGrid = !showGrid;
+    }
+    
+    // Number keys for brush size
+    if (e.key >= '1' && e.key <= '9') {
+        editorBrushSize = parseInt(e.key);
+        const slider = document.getElementById('brush-size');
+        const val = document.getElementById('brush-size-val');
+        if (slider) slider.value = editorBrushSize;
+        if (val) val.innerText = editorBrushSize;
+    }
+}
+
+function editorLoop() {
+    if (!editorMode) return;
+    
+    // Copy editor data to terrain
+    for (let i = 0; i < GAME_WIDTH * GAME_HEIGHT; i++) {
+        terrainData[i] = editorLevelData[i];
+    }
+    
+    // Draw the game view
+    ctx.fillStyle = '#111a22';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.scale(SCALE, SCALE);
+    
+    // Draw terrain
+    ctx.drawImage(offscreenCanvas, 0, 0);
+    
+    // Draw grid if enabled
+    if (showGrid) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 0.5;
+        for (let x = 0; x < GAME_WIDTH; x += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, GAME_HEIGHT);
+            ctx.stroke();
+        }
+        for (let y = 0; y < GAME_HEIGHT; y += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(GAME_WIDTH, y);
+            ctx.stroke();
+        }
+    }
+    
+    // Draw entrance marker
+    ctx.fillStyle = '#2196F3';
+    ctx.fillRect(editorEntrance.x - 10, editorEntrance.y - 5, 20, 10);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(editorEntrance.x - 8, editorEntrance.y - 3, 16, 6);
+    ctx.fillStyle = '#fff';
+    ctx.font = '6px monospace';
+    ctx.fillText('IN', editorEntrance.x - 3, editorEntrance.y + 2);
+    
+    // Draw exit marker
+    ctx.fillStyle = '#FF9800';
+    ctx.fillRect(editorExit.x, editorExit.y, editorExit.w, editorExit.h);
+    ctx.fillStyle = '#0f0';
+    ctx.fillRect(editorExit.x + editorExit.w/2 - 2, editorExit.y - 4, 4, 4);
+    ctx.fillStyle = '#fff';
+    ctx.fillText('OUT', editorExit.x - 2, editorExit.y + editorExit.h + 8);
+    
+    // Draw shape preview
+    if (shapeStart && (editorTool === 'line' || editorTool === 'rect')) {
+        ctx.strokeStyle = 'rgba(255, 255, 0, 0.7)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
+        
+        if (editorTool === 'line') {
+            ctx.beginPath();
+            ctx.moveTo(shapeStart.x, shapeStart.y);
+            ctx.lineTo(mouseX, mouseY);
+            ctx.stroke();
+        } else if (editorTool === 'rect') {
+            const w = mouseX - shapeStart.x;
+            const h = mouseY - shapeStart.y;
+            ctx.strokeRect(shapeStart.x, shapeStart.y, w, h);
+        }
+        ctx.setLineDash([]);
+    }
+    
+    // Draw brush preview
+    if (editorTool !== 'entrance' && editorTool !== 'exit' && editorTool !== 'line' && editorTool !== 'rect') {
+        const half = Math.floor(editorBrushSize / 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mouseX - half, mouseY - half, editorBrushSize, editorBrushSize);
+    }
+    
+    // Draw terrain count info
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px monospace';
+    const terrainCount = Array.from(editorLevelData).filter(v => v === 1).length;
+    const percentage = ((terrainCount / (GAME_WIDTH * GAME_HEIGHT)) * 100).toFixed(1);
+    ctx.fillText(`Terrain: ${terrainCount} pixels (${percentage}%)`, 5, GAME_HEIGHT - 5);
+    
+    ctx.restore();
+    
+    requestAnimationFrame(editorLoop);
 }
 
 function exitEditorMode() {
     editorMode = false;
+    gameState.active = originalGameActive;
     hideEditorUI();
+    hideGameUI();
+    
+    // Remove keyboard shortcuts
+    document.removeEventListener('keydown', editorKeyDown);
+    
+    // Return to start screen or game
+    document.getElementById('start-overlay').style.display = 'flex';
 }
 
 function showEditorUI() {
     let html = `
-    <div id="editor-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-        <h2 style="color:#fff;margin-bottom:20px;">🛠️ Level Editor</h2>
-        <div style="display:flex;gap:10px;margin-bottom:20px;">
-            <button onclick="setEditorTool('terrain')" id="tool-terrain" class="editor-tool-btn" style="padding:10px 20px;font-family:inherit;background:#4CAF50;color:white;border:none;cursor:pointer;">🪨 Terrain</button>
-            <button onclick="setEditorTool('erase')" id="tool-erase" class="editor-tool-btn" style="padding:10px 20px;font-family:inherit;background:#f44336;color:white;border:none;cursor:pointer;">🧹 Erase</button>
-            <button onclick="setEditorTool('entrance')" id="tool-entrance" class="editor-tool-btn" style="padding:10px 20px;font-family:inherit;background:#2196F3;color:white;border:none;cursor:pointer;">🚪 Entrance</button>
-            <button onclick="setEditorTool('exit')" id="tool-exit" class="editor-tool-btn" style="padding:10px 20px;font-family:inherit;background:#FF9800;color:white;border:none;cursor:pointer;">🏁 Exit</button>
-        </div>
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;">
-            <span style="color:#fff;">Brush Size:</span>
-            <input type="range" id="brush-size" min="1" max="10" value="1" oninput="editorBrushSize=parseInt(this.value)" style="width:150px;">
-            <span id="brush-size-val" style="color:#5f5;">1</span>
-        </div>
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;">
-            <span style="color:#fff;">Level Name:</span>
-            <input type="text" id="level-name" value="Custom Level" style="padding:5px;font-family:inherit;background:#334;color:#fff;border:1px solid #556;">
-        </div>
-        <div style="display:flex;gap:10px;">
-            <button onclick="testLevel()" style="padding:10px 20px;font-family:inherit;background:#4CAF50;color:white;border:none;cursor:pointer;">▶ Test Level</button>
-            <button onclick="exportLevel()" style="padding:10px 20px;font-family:inherit;background:#2196F3;color:white;border:none;cursor:pointer;">📋 Export</button>
-            <button onclick="clearEditor()" style="padding:10px 20px;font-family:inherit;background:#f44336;color:white;border:none;cursor:pointer;">🗑️ Clear</button>
-            <button onclick="exitEditorMode()" style="padding:10px 20px;font-family:inherit;background:#666;color:white;border:none;cursor:pointer;">✖ Close</button>
-        </div>
-        <div style="color:#888;margin-top:15px;font-size:12px;">
-            Left-click to draw | Right-click to erase | Scroll to change brush size
+    <div id="editor-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:transparent;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;overflow-y:auto;pointer-events:none;">
+        <div style="pointer-events:auto;background:rgba(0,0,0,0.9);padding:20px;border-radius:10px;max-width:600px;width:90%;">
+            <h2 style="color:#fff;margin-bottom:15px;font-size:clamp(18px,3vw,24px);text-align:center;">🛠️ Level Editor</h2>
+            
+            <!-- Tools Row 1: Drawing Tools -->
+            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;justify-content:center;">
+                <button onclick="setEditorTool('terrain')" id="tool-terrain" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#4CAF50;color:white;border:none;cursor:pointer;font-size:13px;">🪨 Terrain</button>
+                <button onclick="setEditorTool('erase')" id="tool-erase" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#f44336;color:white;border:none;cursor:pointer;font-size:13px;">🧹 Erase</button>
+                <button onclick="setEditorTool('fill')" id="tool-fill" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#9C27B0;color:white;border:none;cursor:pointer;font-size:13px;">🪣 Fill</button>
+            </div>
+            
+            <!-- Tools Row 2: Shape Tools -->
+            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;justify-content:center;">
+                <button onclick="setEditorTool('line')" id="tool-line" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#795548;color:white;border:none;cursor:pointer;font-size:13px;">📏 Line</button>
+                <button onclick="setEditorTool('rect')" id="tool-rect" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#607D8B;color:white;border:none;cursor:pointer;font-size:13px;">⬜ Rectangle</button>
+            </div>
+            
+            <!-- Tools Row 3: Placement Tools -->
+            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;justify-content:center;">
+                <button onclick="setEditorTool('entrance')" id="tool-entrance" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#2196F3;color:white;border:none;cursor:pointer;font-size:13px;">🚪 Entrance</button>
+                <button onclick="setEditorTool('exit')" id="tool-exit" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#FF9800;color:white;border:none;cursor:pointer;font-size:13px;">🏁 Exit</button>
+            </div>
+            
+            <!-- Settings Row -->
+            <div style="display:flex;gap:15px;align-items:center;margin-bottom:12px;flex-wrap:wrap;justify-content:center;">
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <span style="color:#fff;font-size:12px;">Brush:</span>
+                    <input type="range" id="brush-size" min="1" max="20" value="1" oninput="editorBrushSize=parseInt(this.value)" style="width:100px;">
+                    <span id="brush-size-val" style="color:#5f5;font-size:12px;">1</span>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <label style="color:#fff;font-size:12px;cursor:pointer;">
+                        <input type="checkbox" id="grid-toggle" ${showGrid ? 'checked' : ''} onchange="showGrid=this.checked"> Grid
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Level Name -->
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;justify-content:center;">
+                <span style="color:#fff;font-size:12px;">Name:</span>
+                <input type="text" id="level-name" value="Custom Level" style="padding:5px 8px;font-family:inherit;background:#334;color:#fff;border:1px solid #556;font-size:12px;width:150px;">
+            </div>
+            
+            <!-- Action Buttons -->
+            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;justify-content:center;">
+                <button onclick="undo()" style="padding:8px 14px;font-family:inherit;background:#607D8B;color:white;border:none;cursor:pointer;font-size:13px;" title="Ctrl+Z">↩ Undo</button>
+                <button onclick="redo()" style="padding:8px 14px;font-family:inherit;background:#607D8B;color:white;border:none;cursor:pointer;font-size:13px;" title="Ctrl+Y">↪ Redo</button>
+                <button onclick="saveLevelToStorage()" style="padding:8px 14px;font-family:inherit;background:#4CAF50;color:white;border:none;cursor:pointer;font-size:13px;">💾 Save</button>
+                <button onclick="loadLevelFromStorage()" style="padding:8px 14px;font-family:inherit;background:#2196F3;color:white;border:none;cursor:pointer;font-size:13px;">📂 Load</button>
+            </div>
+            
+            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;justify-content:center;">
+                <button onclick="testLevel()" style="padding:8px 16px;font-family:inherit;background:#4CAF50;color:white;border:none;cursor:pointer;font-size:14px;font-weight:bold;">▶ Test Level</button>
+                <button onclick="exportLevel()" style="padding:8px 14px;font-family:inherit;background:#2196F3;color:white;border:none;cursor:pointer;font-size:13px;">📋 Export</button>
+                <button onclick="importLevelPrompt()" style="padding:8px 14px;font-family:inherit;background:#9C27B0;color:white;border:none;cursor:pointer;font-size:13px;">📥 Import</button>
+                <button onclick="clearEditor()" style="padding:8px 14px;font-family:inherit;background:#f44336;color:white;border:none;cursor:pointer;font-size:13px;">🗑️ Clear</button>
+                <button onclick="exitEditorMode()" style="padding:8px 14px;font-family:inherit;background:#666;color:white;border:none;cursor:pointer;font-size:13px;">✖ Close</button>
+            </div>
+            
+            <!-- Instructions -->
+            <div style="color:#888;margin-top:10px;font-size:11px;text-align:center;line-height:1.6;">
+                Left-click: Draw | Right-click: Erase | Scroll: Brush size<br>
+                Ctrl+Z: Undo | Ctrl+Y: Redo | G: Toggle Grid | 1-9: Brush size
+            </div>
         </div>
     </div>
     `;
     document.body.insertAdjacentHTML('beforeend', html);
     
     // Add editor click handler
-    canvas.addEventListener('mousedown', editorClickHandler);
+    canvas.addEventListener('mousedown', editorMouseDown);
+    canvas.addEventListener('mouseup', editorMouseUp);
+    canvas.addEventListener('mousemove', editorMouseMove);
     canvas.addEventListener('wheel', editorWheelHandler);
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    
+    // Set initial tool highlight
+    setEditorTool('terrain');
 }
 
 function hideEditorUI() {
     const overlay = document.getElementById('editor-overlay');
     if (overlay) overlay.remove();
-    canvas.removeEventListener('mousedown', editorClickHandler);
+    canvas.removeEventListener('mousedown', editorMouseDown);
+    canvas.removeEventListener('mouseup', editorMouseUp);
+    canvas.removeEventListener('mousemove', editorMouseMove);
     canvas.removeEventListener('wheel', editorWheelHandler);
 }
 
 function setEditorTool(tool) {
     editorTool = tool;
+    shapeStart = null;
     document.querySelectorAll('.editor-tool-btn').forEach(btn => {
         btn.style.border = 'none';
         btn.style.boxShadow = 'none';
+        btn.style.transform = 'none';
     });
     const activeBtn = document.getElementById(`tool-${tool}`);
     if (activeBtn) {
         activeBtn.style.border = '2px solid #fff';
         activeBtn.style.boxShadow = '0 0 10px rgba(255,255,255,0.5)';
+        activeBtn.style.transform = 'scale(1.05)';
     }
 }
 
-function editorClickHandler(e) {
+function getCanvasCoords(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = GAME_WIDTH / rect.width;
+    const scaleY = GAME_HEIGHT / rect.height;
+    return {
+        x: Math.floor((e.clientX - rect.left) * scaleX),
+        y: Math.floor((e.clientY - rect.top) * scaleY)
+    };
+}
+
+function editorMouseDown(e) {
+    if (!editorMode) return;
+    e.preventDefault();
+    
+    const coords = getCanvasCoords(e);
+    
+    // Right-click always erases
+    if (e.button === 2) {
+        saveUndoState();
+        paintTerrain(coords.x, coords.y, false);
+        isDrawing = true;
+        lastDrawX = coords.x;
+        lastDrawY = coords.y;
+        return;
+    }
+    
+    if (e.button !== 0) return;
+    
+    // Entrance/Exit placement
+    if (editorTool === 'entrance') {
+        saveUndoState();
+        editorEntrance = { x: coords.x, y: coords.y };
+        renderTerrainToOffscreen();
+        return;
+    }
+    
+    if (editorTool === 'exit') {
+        saveUndoState();
+        editorExit = { x: coords.x, y: coords.y, w: 20, h: 12 };
+        renderTerrainToOffscreen();
+        return;
+    }
+    
+    // Fill tool
+    if (editorTool === 'fill') {
+        saveUndoState();
+        floodFill(coords.x, coords.y, 1);
+        renderTerrainToOffscreen();
+        return;
+    }
+    
+    // Shape tools - start drawing
+    if (editorTool === 'line' || editorTool === 'rect') {
+        saveUndoState();
+        shapeStart = { x: coords.x, y: coords.y };
+        return;
+    }
+    
+    // Regular drawing
+    saveUndoState();
+    paintTerrain(coords.x, coords.y, true);
+    isDrawing = true;
+    lastDrawX = coords.x;
+    lastDrawY = coords.y;
+}
+
+function editorMouseUp(e) {
     if (!editorMode) return;
     
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) / SCALE);
-    const y = Math.floor((e.clientY - rect.top) / SCALE);
+    // Complete shape drawing
+    if (shapeStart && (editorTool === 'line' || editorTool === 'rect')) {
+        const coords = getCanvasCoords(e);
+        drawShape(shapeStart.x, shapeStart.y, coords.x, coords.y, editorTool === 'line');
+        shapeStart = null;
+        renderTerrainToOffscreen();
+    }
     
-    if (editorTool === 'entrance') {
-        editorEntrance = { x: x, y: y };
-        renderTerrainToOffscreen();
-    } else if (editorTool === 'exit') {
-        editorExit = { x: x, y: y, w: 20, h: 12 };
-        renderTerrainToOffscreen();
+    isDrawing = false;
+    lastDrawX = -1;
+    lastDrawY = -1;
+}
+
+function editorMouseMove(e) {
+    if (!editorMode) return;
+    
+    // Update mouse position for preview
+    const coords = getCanvasCoords(e);
+    mouseX = coords.x;
+    mouseY = coords.y;
+    
+    // Continuous drawing while holding mouse
+    if (isDrawing && (editorTool === 'terrain' || editorTool === 'erase')) {
+        if (lastDrawX !== -1) {
+            // Interpolate between last and current position for smooth drawing
+            drawLine(lastDrawX, lastDrawY, coords.x, coords.y, editorTool === 'terrain');
+        }
+        lastDrawX = coords.x;
+        lastDrawY = coords.y;
+    }
+}
+
+function drawLine(x0, y0, x1, y1, add) {
+    // Bresenham's line algorithm for smooth drawing
+    const dx = Math.abs(x1 - x0);
+    const dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    
+    while (true) {
+        paintTerrain(x0, y0, add);
+        
+        if (x0 === x1 && y0 === y1) break;
+        const e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x0 += sx; }
+        if (e2 < dx) { err += dx; y0 += sy; }
+    }
+}
+
+function drawShape(x0, y0, x1, y1, isLine) {
+    if (isLine) {
+        drawLine(x0, y0, x1, y1, true);
     } else {
-        paintTerrain(x, y, e.button === 2 || e.button === 0);
+        // Draw rectangle outline
+        const minX = Math.min(x0, x1);
+        const maxX = Math.max(x0, x1);
+        const minY = Math.min(y0, y1);
+        const maxY = Math.max(y0, y1);
+        
+        for (let x = minX; x <= maxX; x++) {
+            setPixel(x, minY, 1);
+            setPixel(x, maxY, 1);
+        }
+        for (let y = minY; y <= maxY; y++) {
+            setPixel(minX, y, 1);
+            setPixel(maxX, y, 1);
+        }
+    }
+}
+
+function setPixel(x, y, val) {
+    if (x >= 0 && x < GAME_WIDTH && y >= 0 && y < GAME_HEIGHT) {
+        editorLevelData[y * GAME_WIDTH + x] = val;
     }
 }
 
 function editorWheelHandler(e) {
     if (!editorMode) return;
     e.preventDefault();
-    editorBrushSize = Math.max(1, Math.min(10, editorBrushSize + (e.deltaY > 0 ? -1 : 1)));
+    editorBrushSize = Math.max(1, Math.min(20, editorBrushSize + (e.deltaY > 0 ? -1 : 1)));
     const slider = document.getElementById('brush-size');
     const val = document.getElementById('brush-size-val');
     if (slider) slider.value = editorBrushSize;
@@ -136,47 +502,74 @@ function paintTerrain(x, y, add) {
     }
     
     // Update offscreen canvas
-    const startX = Math.max(0, x - half);
-    const startY = Math.max(0, y - half);
-    const w = Math.min(GAME_WIDTH - startX, editorBrushSize);
-    const h = Math.min(GAME_HEIGHT - startY, editorBrushSize);
-    updateTerrainPixels(startX, startY, w, h);
+    renderTerrainToOffscreen();
+}
+
+function floodFill(startX, startY, newVal) {
+    if (startX < 0 || startX >= GAME_WIDTH || startY < 0 || startY >= GAME_HEIGHT) return;
+    
+    const oldVal = editorLevelData[startY * GAME_WIDTH + startX];
+    if (oldVal === newVal) return;
+    
+    const stack = [[startX, startY]];
+    const visited = new Set();
+    
+    while (stack.length > 0) {
+        const [x, y] = stack.pop();
+        const key = `${x},${y}`;
+        
+        if (visited.has(key)) continue;
+        if (x < 0 || x >= GAME_WIDTH || y < 0 || y >= GAME_HEIGHT) continue;
+        if (editorLevelData[y * GAME_WIDTH + x] !== oldVal) continue;
+        
+        visited.add(key);
+        editorLevelData[y * GAME_WIDTH + x] = newVal;
+        
+        stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
+    
+    renderTerrainToOffscreen();
 }
 
 function clearEditor() {
     if (confirm('Clear all terrain?')) {
+        saveUndoState();
         editorLevelData.fill(0);
         renderTerrainToOffscreen();
     }
 }
 
-function testLevel() {
-    // Save current editor state and load level
+function saveLevelToStorage() {
     const levelData = exportLevelData();
-    const customLevel = {
-        name: document.getElementById('level-name').value || 'Custom Level',
-        total: 20,
-        required: 15,
-        spawnRate: FPS * 2,
-        time: 5 * 60 * FPS,
-        entrance: { ...editorEntrance },
-        exit: { ...editorExit },
-        skills: { floater: 5, bomber: 3, blocker: 3, builder: 8, basher: 5, digger: 5, climber: 5, miner: 5, platformer: 5 },
-        buildTerrain: null,
-        _terrainData: levelData
-    };
-    
-    // Temporarily add as a level
-    const tempIndex = LEVELS.length;
-    LEVELS.push(customLevel);
-    
-    exitEditorMode();
-    loadLevel(tempIndex);
-    
-    // Remove temp level after playing
-    setTimeout(() => {
-        LEVELS.pop();
-    }, 1000);
+    levelData.name = document.getElementById('level-name').value || 'Custom Level';
+    try {
+        localStorage.setItem('puffinLevel', JSON.stringify(levelData));
+        alert('Level saved!');
+    } catch (e) {
+        alert('Failed to save level.');
+    }
+}
+
+function loadLevelFromStorage() {
+    try {
+        const saved = localStorage.getItem('puffinLevel');
+        if (!saved) {
+            alert('No saved level found.');
+            return;
+        }
+        const data = JSON.parse(saved);
+        importLevelData(data);
+        alert('Level loaded!');
+    } catch (e) {
+        alert('Failed to load level.');
+    }
+}
+
+function importLevelPrompt() {
+    const json = prompt('Paste level data to import:');
+    if (json) {
+        importLevel(json);
+    }
 }
 
 function exportLevelData() {
@@ -205,6 +598,29 @@ function exportLevelData() {
     };
 }
 
+function importLevelData(data) {
+    editorLevelData = new Uint8Array(GAME_WIDTH * GAME_HEIGHT);
+    let idx = 0;
+    for (let i = 0; i < data.data.length; i += 2) {
+        const val = data.data[i];
+        const count = data.data[i + 1];
+        for (let j = 0; j < count; j++) {
+            if (idx < editorLevelData.length) {
+                editorLevelData[idx++] = val;
+            }
+        }
+    }
+    
+    editorEntrance = data.entrance || { x: 70, y: 20 };
+    editorExit = data.exit || { x: 340, y: 78, w: 20, h: 12 };
+    
+    undoStack = [];
+    redoStack = [];
+    saveUndoState();
+    
+    renderTerrainToOffscreen();
+}
+
 function exportLevel() {
     const levelData = exportLevelData();
     const json = JSON.stringify(levelData);
@@ -221,64 +637,92 @@ function exportLevel() {
 function importLevel(jsonString) {
     try {
         const data = JSON.parse(jsonString);
-        
-        // Decompress
-        editorLevelData = new Uint8Array(GAME_WIDTH * GAME_HEIGHT);
-        let idx = 0;
-        for (let i = 0; i < data.data.length; i += 2) {
-            const val = data.data[i];
-            const count = data.data[i + 1];
-            for (let j = 0; j < count; j++) {
-                editorLevelData[idx++] = val;
-            }
-        }
-        
-        editorEntrance = data.entrance || { x: 70, y: 20 };
-        editorExit = data.exit || { x: 340, y: 78, w: 20, h: 12 };
-        
-        renderTerrainToOffscreen();
+        importLevelData(data);
+        alert('Level imported successfully!');
         return true;
     } catch (e) {
         console.error('Failed to import level:', e);
+        alert('Failed to import level. Invalid data.');
         return false;
     }
 }
 
-// Override renderTerrainToOffscreen for editor mode
-const originalRenderTerrain = renderTerrainToOffscreen;
+function testLevel() {
+    // Save current editor state
+    const levelDataCopy = new Uint8Array(editorLevelData);
+    const entranceCopy = { ...editorEntrance };
+    const exitCopy = { ...editorExit };
+    const levelName = document.getElementById('level-name') ? document.getElementById('level-name').value : 'Custom Level';
+    
+    exitEditorMode();
+    
+    // Create a custom level that uses the editor data
+    const customLevel = {
+        name: levelName,
+        total: 20,
+        required: 15,
+        spawnRate: FPS * 2,
+        time: 5 * 60 * FPS,
+        entrance: entranceCopy,
+        exit: exitCopy,
+        skills: { floater: 5, bomber: 3, blocker: 3, builder: 8, basher: 5, digger: 5, climber: 5, miner: 5, platformer: 5 },
+        buildTerrain: function(data, gw, gh) {
+            // Copy the saved editor data
+            for (let i = 0; i < levelDataCopy.length; i++) {
+                data[i] = levelDataCopy[i];
+            }
+        },
+        isCustom: true
+    };
+    
+    // Temporarily add as a level
+    const tempIndex = LEVELS.length;
+    LEVELS.push(customLevel);
+    
+    // Store reference for cleanup
+    window._customLevelIndex = tempIndex;
+    window._customLevelCleanup = function() {
+        if (window._customLevelIndex !== null && LEVELS[window._customLevelIndex] && LEVELS[window._customLevelIndex].isCustom) {
+            LEVELS.splice(window._customLevelIndex, 1);
+        }
+        window._customLevelIndex = null;
+        window._customLevelCleanup = null;
+    };
+    
+    loadLevel(tempIndex);
+}
 
+// Editor-specific terrain rendering with entrance/exit markers
 function renderTerrainForEditor() {
     if (editorMode && editorLevelData) {
-        // Temporarily swap terrain data
+        // Temporarily swap terrain data for rendering
         const temp = terrainData;
         terrainData = editorLevelData;
-        originalRenderTerrain();
         
-        // Draw entrance
+        // Use the core rendering function
+        if (!terrainImgData) terrainImgData = new ImageData(GAME_WIDTH, GAME_HEIGHT);
+        terrainImgData = _renderTerrainCore(terrainImgData, terrainImgData, offCtx);
+        
+        // Draw entrance marker on offscreen canvas
         offCtx.fillStyle = '#2196F3';
         offCtx.fillRect(editorEntrance.x - 10, editorEntrance.y - 5, 20, 10);
         offCtx.fillStyle = '#000';
         offCtx.fillRect(editorEntrance.x - 8, editorEntrance.y - 3, 16, 6);
+        offCtx.fillStyle = '#fff';
+        offCtx.font = '6px monospace';
+        offCtx.fillText('IN', editorEntrance.x - 3, editorEntrance.y + 2);
         
-        // Draw exit
+        // Draw exit marker on offscreen canvas
         offCtx.fillStyle = '#FF9800';
         offCtx.fillRect(editorExit.x, editorExit.y, editorExit.w, editorExit.h);
         offCtx.fillStyle = '#0f0';
         offCtx.fillRect(editorExit.x + editorExit.w/2 - 2, editorExit.y - 4, 4, 4);
+        offCtx.fillStyle = '#fff';
+        offCtx.font = '6px monospace';
+        offCtx.fillText('OUT', editorExit.x - 2, editorExit.y + editorExit.h + 8);
         
-        // Draw brush preview
-        if (editorTool !== 'entrance' && editorTool !== 'exit') {
-            const mx = Math.floor(mouseX);
-            const my = Math.floor(mouseY);
-            const half = Math.floor(editorBrushSize / 2);
-            offCtx.strokeStyle = 'rgba(255,255,255,0.5)';
-            offCtx.lineWidth = 1;
-            offCtx.strokeRect(mx - half, my - half, editorBrushSize, editorBrushSize);
-        }
-        
+        // Restore original terrain data
         terrainData = temp;
-    } else {
-        originalRenderTerrain();
     }
 }
 
@@ -288,5 +732,7 @@ window.Editor = {
     exit: exitEditorMode,
     import: importLevel,
     setTool: setEditorTool,
-    isActive: () => editorMode
+    isActive: () => editorMode,
+    undo: undo,
+    redo: redo
 };

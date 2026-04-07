@@ -226,4 +226,3 @@ const SPRITE_NUKE_PANIC = [
 
 const PUFFIN_W = 8;
 const PUFFIN_H = 12;
-

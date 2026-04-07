@@ -105,14 +105,21 @@ function setupInputs() {
     if (inputsSetup) return;
     inputsSetup = true;
     
+    // Handle window resize for responsive scaling
+    window.addEventListener('resize', updateCanvasScale);
+    updateCanvasScale();
+    
     canvas.addEventListener('mousemove', e => {
         const rect = canvas.getBoundingClientRect();
-        mouseX = Math.floor((e.clientX - rect.left) / SCALE);
-        mouseY = Math.floor((e.clientY - rect.top) / SCALE);
+        const scaleX = GAME_WIDTH / rect.width;
+        const scaleY = GAME_HEIGHT / rect.height;
+        mouseX = Math.floor((e.clientX - rect.left) * scaleX);
+        mouseY = Math.floor((e.clientY - rect.top) * scaleY);
     });
 
     canvas.addEventListener('mousedown', e => {
-        if (!gameState.active || gameState.paused) return;
+        // Skip if in editor mode, game not active, or paused
+        if (editorMode || !gameState.active || gameState.paused) return;
         
         // Right-click to cancel active skill
         if (e.button === 2) {
@@ -121,11 +128,19 @@ function setupInputs() {
             return;
         }
         
-        // Left-click to assign skill or toggle blocker
+        // Left-click to assign skill or toggle blocker/builder
         if (e.button === 0) {
-            // If no skill selected, try to toggle a blocker
+            // If no skill selected, try to toggle a blocker, builder, or miner
             if (!activeSkill && hoveredPuffin) {
                 if (hoveredPuffin.toggleBlocker()) {
+                    playSound('click');
+                    return;
+                }
+                if (hoveredPuffin.toggleBuilder()) {
+                    playSound('click');
+                    return;
+                }
+                if (hoveredPuffin.toggleMiner()) {
                     playSound('click');
                     return;
                 }
@@ -137,6 +152,10 @@ function setupInputs() {
                 if (hoveredPuffin && hoveredPuffin.canAcceptSkill(activeSkill)) {
                     hoveredPuffin.assignSkill(activeSkill);
                     currentSkillCounts[activeSkill]--;
+                    // Track skill use for achievements
+                    if (typeof Achievements !== 'undefined') {
+                        Achievements.trackSkill(activeSkill);
+                    }
                     updateUI();
                     playSound('skillAssign');
                 }
@@ -169,6 +188,20 @@ function selectSkill(skillId) {
         updateUI();
         playSound('click');
     }
+}
+
+function updateCanvasScale() {
+    // Update overlay sizes to match canvas display size
+    const overlays = ['message-overlay', 'pause-overlay', 'start-overlay'];
+    const canvasRect = canvas.getBoundingClientRect();
+    
+    overlays.forEach(id => {
+        const overlay = document.getElementById(id);
+        if (overlay) {
+            overlay.style.width = canvasRect.width + 'px';
+            overlay.style.height = canvasRect.height + 'px';
+        }
+    });
 }
 
 
@@ -215,13 +248,21 @@ function openLevelEditor() {
     }
 }
 
+function showGameUI() {
+    document.getElementById('ui-panel').style.display = 'flex';
+}
+
+function hideGameUI() {
+    document.getElementById('ui-panel').style.display = 'none';
+}
+
 function loadLevel(index) {
     currentLevelIndex = index;
     const lvl = LEVELS[currentLevelIndex];
-    
-    document.getElementById('game-title').innerText = "Puffin Panic - " + lvl.name;
+
     document.title = "Puffin Panic - " + lvl.name;
-    
+    showGameUI();
+
     // Reset achievements stats
     if (typeof Achievements !== 'undefined') {
         Achievements.resetStats();
@@ -350,6 +391,28 @@ function checkEndCondition() {
         gameState.ending = true;
     setTimeout(() => {
             gameState.active = false;
+            
+            // Cleanup custom level from editor test
+            if (typeof window._customLevelCleanup === 'function') {
+                window._customLevelCleanup();
+            }
+            
+            // Sync achievement stats before checking
+            if (typeof Achievements !== 'undefined') {
+                Achievements.stats.saved = gameState.saved;
+                Achievements.stats.dead = gameState.dead;
+                Achievements.stats.timeTaken = LEVELS[currentLevelIndex].time - gameState.timeLeft;
+                
+                // Check if nuke was survived (at least 5 puffins alive after nuke)
+                if (nukeActivated) {
+                    let survivingAfterNuke = puffins.filter(p => p.state !== ST_DEAD && p.state !== ST_SPLAT).length;
+                    Achievements.stats.nukeSurvived = survivingAfterNuke >= 5;
+                }
+                
+                // Check achievements
+                Achievements.check(Achievements.stats);
+            }
+            
             let overlay = document.getElementById('message-overlay');
             let title = document.getElementById('message-title');
             let desc = document.getElementById('message-desc');
@@ -423,6 +486,11 @@ function update() {
     // UI
     if (gameState.ticks % 10 === 0) updateUI();
     
+    // Update achievement display timer
+    if (typeof Achievements !== 'undefined') {
+        Achievements.update();
+    }
+    
     checkEndCondition();
 }
 
@@ -445,23 +513,50 @@ function draw() {
     
     ctx.scale(SCALE, SCALE);
     
-    // Draw Stars & Moon (Bg)
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(100, 30, 1, 1);
-    ctx.fillRect(250, 80, 1, 1);
-    ctx.fillRect(350, 20, 1, 1);
-    ctx.fillRect(50, 120, 1, 1);
+    // Draw Stars (with twinkling animation)
+    const stars = [
+        {x: 100, y: 30, speed: 0.02},
+        {x: 250, y: 80, speed: 0.03},
+        {x: 350, y: 20, speed: 0.015},
+        {x: 50, y: 120, speed: 0.025},
+        {x: 180, y: 50, speed: 0.035},
+        {x: 300, y: 100, speed: 0.02},
+        {x: 80, y: 60, speed: 0.04},
+        {x: 220, y: 30, speed: 0.015}
+    ];
+    
+    stars.forEach(star => {
+        let brightness = 0.5 + Math.sin(gameState.ticks * star.speed) * 0.5;
+        ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+        ctx.fillRect(star.x, star.y, 1, 1);
+    });
+    
+    // Draw Moon (with subtle glow)
+    ctx.fillStyle = 'rgba(255, 238, 221, 0.3)';
+    ctx.beginPath();
+    ctx.arc(320, 40, 20, 0, Math.PI*2);
+    ctx.fill();
     
     ctx.fillStyle = '#ffeedd';
     ctx.beginPath();
     ctx.arc(320, 40, 15, 0, Math.PI*2);
     ctx.fill();
 
-    // Draw Aurora
-    ctx.fillStyle = 'rgba(0, 255, 100, 0.1)';
+    // Draw Aurora (with subtle animation)
+    let auroraOffset = Math.sin(gameState.ticks * 0.01) * 10;
+    ctx.fillStyle = `rgba(0, 255, 100, ${0.08 + Math.sin(gameState.ticks * 0.005) * 0.03})`;
     ctx.beginPath();
-    ctx.moveTo(0, 80);
-    ctx.quadraticCurveTo(200, 30, 400, 90);
+    ctx.moveTo(0, 80 + auroraOffset);
+    ctx.quadraticCurveTo(200, 30 + auroraOffset, 400, 90 + auroraOffset);
+    ctx.lineTo(400, 0);
+    ctx.lineTo(0, 0);
+    ctx.fill();
+    
+    // Second aurora layer
+    ctx.fillStyle = `rgba(0, 150, 255, ${0.05 + Math.sin(gameState.ticks * 0.008 + 1) * 0.03})`;
+    ctx.beginPath();
+    ctx.moveTo(0, 100 + auroraOffset);
+    ctx.quadraticCurveTo(150, 50 + auroraOffset, 400, 110 + auroraOffset);
     ctx.lineTo(400, 0);
     ctx.lineTo(0, 0);
     ctx.fill();
@@ -472,13 +567,31 @@ function draw() {
     ctx.fillStyle = '#000';
     ctx.fillRect(ENTRANCE.x - 8, ENTRANCE.y - 3, 16, 6);
     
-    // Draw Exit Door
+    // Draw Exit Door (with animated glow)
+    let exitGlow = 0.5 + Math.sin(gameState.ticks * 0.1) * 0.3;
+    
+    // Exit glow effect
+    ctx.fillStyle = `rgba(0, 255, 0, ${exitGlow * 0.2})`;
+    ctx.beginPath();
+    ctx.arc(EXIT.x + EXIT.w/2, EXIT.y + EXIT.h/2, 15, 0, Math.PI*2);
+    ctx.fill();
+    
+    // Door frame
     ctx.fillStyle = '#422';
     ctx.fillRect(EXIT.x, EXIT.y, EXIT.w, EXIT.h);
     ctx.fillStyle = '#211';
     ctx.fillRect(EXIT.x + 2, EXIT.y + 2, EXIT.w - 4, EXIT.h - 2);
-    ctx.fillStyle = '#0f0';
-    ctx.fillRect(EXIT.x + EXIT.w/2 - 2, EXIT.y - 4, 4, 4); // Green exit light
+    
+    // Animated exit light (pulsing)
+    ctx.fillStyle = `rgba(0, 255, 0, ${exitGlow})`;
+    ctx.fillRect(EXIT.x + EXIT.w/2 - 2, EXIT.y - 4, 4, 4);
+    
+    // Exit arrow indicator
+    let arrowBlink = Math.floor(gameState.ticks / 15) % 2;
+    if (arrowBlink) {
+        ctx.fillStyle = '#0f0';
+        ctx.fillRect(EXIT.x + EXIT.w/2 - 1, EXIT.y - 8, 2, 3);
+    }
     
     // Draw Terrain
     ctx.drawImage(offscreenCanvas, 0, 0);

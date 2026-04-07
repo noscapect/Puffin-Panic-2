@@ -2,13 +2,19 @@
 
 const ACHIEVEMENTS = [
     { id: 'perfectionist', name: 'Perfectionist', desc: 'Save all puffins in a level', icon: '⭐', check: (stats) => stats.saved >= stats.total && stats.total > 0 },
-    { id: 'speedrunner', name: 'Speed Runner', desc: 'Complete a level in under 2 minutes', icon: '⚡', check: (stats) => stats.timeTaken < 120 * FPS },
-    { id: 'minimalist', name: 'Minimalist', desc: 'Complete a level using 3 or fewer skills', icon: '🎯', check: (stats) => stats.skillsUsed <= 3 },
+    { id: 'speedrunner', name: 'Speed Runner', desc: 'Complete a level in under 60% of the time limit', icon: '⚡', check: (stats) => {
+        // Get the level time limit from the current level using currentLevelIndex from engine
+        const levelTime = typeof currentLevelIndex !== 'undefined' && typeof LEVELS !== 'undefined' && LEVELS[currentLevelIndex] 
+            ? LEVELS[currentLevelIndex].time 
+            : 5 * 60 * FPS;
+        return stats.timeTaken < levelTime * 0.6 && stats.timeTaken > 0;
+    }},
+    { id: 'minimalist', name: 'Minimalist', desc: 'Complete a level using 3 or fewer skills', icon: '🎯', check: (stats) => stats.skillsUsed <= 3 && stats.skillsUsed > 0 },
     { id: 'demolition', name: 'Demolition Expert', desc: 'Use 5 bombers in one level', icon: '💣', check: (stats) => stats.bombersUsed >= 5 },
-    { id: 'builder100', name: 'Master Builder', desc: 'Build 100 total stairs', icon: '🏗️', check: (stats) => stats.totalBuilt >= 100 },
+    { id: 'builder100', name: 'Master Builder', desc: 'Build 100 total stairs across all levels', icon: '🏗️', check: (stats) => stats.totalBuilt >= 100 },
     { id: 'first_blood', name: 'First Rescue', desc: 'Save your first puffin', icon: '🐧', check: (stats) => stats.saved >= 1 },
-    { id: 'survivor', name: 'Survivor', desc: 'Complete a level with no deaths', icon: '💚', check: (stats) => stats.dead === 0 && stats.saved >= stats.required },
-    { id: 'nuke_survivor', name: 'Close Call', desc: 'Survive a nuke with at least 5 puffins', icon: '☢️', check: (stats) => stats.nukeSurvived },
+    { id: 'survivor', name: 'Survivor', desc: 'Complete a level with no deaths', icon: '💚', check: (stats) => stats.dead === 0 && stats.saved >= stats.required && stats.saved > 0 },
+    { id: 'nuke_survivor', name: 'Close Call', desc: 'Survive a nuke with at least 5 puffins', icon: '☢️', check: (stats) => stats.nukeSurvived === true },
     { id: 'climber10', name: 'Mountain Goat', desc: 'Use 10 climbers in one level', icon: '🧗', check: (stats) => stats.climbersUsed >= 10 },
     { id: 'floater_save', name: 'Mary Poppins', desc: 'Save a puffin with a floater from a fatal fall', icon: '☂️', check: (stats) => stats.floaterSaves >= 1 },
 ];

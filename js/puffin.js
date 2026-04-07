@@ -203,6 +203,12 @@ class Puffin {
                 gameState.dead++;
                 createParticles(this.x, this.y+PUFFIN_H, 10, PALETTE[6], true, 6);
             } else {
+                // Track floater save: if puffin had floater and fell from a fatal distance
+                if (this.isFloater && fallDist > FALL_DEATH_DIST) {
+                    if (typeof Achievements !== 'undefined') {
+                        Achievements.stats.floaterSaves++;
+                    }
+                }
                 this.state = ST_WALK;
             }
         }
@@ -423,9 +429,12 @@ class Puffin {
             this.y -= 1;
             this.bricksLayed++;
             
-            if (this.bricksLayed >= 12) {
-                this.state = ST_WALK;
+            // Track build for achievements
+            if (typeof Achievements !== 'undefined') {
+                Achievements.trackBuild();
             }
+            
+            // Builder now builds indefinitely until clicked again (no auto-stop at 12)
             
             if (typeof playSound === 'function') playSound('build');
         }
@@ -458,14 +467,25 @@ class Puffin {
         if (typeof playSound === 'function') playSound('explosion');
         
         // Visual polish: Screen shake on explosion
-        screenShake = 8;
-        screenShakeIntensity = 5;
+        screenShake = 12;
+        screenShakeIntensity = 8;
         
         // Visual polish: Create shockwave particles
         if (typeof createShockwave === 'function') createShockwave(this.x + PUFFIN_W/2, this.y + PUFFIN_H/2);
         
         // Fix: Ensure entrance and exit remain accessible after explosion
         ensurePathClear();
+        
+        // Explosion colors - more varied palette for dramatic effect
+        const explosionColors = [
+            [255, 100, 0],   // Orange-red
+            [255, 200, 0],   // Golden yellow
+            [255, 50, 0],    // Deep red
+            [255, 150, 50],  // Light orange
+            [200, 50, 50],   // Dark red
+            [255, 255, 100], // Bright yellow
+            [180, 30, 30]    // Blood red
+        ];
         
         let spr = this.getSprite();
         for (let i = 0; i < spr.length; i++) {
@@ -476,17 +496,45 @@ class Puffin {
                 let actualX = this.vx < 0 ? (PUFFIN_W - 1 - px) : px;
                 let x = this.x + actualX;
                 let y = this.y + py;
-                let color = PALETTE[col];
+                
+                // 50% chance to turn into fire/debris, 50% keep original color
+                let color;
+                if (Math.random() > 0.5) {
+                    color = explosionColors[Math.floor(Math.random() * explosionColors.length)];
+                } else {
+                    color = PALETTE[col];
+                }
+                
                 if (color) {
                     let p = new Particle(x, y, color, true, col);
-                    // Give explosion pixels some extra kick
-                    p.vx = (Math.random() - 0.5) * 8;
-                    p.vy = (Math.random() - 1) * 8 - 2;
+                    // Give explosion pixels more dramatic kick
+                    let angle = Math.random() * Math.PI * 2;
+                    let speed = 3 + Math.random() * 10;
+                    p.vx = Math.cos(angle) * speed;
+                    p.vy = Math.sin(angle) * speed - 3;
+                    p.bounciness = 0.3 + Math.random() * 0.4;
                     particles.push(p);
                 }
             }
         }
-        digHole(Math.floor(this.x), Math.floor(this.y + PUFFIN_H/2), 15);
+        
+        // Larger explosion radius with more debris
+        digHole(Math.floor(this.x), Math.floor(this.y + PUFFIN_H/2), 20);
+        
+        // Add extra debris particles
+        for (let i = 0; i < 15; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let dist = 5 + Math.random() * 15;
+            let dx = Math.cos(angle) * dist;
+            let dy = Math.sin(angle) * dist;
+            let debrisColor = explosionColors[Math.floor(Math.random() * explosionColors.length)];
+            let p = new Particle(this.x + PUFFIN_W/2 + dx, this.y + PUFFIN_H/2 + dy, debrisColor, false);
+            p.vx = Math.cos(angle) * (2 + Math.random() * 5);
+            p.vy = Math.sin(angle) * (2 + Math.random() * 5) - 2;
+            p.life = 20 + Math.random() * 30;
+            particles.push(p);
+        }
+        
         this.state = ST_DEAD;
         gameState.dead++;
     }
@@ -504,11 +552,31 @@ class Puffin {
         return false;
     }
     
-    // Fix: Allow removing blockers by clicking them again
+    // Allow removing blockers by clicking them again
     toggleBlocker() {
         if (this.state === ST_BLOCK) {
             this.state = ST_WALK;
             this.vx = 1; // Reset direction
+            return true;
+        }
+        return false;
+    }
+    
+    // Allow stopping builders by clicking them again
+    toggleBuilder() {
+        if (this.state === ST_BUILD) {
+            this.state = ST_WALK;
+            return true;
+        }
+        return false;
+    }
+    
+    // Allow stopping miners by clicking them again
+    toggleMiner() {
+        if (this.state === ST_MINE) {
+            this.state = ST_FALL;
+            this.fallStartY = this.y;
+            this.vy = 0;
             return true;
         }
         return false;
