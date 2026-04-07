@@ -25,7 +25,6 @@ class Puffin {
         if (skill === 'floater' && this.state !== ST_FALL && this.state !== ST_WALK) return false;
         if (skill === 'climber' && this.isClimber) return false; // Already a climber
         if (skill === 'miner' && this.state !== ST_WALK) return false;
-        if (skill === 'platformer' && this.state !== ST_WALK) return false;
         return true;
     }
     
@@ -44,13 +43,7 @@ class Puffin {
             this.bricksLayed = 0;
         } else if (skill === 'basher') {
             this.isBasher = true;
-            // Check if already at a wall to start bashing immediately
-            let nx = Math.floor(this.x + this.vx);
-            let wallMid = getTerrain(nx, Math.floor(this.y + PUFFIN_H/2));
-            if (wallMid === 1) {
-                this.state = ST_BASH;
-                this.actionTicks = 0;
-            }
+            // Will transition to ST_BASH when hitting a wall during walk
         } else if (skill === 'digger') {
             this.state = ST_DIG;
             this.actionTicks = 0;
@@ -59,10 +52,6 @@ class Puffin {
         } else if (skill === 'miner') {
             this.state = ST_MINE;
             this.actionTicks = 0;
-        } else if (skill === 'platformer') {
-            this.state = ST_PLATFORM;
-            this.actionTicks = 0;
-            this.bricksLayed = 0;
         }
     }
     
@@ -75,7 +64,7 @@ class Puffin {
         if ((this.state === ST_WALK || this.state === ST_BASH) && this.animFrame % 10 === 0) {
             if (typeof playSound === 'function') playSound('footstep');
             // Create dust particles when walking on ground
-            if (getTerrain(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 1)) !== 0) {
+            if (isSolidAt(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 1))) {
                 if (typeof createDustParticles === 'function') createDustParticles(this.x, this.y + PUFFIN_H);
             }
         }
@@ -115,7 +104,7 @@ class Puffin {
                 break;
             case ST_PANIC:
                 // Just shake in panic! But fall if ground disappears
-                if (getTerrain(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 1)) === 0) {
+                if (!isSolidAt(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 1))) {
                     this.state = ST_FALL;
                     this.fallStartY = this.y;
                     this.vy = 0;
@@ -123,7 +112,7 @@ class Puffin {
                 break;
             case ST_NUKE_PANIC:
                 // Nuke panic - shake and flash before exploding
-                if (getTerrain(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 1)) === 0) {
+                if (!isSolidAt(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 1))) {
                     this.state = ST_FALL;
                     this.fallStartY = this.y;
                     this.vy = 0;
@@ -141,8 +130,8 @@ class Puffin {
             case ST_MINE:
                 this.doMine();
                 break;
-            case ST_PLATFORM:
-                this.doPlatform();
+            case ST_CLIMB:
+                this.doClimb();
                 break;
             case ST_SPLAT:
                 this.actionTicks++;
@@ -184,10 +173,10 @@ class Puffin {
             let fx = Math.floor(this.x);
             let fy = Math.floor(this.y + PUFFIN_H);
             
-            if (getTerrain(fx, fy) !== 0 || this.checkBlocker(fx, fy)) {
+            if (isSolidAt(fx, fy) || this.checkBlocker(fx, fy)) {
                 // Snap to top of terrain
                 this.y = fy - PUFFIN_H - 1;
-                while (getTerrain(Math.floor(this.x), Math.floor(this.y + PUFFIN_H)) !== 0) {
+                while (isSolidAt(Math.floor(this.x), Math.floor(this.y + PUFFIN_H))) {
                     this.y--;
                 }
                 landed = true;
@@ -215,29 +204,10 @@ class Puffin {
     }
     
     doWalk() {
-        // Climber: Check if we can climb vertical walls
-        if (this.isClimber) {
-            let wallCheckX = Math.floor(this.x + this.vx);
-            let wallAtMid = getTerrain(wallCheckX, Math.floor(this.y + PUFFIN_H/2));
-            let wallAtHead = getTerrain(wallCheckX, Math.floor(this.y - 1));
-            
-            // If there's a wall at mid-body and clear space above, try climbing
-            if (wallAtMid !== 0 && wallAtHead === 0) {
-                // Check if we can climb up (there's ground at the top)
-                let climbY = Math.floor(this.y - 2 + PUFFIN_H);
-                if (climbY >= 0 && getTerrain(wallCheckX, climbY) !== 0) {
-                    // Start climbing - move up and over
-                    this.y -= 2;
-                    this.x += this.vx;
-                    return;
-                }
-            }
-        }
-
         // Fall off edge check
         let fx = Math.floor(this.x);
         let fy = Math.floor(this.y + PUFFIN_H + 1);
-        if (getTerrain(fx, fy) === 0) {
+        if (!isSolidAt(fx, fy)) {
             this.state = this.isFloater ? ST_FLOAT : ST_FALL;
             this.fallStartY = this.y;
             this.vy = 0;
@@ -250,31 +220,34 @@ class Puffin {
             let nx = Math.floor(nextX);
             
             // Check wall at mid-body and feet
-            let wallMid = getTerrain(nx, Math.floor(this.y + PUFFIN_H/2));
-            let wallBottom = getTerrain(nx, Math.floor(this.y + PUFFIN_H - 1));
+            let wallMid = isSolidAt(nx, Math.floor(this.y + PUFFIN_H/2));
+            let wallBottom = isSolidAt(nx, Math.floor(this.y + PUFFIN_H - 1));
             
-            if (wallMid !== 0 || this.checkBlocker(nx, this.y + PUFFIN_H/2)) {
-                if (this.isBasher && wallMid !== 0) {
+            if (wallMid || this.checkBlocker(nx, this.y + PUFFIN_H/2)) {
+                // Climbers scale vertical walls
+                if (this.isClimber && wallMid) {
+                    this.state = ST_CLIMB;
+                    this.actionTicks = 0;
+                    return;
+                }
+                
+                // Bashers start digging when hitting wall
+                if (this.isBasher && wallMid) {
                     this.state = ST_BASH;
                     this.actionTicks = 0;
-                    this.isBasher = false; // Task started
-                } else {
-                    this.vx *= -1; // Turn around
+                    return;
                 }
-            } else if (wallBottom !== 0) {
+
+                // Otherwise turn around
+                this.vx *= -1;
+            } else if (wallBottom) {
                 // Step up 1 pixel
-                let topClear = getTerrain(nx, Math.floor(this.y - 1)) === 0;
+                let topClear = !isSolidAt(nx, Math.floor(this.y - 1));
                 if (topClear) {
                     this.x = nextX;
                     this.y -= 1;
                 } else {
-                    if (this.isBasher) {
-                        this.state = ST_BASH;
-                        this.actionTicks = 0;
-                        this.isBasher = false; // Task started
-                    } else {
-                        this.vx *= -1;
-                    }
+                    this.vx *= -1;
                 }
             } else {
                 this.x = nextX; // Path clear
@@ -286,13 +259,13 @@ class Puffin {
         this.actionTicks++;
         if (this.actionTicks % 10 === 0) {
             this.x += this.vx;
-            // Carve terrain
+            // Carve terrain horizontally
             let carved = false;
             let cx = Math.floor(this.x + (this.vx * 2));
             let cy = Math.floor(this.y + PUFFIN_H/2);
             for (let y = -5; y <= 5; y++) {
                 for (let x = -2; x <= 2; x++) {
-                    if (getTerrain(cx+x, cy+y) !== 0) {
+                    if (canDigAt(cx+x, cy+y)) {
                         setTerrain(cx+x, cy+y, 0);
                         carved = true;
                     }
@@ -301,12 +274,16 @@ class Puffin {
             if (carved) {
                 updateTerrainPixels(cx - 2, cy - 5, 5, 11);
                 createParticles(cx, cy, 3, [150,150,150]);
-                // Visual polish: Create spark particles when bashing
                 if (typeof createSparkParticles === 'function') createSparkParticles(cx, cy);
                 if (typeof playSound === 'function') playSound('bash');
             } else {
-                // Done bashing if hitting thin air
-                this.state = ST_WALK;
+                // Check if there's still solid terrain ahead - only exit if truly clear
+                let ahead = isSolidAt(Math.floor(this.x + this.vx), Math.floor(this.y + PUFFIN_H/2));
+                if (!ahead) {
+                    // Path is clear, return to walking but keep isBasher flag
+                    this.state = ST_WALK;
+                    this.isBasher = true; // Stay a basher for if we hit another wall
+                }
             }
         }
     }
@@ -320,7 +297,7 @@ class Puffin {
             let carved = false;
             for (let y = 0; y <= 3; y++) {
                 for (let x = -3; x <= 3; x++) {
-                    if (getTerrain(cx+x, cy+y) !== 0) {
+                    if (canDigAt(cx+x, cy+y)) {
                         setTerrain(cx+x, cy+y, 0);
                         carved = true;
                     }
@@ -331,6 +308,7 @@ class Puffin {
                 createParticles(cx, cy, 3, [150,150,150]);
                 if (typeof playSound === 'function') playSound('dig');
             } else {
+                // Hit steel or bottom - stop digging
                 this.state = ST_FALL;
                 this.fallStartY = this.y;
                 this.vy = 0;
@@ -339,7 +317,7 @@ class Puffin {
     }
 
     doMine() {
-        // Diagonal digging - digs down and forward
+        // Diagonal digging downward and forward
         this.actionTicks++;
         if (this.actionTicks % 12 === 0) {
             this.y += 1;
@@ -347,12 +325,12 @@ class Puffin {
             let cx = Math.floor(this.x + this.vx * 3);
             let cy = Math.floor(this.y + PUFFIN_H);
             let carved = false;
-            // Dig diagonally downward in the direction we're facing
+            // Dig diagonally downward in direction facing
             for (let y = 0; y <= 4; y++) {
                 for (let x = 0; x <= 4; x++) {
                     let tx = cx + (this.vx * x);
                     let ty = cy + y;
-                    if (getTerrain(tx, ty) !== 0) {
+                    if (canDigAt(tx, ty)) {
                         setTerrain(tx, ty, 0);
                         carved = true;
                     }
@@ -363,54 +341,60 @@ class Puffin {
                 updateTerrainPixels(startX, cy, 5, 5);
                 createParticles(cx, cy, 3, [150,150,150]);
             } else {
-                // Check if we hit empty space below
-                let below = getTerrain(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 2));
-                if (below === 0) {
-                    this.state = ST_FALL;
-                    this.fallStartY = this.y;
-                    this.vy = 0;
-                }
+                // Hit steel or bottom - stop mining
+                this.state = ST_FALL;
+                this.fallStartY = this.y;
+                this.vy = 0;
             }
         }
     }
 
-    doPlatform() {
-        // Place small platform segments that puffins can walk on
+    doClimb() {
+        // Climbers scale vertical walls
         this.actionTicks++;
-        if (this.actionTicks % 15 === 0) {
-            let px = Math.floor(this.x + (this.vx * 3));
-            let py = Math.floor(this.y + PUFFIN_H);
-            
-            // Place a small platform segment (3 pixels wide, 1 pixel tall)
-            for (let i = 0; i < 3; i++) {
-                setTerrain(px + (this.vx * i), py, 10);
-            }
-            
-            let startX = Math.min(px, px + this.vx * 2);
-            updateTerrainPixels(startX, py, 3, 1);
-            
-            // Move puffin up slightly and forward
-            this.x += this.vx * 2;
+        
+        // Check if still on wall in front
+        let checkX = Math.floor(this.x + this.vx);
+        let feetY = Math.floor(this.y + PUFFIN_H - 1);
+        let wallStillThere = 
+            isSolidAt(checkX, feetY) ||
+            isSolidAt(checkX, feetY - 1) ||
+            isSolidAt(checkX, feetY - 2);
+        
+        if (!wallStillThere) {
+            // Reached top! Pull up and walk
+            this.x += this.vx;
             this.y -= 1;
-            this.bricksLayed++;
-            
-            // Platform skill places up to 8 segments
-            if (this.bricksLayed >= 8) {
-                this.state = ST_WALK;
-            }
+            this.state = ST_WALK;
+            return;
+        }
+        
+        // Check for ceiling
+        if (isSolidAt(Math.floor(this.x), Math.floor(this.y - 1))) {
+            // Hit ceiling - turn around and fall
+            this.state = ST_FALL;
+            this.vx *= -1;
+            this.fallStartY = this.y;
+            this.vy = 0;
+            return;
+        }
+        
+        // Climb up
+        if (this.actionTicks % 2 === 0) {
+            this.y -= 1;
         }
     }
     
     doBuild() {
         this.actionTicks++;
-        if (this.actionTicks % 20 === 0) {
+        if (this.actionTicks % 10 === 0) {
             let bx = Math.floor(this.x + (this.vx * 4));
             let by = Math.floor(this.y + PUFFIN_H);
             
             // Smart Builder: Stop building if hitting a wall
             let checkX = Math.floor(this.x + this.vx * 4);
             let checkY = Math.floor(this.y - 1 + PUFFIN_H / 2);
-            if (getTerrain(checkX, checkY) !== 0) {
+            if (isSolidAt(checkX, checkY)) {
                 this.state = ST_WALK;
                 this.vx *= -1; // Turn around
                 return;
@@ -458,8 +442,6 @@ class Puffin {
             spr = SPRITE_CLIMB;
         } else if (this.state === ST_MINE) {
             spr = SPRITE_MINE;
-        } else if (this.state === ST_PLATFORM) {
-            spr = SPRITE_PLATFORM;
         }
         return spr;
     }
@@ -584,6 +566,193 @@ class Puffin {
         return false;
     }
 
+    drawIllustratedBody(ctx) {
+        // Splat: squished flat puffin
+        if (this.state === ST_SPLAT) {
+            const f = Math.min(1, (this.actionTicks || 0) / 8);
+            ctx.fillStyle = '#1a2232';
+            ctx.beginPath();
+            ctx.ellipse(4.0, 10.5, 4.2 + f * 0.8, 1.8 - f * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#bfc3cb';
+            ctx.beginPath();
+            ctx.ellipse(4.5, 10.5, 2.6 + f * 0.5, 1.0 - f * 0.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            if ((this.actionTicks || 0) < 18) {
+                ctx.strokeStyle = 'rgba(255, 255, 110, 0.65)';
+                ctx.lineWidth = 0.5;
+                for (let i = 0; i < 5; i++) {
+                    const a = (i / 5) * Math.PI * 2;
+                    const r = 2.5 + f * 2.5;
+                    ctx.beginPath();
+                    ctx.moveTo(4.0, 10.5);
+                    ctx.lineTo(4.0 + Math.cos(a) * r, 10.5 + Math.sin(a) * r * 0.45);
+                    ctx.stroke();
+                }
+            }
+            return;
+        }
+
+        const pBob = this.state === ST_PANIC || this.state === ST_NUKE_PANIC;
+        // Keep bobbing mostly downward so feet stay planted instead of hovering.
+        const bob = pBob
+            ? Math.abs(Math.sin(this.animFrame * 0.7)) * 0.45
+            : (this.state === ST_WALK || this.state === ST_BASH || this.state === ST_BUILD)
+                ? Math.abs(Math.sin(this.animFrame * 0.35)) * 0.28
+                : 0;
+
+        ctx.save();
+        ctx.translate(0, bob);
+
+        // Soft body shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
+        ctx.beginPath();
+        ctx.ellipse(4.0, 10.7, 3.0, 1.0, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Body gradient (deeper charcoal so face markings pop like a puffin)
+        const bodyGrad = ctx.createLinearGradient(1.2, 2.0, 7.0, 11.2);
+        bodyGrad.addColorStop(0, '#2d3746');
+        bodyGrad.addColorStop(0.55, '#161f2d');
+        bodyGrad.addColorStop(1, '#0d141f');
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath();
+        ctx.ellipse(3.9, 6.35, 3.25, 5.15, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Belly
+        const bellyGrad = ctx.createLinearGradient(2.0, 4.0, 5.8, 10.2);
+        bellyGrad.addColorStop(0, '#fdfdfd');
+        bellyGrad.addColorStop(1, '#ced6df');
+        ctx.fillStyle = bellyGrad;
+        ctx.beginPath();
+        ctx.ellipse(4.0, 7.55, 1.95, 3.15, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Wing
+        ctx.fillStyle = '#0f141d';
+        ctx.beginPath();
+        ctx.ellipse(2.45, 7.15, 1.2, 2.45, 0.22, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Head cap (puffin crown)
+        ctx.fillStyle = '#101722';
+        ctx.beginPath();
+        ctx.arc(3.9, 3.1, 2.15, 0, Math.PI * 2);
+        ctx.fill();
+
+        // White cheek mask to break the penguin-like look and read as puffin
+        ctx.fillStyle = '#f7f9fc';
+        ctx.beginPath();
+        ctx.ellipse(4.95, 3.45, 1.7, 1.35, -0.08, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Dark collar line between head and chest
+        ctx.strokeStyle = 'rgba(12, 18, 28, 0.75)';
+        ctx.lineWidth = 0.35;
+        ctx.beginPath();
+        ctx.arc(3.9, 4.7, 1.75, Math.PI * 0.18, Math.PI * 0.95);
+        ctx.stroke();
+
+        // Beak — larger, triangular, striped puffin beak
+        const isPanic = this.state === ST_PANIC || this.state === ST_NUKE_PANIC;
+        if (isPanic) {
+            // Open beak shape
+            ctx.fillStyle = '#ea8a20';
+            ctx.beginPath();
+            ctx.moveTo(5.0, 2.95);
+            ctx.lineTo(9.05, 3.75);
+            ctx.lineTo(8.45, 5.35);
+            ctx.lineTo(5.25, 5.75);
+            ctx.closePath();
+            ctx.fill();
+
+            // Lower mandible tint
+            ctx.fillStyle = '#f7a43b';
+            ctx.beginPath();
+            ctx.moveTo(5.25, 4.35);
+            ctx.lineTo(8.65, 5.05);
+            ctx.lineTo(5.45, 5.65);
+            ctx.closePath();
+            ctx.fill();
+
+            // Mouth interior
+            ctx.fillStyle = '#cc2200';
+            ctx.beginPath();
+            ctx.ellipse(7.25, 4.45, 0.78, 0.48, 0.06, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Puffin beak color bars
+            ctx.fillStyle = '#ffd24f';
+            ctx.fillRect(6.2, 3.35, 0.55, 1.9);
+            ctx.fillStyle = '#7fc0ff';
+            ctx.fillRect(5.6, 3.15, 0.42, 1.95);
+        } else {
+            ctx.fillStyle = '#ea8a20';
+            ctx.beginPath();
+            ctx.moveTo(5.05, 3.05);
+            ctx.lineTo(8.85, 4.05);
+            ctx.lineTo(5.25, 5.55);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = '#f5a036';
+            ctx.beginPath();
+            ctx.moveTo(5.25, 4.25);
+            ctx.lineTo(8.45, 5.0);
+            ctx.lineTo(5.4, 5.55);
+            ctx.closePath();
+            ctx.fill();
+
+            // Signature puffin beak stripes
+            ctx.fillStyle = '#ffd24f';
+            ctx.fillRect(6.1, 3.45, 0.55, 1.7);
+            ctx.fillStyle = '#6fb4ff';
+            ctx.fillRect(5.5, 3.2, 0.42, 1.8);
+            ctx.fillStyle = '#f55d3a';
+            ctx.fillRect(7.75, 4.0, 0.65, 0.82);
+        }
+
+        // Eye + pupil + glint — anchored on the white face mask
+        if (isPanic) {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(4.55, 3.0, 0.9, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#111';
+            ctx.beginPath();
+            ctx.arc(4.4, 3.15, 0.28, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.90)';
+            ctx.fillRect(4.2, 2.65, 0.22, 0.22);
+            if (Math.floor(this.animFrame / 6) % 2 === 0) {
+                ctx.fillStyle = 'rgba(100, 185, 255, 0.75)';
+                ctx.beginPath();
+                ctx.arc(3.55, 1.85, 0.36, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        } else {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(4.58, 3.18, 0.72, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#111';
+            ctx.beginPath();
+            ctx.arc(4.73, 3.24, 0.32, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.fillRect(4.82, 2.88, 0.22, 0.22);
+        }
+
+        // Feet
+        const step = (this.state === ST_WALK || this.state === ST_BASH) ? ((this.animFrame % 10 < 5) ? 0.35 : -0.35) : 0;
+        ctx.fillStyle = '#e18c2a';
+        ctx.fillRect(2.35, 10.9 + step * 0.25, 1.55, 0.9);
+        ctx.fillRect(4.85, 10.9 - step * 0.25, 1.55, 0.9);
+
+        ctx.restore();
+    }
+
     draw(ctx) {
         if (this.state === ST_DEAD || this.state === ST_EXITED) return;
 
@@ -601,40 +770,8 @@ class Puffin {
             ctx.scale(-1, 1);
             ctx.translate(-PUFFIN_W, 0); // adjust for flip
         }
-        
-        // Draw Sprite
-        for (let i = 0; i < spr.length; i++) {
-            let col = spr[i];
-            if (col !== 0) {
-                let px = i % PUFFIN_W;
-                let py = Math.floor(i / PUFFIN_W);
-                let color = PALETTE[col];
-                ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${color[3]/255})`;
-                ctx.fillRect(px, py, 1, 1);
-            }
-        }
 
-        // Cuter face pass: bigger eye contrast, tiny sparkle, soft cheek blush.
-        // Keeps the same 8x12 sprite footprint and only repaints a few feature pixels.
-        if (this.state !== ST_SPLAT && this.state !== ST_NUKE_PANIC) {
-            // Eye (2 dark pixels)
-            ctx.fillStyle = '#111';
-            ctx.fillRect(4, 2, 1, 1);
-            ctx.fillRect(4, 3, 1, 1);
-
-            // Eye sparkle
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(5, 2, 1, 1);
-
-            // Cheek blush
-            ctx.fillStyle = 'rgba(255, 170, 170, 0.75)';
-            ctx.fillRect(5, 4, 1, 1);
-
-            // Soft belly highlight to make the body feel rounder.
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-            ctx.fillRect(3, 7, 1, 1);
-            ctx.fillRect(4, 8, 1, 1);
-        }
+        this.drawIllustratedBody(ctx);
         
         // Floater umbrella
         if (this.state === ST_FLOAT) {
@@ -656,14 +793,7 @@ class Puffin {
             ctx.fillRect(4, 0, 1, 5); // highlight stripe
         }
 
-        if (this.state === ST_BASH || this.isBasher) {
-            // Boxing glove — larger, brighter
-            ctx.fillStyle = '#cc0000';
-            let gloveX = (this.state === ST_BASH && this.animFrame % 10 < 5) ? 7 : 5;
-            ctx.fillRect(gloveX, 3, 5, 5);
-            ctx.fillStyle = '#ff4444'; // highlight
-            ctx.fillRect(gloveX, 3, 3, 1);
-        } else if (this.state === ST_DIG) {
+        if (this.state === ST_DIG) {
             // Pickaxe with wooden handle
             ctx.fillStyle = '#8B4513';
             let pickY = (this.animFrame % 10 < 5) ? 5 : 8;
@@ -684,6 +814,88 @@ class Puffin {
             ctx.fillStyle = '#aaaaaa';
             ctx.fillRect(5, 2, 3, 1);
             ctx.fillRect(5, 6, 3, 1);
+        } else if (this.state === ST_MINE) {
+            // Mining helmet: orange hardhat + headlamp
+            ctx.fillStyle = '#f0a000';
+            ctx.fillRect(-1, -4, PUFFIN_W + 2, 2); // brim
+            ctx.fillRect(1, -7, PUFFIN_W - 2, 4);  // dome
+            ctx.fillStyle = '#a86800';
+            ctx.fillRect(1, -5, 3, 1); // shadow stripe
+            ctx.fillStyle = '#ffff80';
+            ctx.fillRect(3, -7, 2, 2); // headlamp lens
+            ctx.fillStyle = 'rgba(255, 255, 160, 0.28)';
+            ctx.fillRect(1, -9, 6, 7); // soft light cone
+            // Angled pickaxe (45° swing animation)
+            ctx.save();
+            ctx.translate(4, 7);
+            ctx.rotate(Math.PI * (0.22 + 0.1 * ((this.animFrame % 10 < 5) ? 1 : 0)));
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(-1, -6, 2, 9);
+            ctx.fillStyle = '#C0C0C0';
+            ctx.fillRect(-4, -6, 8, 2);
+            ctx.fillStyle = '#555';
+            ctx.fillRect(-4, -6, 2, 2);
+            ctx.restore();
+        } else if (this.state === ST_BLOCK) {
+            // Arms outstretched as a living wall
+            ctx.fillStyle = '#1a2332';
+            ctx.fillRect(-4, 4, 4, 2);
+            ctx.fillRect(PUFFIN_W, 4, 4, 2);
+            ctx.fillStyle = '#ff5500';
+            ctx.fillRect(-4, 4, 2, 2);
+            ctx.fillRect(PUFFIN_W + 2, 4, 2, 2);
+        }
+
+        if (this.isClimber && this.state !== ST_DEAD) {
+            // Climber kit: bright headband + harness so climbers read clearly at a glance.
+            ctx.fillStyle = '#ff3b3b';
+            ctx.fillRect(1, 1, 6, 1);
+            ctx.fillStyle = '#ffd7d7';
+            ctx.fillRect(2, 1, 1, 1);
+
+            ctx.fillStyle = '#ff5a5a';
+            ctx.fillRect(2, 5, 1, 4);
+            ctx.fillRect(5, 5, 1, 4);
+            ctx.fillRect(2, 7, 4, 1);
+
+            // Tiny shoulder beacon that twinkles to signal the climber assignment.
+            if (this.animFrame % 16 < 8) {
+                ctx.fillStyle = '#fff2a8';
+                ctx.fillRect(6, 3, 1, 1);
+            }
+        }
+
+        if (this.isBasher && this.state !== ST_DEAD) {
+            // Basher kit: boxing gloves on wrists
+            ctx.fillStyle = '#ffcc00'; // gold gloves
+            
+            if (this.state === ST_BASH) {
+                // Animate punching during bash
+                let punchedGlove = (this.animFrame % 10 < 5) ? 0 : 1; // alternate which glove extends
+                let leftX = punchedGlove === 0 ? -2 : 0;
+                let rightX = punchedGlove === 1 ? 8 : 6;
+                
+                ctx.fillRect(leftX, 8, 3, 3);   // left wrist (may extend)
+                ctx.fillRect(rightX, 8, 3, 3); // right wrist (may extend)
+                ctx.fillStyle = '#ff8800'; // darker accent
+                ctx.fillRect(leftX, 8, 1, 1);
+                ctx.fillRect(rightX, 8, 1, 1);
+            } else {
+                // Resting position
+                ctx.fillRect(0, 8, 2, 3);  // left wrist
+                ctx.fillRect(6, 8, 2, 3); // right wrist
+                ctx.fillStyle = '#ff6600'; // darker accent
+                ctx.fillRect(0, 8, 1, 1);
+                ctx.fillRect(6, 8, 1, 1);
+            }
+            
+            // Pulsing indicator glow when actively bashing
+            if (this.state === ST_BASH && this.animFrame % 8 < 4) {
+                ctx.fillStyle = 'rgba(255, 150, 0, 0.5)';
+                ctx.strokeStyle = 'rgba(255, 200, 0, 0.7)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(-1, 7, PUFFIN_W + 2, 6);
+            }
         }
         
         ctx.restore();

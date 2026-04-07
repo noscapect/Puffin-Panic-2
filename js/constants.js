@@ -21,20 +21,18 @@ const ST_SPLAT = 9;
 const ST_PANIC = 10;
 const ST_CLIMB = 11;
 const ST_MINE = 12;
-const ST_PLATFORM = 13;
-const ST_NUKE_PANIC = 14;
+const ST_NUKE_PANIC = 13;
 
-// Skills definition
+// Skills definition — Original 8 Lemmings skills
 const SKILLS = [
+    { id: 'climber', name: 'Climber', icon: '🧗' },
     { id: 'floater', name: 'Floater', icon: '☂️' },
     { id: 'bomber',  name: 'Bomber',  icon: '💣' },
     { id: 'blocker', name: 'Blocker', icon: '🛑' },
     { id: 'builder', name: 'Builder', icon: '🧱' },
     { id: 'basher',  name: 'Basher',  icon: '🥊' },
-    { id: 'digger',  name: 'Digger',  icon: '⛏️' },
-    { id: 'climber', name: 'Climber', icon: '🧗' },
     { id: 'miner',   name: 'Miner',   icon: '⚒️' },
-    { id: 'platformer', name: 'Platform', icon: '🪜' }
+    { id: 'digger',  name: 'Digger',  icon: '⛏️' }
 ];
 
 // Palette for rendering
@@ -181,22 +179,6 @@ const SPRITE_MINE = [
     0,0,1,8,8,1,0,0,
     0,0,3,0,0,3,0,0,
     0,3,3,0,0,3,3,0
-];
-
-// Platformer — arm lowered, placing platform
-const SPRITE_PLATFORM = [
-    0,0,1,1,1,1,0,0,
-    0,1,8,8,8,8,1,0,
-    1,8,8,2,2,9,9,0,
-    1,8,2,2,2,5,5,0,
-    0,1,8,8,2,2,1,0,
-    0,1,8,8,2,2,1,0,
-    0,1,8,2,2,2,1,0,
-    0,1,8,8,2,2,1,0,
-    0,1,8,8,4,4,1,0,
-    0,0,1,8,1,1,0,0,
-    0,0,3,0,3,0,0,0,
-    0,3,3,0,3,3,0,0
 ];
 
 // Nuke panic — 2 frames (alternates red body flash ↔ wide red eyes)

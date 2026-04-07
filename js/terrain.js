@@ -13,6 +13,22 @@ function setTerrain(x, y, val) {
     terrainData[y * GAME_WIDTH + x] = val;
 }
 
+function isSolidTerrain(val) {
+    return val !== 0;
+}
+
+function isSolidAt(x, y) {
+    return isSolidTerrain(getTerrain(x, y));
+}
+
+function isDiggableTerrain(val) {
+    return val === 1; // Only type 1 is diggable; type 10 (steel) is not
+}
+
+function canDigAt(x, y) {
+    return isDiggableTerrain(getTerrain(x, y));
+}
+
 // Fix: Ensure terrain modifications don't create unreachable areas
 // by keeping entrance and exit paths clear
 function ensurePathClear() {
@@ -75,6 +91,10 @@ function getTerrainPixelColor(x, y, theme, profile) {
     const v = terrainData[i];
 
     if (v === 0) return [0, 0, 0, 0];
+
+    if (v === 10) {
+        return [130, 94, 60, 255];
+    }
 
     if (v >= 10) {
         const color = PALETTE[v - 10];

@@ -70,6 +70,20 @@ let nukeCountdown = -1;
 let screenShake = 0;
 let screenShakeIntensity = 0;
 
+function getThemeSkyColors() {
+    const theme = getCurrentThemeName();
+    const skies = {
+        grass:   { top: '#1f4f88', mid: '#254d74', bot: '#1b3858', veil: 'rgba(145, 195, 235, 0.12)' },
+        desert:  { top: '#6a3f3a', mid: '#8a5a3f', bot: '#4e3329', veil: 'rgba(255, 188, 120, 0.10)' },
+        snow:    { top: '#223954', mid: '#2a4869', bot: '#1f3148', veil: 'rgba(176, 218, 255, 0.16)' },
+        rock:    { top: '#2a2e39', mid: '#3a3d4a', bot: '#232532', veil: 'rgba(165, 180, 205, 0.10)' },
+        ice:     { top: '#123b67', mid: '#1c4f7f', bot: '#16385b', veil: 'rgba(120, 205, 255, 0.14)' },
+        lava:    { top: '#401515', mid: '#5a1f17', bot: '#2b0f0f', veil: 'rgba(255, 110, 60, 0.12)' },
+        crystal: { top: '#2f1f4f', mid: '#3a2f69', bot: '#23183f', veil: 'rgba(190, 140, 255, 0.12)' }
+    };
+    return skies[theme] || skies.grass;
+}
+
 function emitPortalAmbience() {
     if (!gameState.active || gameState.paused) return;
     if (typeof createPortalParticles !== 'function') return;
@@ -222,13 +236,14 @@ function updateCanvasScale() {
 window.onload = function() {
     canvas = document.getElementById('gameCanvas');
     ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
     
     offscreenCanvas = document.createElement('canvas');
     offscreenCanvas.width = GAME_WIDTH;
     offscreenCanvas.height = GAME_HEIGHT;
     offCtx = offscreenCanvas.getContext('2d');
-    
+    offCtx.imageSmoothingEnabled = true;
+
     setupInputs();
 
     let levelSelect = document.getElementById('debug-level-select');
@@ -511,13 +526,265 @@ function update() {
     checkEndCondition();
 }
 
+// ─── Scene Props ──────────────────────────────────────────────────────────────
+function drawIcicle(ctx, x, y, h, theme) {
+    const n = hashNoise2D(x * 11 + 3, y * 7 + 5);
+    const a = 0.60 + n * 0.30;
+    ctx.fillStyle = theme === 'crystal'
+        ? `rgba(195, 140, 255, ${a})`
+        : theme === 'snow'
+            ? `rgba(215, 238, 255, ${a})`
+            : `rgba(148, 205, 255, ${a})`;
+    ctx.fillRect(x, y, 1, h - 1);
+    ctx.fillStyle = `rgba(220, 248, 255, ${a * 0.45})`;
+    ctx.fillRect(x, y + h - 1, 1, 1);
+    if (h >= 3) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
+        ctx.fillRect(x, y, 1, 1);
+    }
+}
+
+function drawRopeBridge(ctx, prop) {
+    const { x1, y1, x2, y2, sag = 12 } = prop;
+    const midX = (x1 + x2) / 2;
+    // Anchor posts
+    ctx.fillStyle = '#3a1e06';
+    ctx.fillRect(x1 - 1, y1 - 12, 3, 13);
+    ctx.fillRect(x2 - 1, y2 - 12, 3, 13);
+    ctx.fillStyle = '#6a3a10';
+    ctx.fillRect(x1 - 2, y1 - 13, 5, 2);
+    ctx.fillRect(x2 - 2, y2 - 13, 5, 2);
+    // Top rope
+    ctx.strokeStyle = '#6a4418';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x1 + 1, y1 - 10);
+    ctx.quadraticCurveTo(midX, y1 - 10 + sag, x2 + 1, y2 - 10);
+    ctx.stroke();
+    // Lower rope
+    ctx.beginPath();
+    ctx.moveTo(x1 + 1, y1 - 4);
+    ctx.quadraticCurveTo(midX, y1 - 4 + sag, x2 + 1, y2 - 4);
+    ctx.stroke();
+    // Planks with vertical hangers
+    const steps = Math.round((x2 - x1) / 7);
+    for (let i = 1; i < steps; i++) {
+        const t = i / steps;
+        const bx   = x1 + (x2 - x1) * t;
+        const byTop = (y1 - 10) + t * (y2 - y1) + 4 * sag * t * (1 - t);
+        const byBot = (y1 -  4) + t * (y2 - y1) + 4 * sag * t * (1 - t);
+        ctx.strokeStyle = 'rgba(100, 65, 25, 0.7)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(Math.floor(bx) + 1, Math.floor(byTop));
+        ctx.lineTo(Math.floor(bx) + 1, Math.floor(byBot));
+        ctx.stroke();
+        ctx.fillStyle = '#8c5a28';
+        ctx.fillRect(Math.floor(bx) - 3, Math.floor(byBot) - 1, 6, 2);
+    }
+}
+
+function drawSignPost(ctx, prop) {
+    const { x, y, text, dir = 'right' } = prop;
+    const boardX = dir === 'right' ? x + 2 : x - 14;
+    // Post
+    ctx.fillStyle = '#3a1e06';
+    ctx.fillRect(x, y, 2, 14);
+    // Board
+    ctx.fillStyle = '#7a4818';
+    ctx.fillRect(boardX, y - 11, 14, 9);
+    ctx.fillStyle = '#5a320e';
+    ctx.fillRect(boardX, y - 11, 14, 1);
+    // Text
+    ctx.fillStyle = '#ffe090';
+    ctx.font = '6px monospace';
+    ctx.textAlign = dir === 'right' ? 'left' : 'right';
+    ctx.fillText(text, boardX + (dir === 'right' ? 2 : 12), y - 4);
+    ctx.textAlign = 'left';
+}
+
+function drawSceneProps(ctx) {
+    const theme = getCurrentThemeName();
+    const lvl = LEVELS[currentLevelIndex];
+
+    // Level-specific declared props
+    if (lvl && lvl.props) {
+        for (const prop of lvl.props) {
+            if (prop.type === 'rope')      drawRopeBridge(ctx, prop);
+            else if (prop.type === 'sign') drawSignPost(ctx, prop);
+        }
+    }
+
+    // Auto terrain-edge details (every 3rd column)
+    const isIcy  = theme === 'ice' || theme === 'snow' || theme === 'crystal';
+    const isGrass = theme === 'grass';
+    for (let x = 1; x < GAME_WIDTH - 1; x += 3) {
+        let passedTop = false;
+        for (let y = 2; y < GAME_HEIGHT - 2; y++) {
+            const v   = terrainData[y * GAME_WIDTH + x];
+            const abv = terrainData[(y - 1) * GAME_WIDTH + x];
+            const blw = terrainData[(y + 1) * GAME_WIDTH + x];
+
+            // Top surface edge → grass tufts or snow cap
+            if (!passedTop && v !== 0 && abv === 0) {
+                passedTop = true;
+                if (isGrass) {
+                    const n = hashNoise2D(x * 3 + 1, y + 2);
+                    if (n > 0.2) {
+                        ctx.fillStyle = `rgba(${(40 + n * 20) | 0}, ${(110 + n * 65) | 0}, 18, 0.82)`;
+                        ctx.fillRect(x, y - 2, 1, 2);
+                        if (n > 0.55) ctx.fillRect(x - 1, y - 1, 1, 1);
+                        if (n > 0.75) ctx.fillRect(x + 1, y - 1, 1, 1);
+                    }
+                } else if (theme === 'snow') {
+                    ctx.fillStyle = 'rgba(230, 245, 255, 0.72)';
+                    ctx.fillRect(x, y - 1, 1, 1);
+                    if (hashNoise2D(x + 5, y) > 0.52) ctx.fillRect(x, y - 2, 1, 1);
+                }
+            }
+
+            // Bottom ledge edge → icicles for cold themes
+            if (v !== 0 && blw === 0) {
+                if (isIcy) {
+                    let air = 0;
+                    for (let dy = 1; dy <= 6 && y + dy < GAME_HEIGHT; dy++) {
+                        if (terrainData[(y + dy) * GAME_WIDTH + x] === 0) air++;
+                        else break;
+                    }
+                    if (air >= 4) {
+                        const n = hashNoise2D(x * 7 + 5, y * 3 + 11);
+                        if (n > 0.35) {
+                            drawIcicle(ctx, x, y + 1, 2 + ((n * 5) | 0), theme);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+function drawThemeAtmosphere(ctx, layer) {
+    const theme = getCurrentThemeName();
+    const t = gameState.ticks;
+    const isFront = layer === 'front';
+
+    if (theme === 'snow') {
+        const count = isFront ? 22 : 12;
+        for (let i = 0; i < count; i++) {
+            const seed = i * 17 + (isFront ? 200 : 40);
+            const x = ((seed * 29 + t * (isFront ? 1.2 : 0.6)) % (GAME_WIDTH + 16)) - 8;
+            const y = ((seed * 19 + t * (isFront ? 0.9 : 0.45)) % (GAME_HEIGHT + 30)) - 14;
+            const drift = Math.sin((t + seed) * 0.03) * (isFront ? 2.2 : 1.2);
+            ctx.fillStyle = isFront ? 'rgba(235, 246, 255, 0.34)' : 'rgba(220, 238, 255, 0.22)';
+            ctx.fillRect(Math.floor(x + drift), Math.floor(y), 1, 1);
+        }
+        return;
+    }
+
+    if (theme === 'lava') {
+        // Heat shimmer
+        const shimmer = 0.025 + Math.sin(t * 0.03) * 0.01;
+        ctx.fillStyle = `rgba(255, 140, 70, ${isFront ? shimmer * 1.4 : shimmer})`;
+        for (let y = 120; y < GAME_HEIGHT; y += 9) {
+            const wobble = Math.sin((t * 0.05) + y * 0.12) * 3;
+            ctx.fillRect(8 + wobble, y, GAME_WIDTH - 16, 2);
+        }
+        // Embers
+        const count = isFront ? 16 : 9;
+        for (let i = 0; i < count; i++) {
+            const seed = i * 31 + (isFront ? 300 : 120);
+            const x = (seed * 13 + t * 0.65) % GAME_WIDTH;
+            const y = GAME_HEIGHT - ((seed * 11 + t * (isFront ? 1.35 : 0.95)) % 78);
+            const glow = 0.25 + Math.abs(Math.sin((t + seed) * 0.08)) * 0.35;
+            ctx.fillStyle = `rgba(255, ${120 + ((seed * 7) % 70)}, 40, ${glow * (isFront ? 1.0 : 0.7)})`;
+            ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
+        }
+        return;
+    }
+
+    if (theme === 'crystal') {
+        const count = isFront ? 14 : 10;
+        for (let i = 0; i < count; i++) {
+            const seed = i * 23 + (isFront ? 420 : 180);
+            const x = (seed * 37 + t * 0.25) % GAME_WIDTH;
+            const y = 26 + ((seed * 17 + t * 0.18) % 150);
+            const twinkle = Math.abs(Math.sin((t + seed) * 0.07));
+            if (twinkle > (isFront ? 0.56 : 0.7)) {
+                ctx.fillStyle = `rgba(210, 180, 255, ${isFront ? 0.34 : 0.22})`;
+                ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
+                if (twinkle > 0.9) {
+                    ctx.fillStyle = 'rgba(245, 236, 255, 0.38)';
+                    ctx.fillRect(Math.floor(x) - 1, Math.floor(y), 3, 1);
+                    ctx.fillRect(Math.floor(x), Math.floor(y) - 1, 1, 3);
+                }
+            }
+        }
+        return;
+    }
+
+    if (theme === 'desert') {
+        const bandAlpha = isFront ? 0.08 : 0.05;
+        for (let i = 0; i < 4; i++) {
+            const y = 122 + i * 16;
+            const drift = Math.sin(t * 0.018 + i * 1.4) * (isFront ? 7 : 4);
+            ctx.fillStyle = `rgba(235, 190, 120, ${bandAlpha})`;
+            ctx.fillRect(-20 + drift, y, GAME_WIDTH + 40, 5);
+        }
+        return;
+    }
+
+    if (theme === 'ice') {
+        const glints = isFront ? 12 : 8;
+        for (let i = 0; i < glints; i++) {
+            const seed = i * 29 + (isFront ? 140 : 70);
+            const x = (seed * 21 + t * 0.45) % GAME_WIDTH;
+            const y = 110 + ((seed * 13 + t * 0.28) % 85);
+            const pulse = Math.abs(Math.sin((t + seed) * 0.05));
+            if (pulse > 0.62) {
+                ctx.fillStyle = `rgba(170, 230, 255, ${isFront ? 0.28 : 0.18})`;
+                ctx.fillRect(Math.floor(x), Math.floor(y), 2, 1);
+            }
+        }
+        return;
+    }
+
+    if (theme === 'grass') {
+        // Fireflies in front layer only
+        if (!isFront) return;
+        for (let i = 0; i < 10; i++) {
+            const seed = i * 41 + 9;
+            const x = (seed * 23 + t * 0.22) % GAME_WIDTH;
+            const y = 120 + ((seed * 7 + t * 0.15) % 70);
+            const glow = Math.abs(Math.sin((t + seed) * 0.065));
+            if (glow > 0.58) {
+                ctx.fillStyle = `rgba(255, 245, 145, ${0.18 + glow * 0.34})`;
+                ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
+            }
+        }
+        return;
+    }
+
+    if (theme === 'rock') {
+        const count = isFront ? 10 : 7;
+        for (let i = 0; i < count; i++) {
+            const seed = i * 33 + (isFront ? 230 : 90);
+            const x = (seed * 19 + t * 0.3) % GAME_WIDTH;
+            const y = 115 + ((seed * 11 + t * 0.22) % 90);
+            ctx.fillStyle = isFront ? 'rgba(180, 185, 195, 0.14)' : 'rgba(150, 155, 165, 0.10)';
+            ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
+        }
+    }
+}
+
 function draw() {
-    // Gradient sky — deep indigo at top, dark teal near horizon
+    const sky = getThemeSkyColors();
     let skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    skyGrad.addColorStop(0,    '#04060f');
-    skyGrad.addColorStop(0.55, '#0c1422');
-    skyGrad.addColorStop(1,    '#182232');
+    skyGrad.addColorStop(0, sky.top);
+    skyGrad.addColorStop(0.55, sky.mid);
+    skyGrad.addColorStop(1, sky.bot);
     ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = sky.veil;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     ctx.save();
@@ -714,6 +981,12 @@ function draw() {
     // Draw Terrain
     ctx.drawImage(offscreenCanvas, 0, 0);
 
+    // Scene props: icicles, grass tufts, rope bridges, signs
+    drawSceneProps(ctx);
+
+    // Theme atmosphere behind actors
+    drawThemeAtmosphere(ctx, 'behind');
+
     // Foreground mist pass in front of terrain, behind actors
     let mistBase = 0.14 + Math.sin(gameState.ticks * 0.009) * 0.03;
     let mistGrad = ctx.createLinearGradient(0, 126, 0, GAME_HEIGHT);
@@ -730,6 +1003,9 @@ function draw() {
     ctx.fillRect(188 - mistDrift * 0.6, 146, 130, 8);
     ctx.fillStyle = 'rgba(185, 222, 250, 0.06)';
     ctx.fillRect(78 - mistDrift * 0.4, 156, 170, 9);
+
+    // Theme atmosphere in front of terrain haze, still behind puffins
+    drawThemeAtmosphere(ctx, 'front');
     
     // Draw Puffins
     puffins.forEach(p => p.draw(ctx));

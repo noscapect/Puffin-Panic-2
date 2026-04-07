@@ -27,7 +27,10 @@ LEVELS.push({
         for (let y = 0; y < gh; y++) { for (let x = 0; x < 5; x++) data[y * gw + x] = 1; for (let x = gw - 5; x < gw; x++) data[y * gw + x] = 1; }
         // Wall to bash through - but leave ground clear for walking
         for (let y = 50; y < 90; y++) for (let x = 250; x < 270; x++) data[y * gw + x] = 1;
-    }
+    },
+    props: [
+        { type: 'sign', x: 237, y: 88, text: '→', dir: 'right' }
+    ]
 });
 
 // Level 2: Bridge Over Troubled Water
@@ -41,11 +44,14 @@ LEVELS.push({
     buildTerrain: (data, gw, gh) => {
         // Two cliffs with a deadly gap
         for (let y = 50; y < gh; y++) for (let x = 0; x < 150; x++) data[y * gw + x] = 1;
-        for (let y = 50; y < gh; y++) for (let x = 250; x < gw; x++) data[y * gw + x] = 1;
+        for (let y = 50; y < gh; y++) for (let x = 220; x < gw; x++) data[y * gw + x] = 1;
         for (let y = 0; y < gh; y++) { for (let x = 0; x < 5; x++) data[y * gw + x] = 1; for (let x = gw - 5; x < gw; x++) data[y * gw + x] = 1; }
         // Clear area around exit
         for (let y = 35; y < 50; y++) for (let x = 350; x < 380; x++) data[y * gw + x] = 0;
-    }
+    },
+    props: [
+        { type: 'rope', x1: 150, y1: 50, x2: 220, y2: 50, sag: 14 }
+    ]
 });
 
 // Level 3: The Great Escape
@@ -69,7 +75,10 @@ LEVELS.push({
         for (let y = 55; y < 60; y++) for (let x = 200; x < 370; x++) data[y * gw + x] = 1;
         // Clear area around exit
         for (let y = 20; y < 35; y++) for (let x = 350; x < 380; x++) data[y * gw + x] = 0;
-    }
+    },
+    props: [
+        { type: 'sign', x: 42, y: 188, text: '↑', dir: 'right' }
+    ]
 });
 
 // Level 4: Sandstorm
