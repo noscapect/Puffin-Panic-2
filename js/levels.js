@@ -408,25 +408,55 @@ LEVELS.push({
     }
 });
 
-// Level 20: The Crystal Core - Final Level
+// Level 21: The Ice Shard Ascent - Custom Level
 LEVELS.push({
-    name: "20: The Crystal Core",
-    total: 35, required: 30, spawnRate: FPS * 2, time: 7 * 60 * FPS,
-    entrance: { x: 30, y: 20 },
-    exit: { x: 360, y: 78, w: 20, h: 12 },
-    theme: 'crystal',
-    skills: { floater: 8, bomber: 8, blocker: 6, builder: 10, basher: 5, digger: 5, climber: 6, miner: 5, platformer: 5 },
-    buildTerrain: (data, gw, gh) => {
-        for (let y = 90; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
-        for (let y = 0; y < gh; y++) { for (let x = 0; x < 5; x++) data[y * gw + x] = 1; for (let x = gw - 5; x < gw; x++) data[y * gw + x] = 1; }
-        // Multi-level structure
-        for (let y = 60; y < 90; y++) for (let x = 100; x < 130; x++) data[y * gw + x] = 1;
-        for (let y = 70; y < 90; y++) for (let x = 200; x < 230; x++) data[y * gw + x] = 1;
-        // Elevated platforms
-        for (let y = 75; y < 80; y++) for (let x = 50; x < 150; x++) data[y * gw + x] = 1;
-        for (let y = 65; y < 70; y++) for (let x = 180; x < 300; x++) data[y * gw + x] = 1;
-        // Thick wall needing multiple bombers
-        for (let y = 40; y < 90; y++) for (let x = 280; x < 295; x++) data[y * gw + x] = 1;
+    name: "21: The Ice Shard Ascent",
+    total: 20,
+    required: 15,
+    spawnRate: FPS * 2,
+    time: 5 * 60 * FPS,
+    entrance: { x: 40, y: 80 },
+    exit: { x: 350, y: 188, w: 20, h: 12 },
+    theme: 'ice',
+    skills: { floater: 5, bomber: 2, blocker: 3, builder: 2, basher: 0, digger: 0, climber: 10, miner: 10, platformer: 0 },
+    buildTerrain: function(data, gw, gh) {
+        // Upper Ledge (y: 140 to 150, x: 0 to 130)
+        for (let y = 140; y < 150; y++) {
+            for (let x = 0; x < 130; x++) {
+                data[y * gw + x] = 1;
+            }
+        }
+        
+        // Middle Landing (y: 180 to 190, x: 160 to 210)
+        for (let y = 180; y < 190; y++) {
+            for (let x = 160; x < 210; x++) {
+                data[y * gw + x] = 1;
+            }
+        }
+        
+        // Central Ice Shard Pillar (x: 200 to 250, y: 20 to 180)
+        for (let y = 20; y < 180; y++) {
+            for (let x = 200; x < 250; x++) {
+                data[y * gw + x] = 1;
+            }
+        }
+        
+        // Exit Floor (y: 200 to bottom, x: 280 to end)
+        for (let y = 200; y < gh; y++) {
+            for (let x = 280; x < gw; x++) {
+                data[y * gw + x] = 1;
+            }
+        }
+        
+        // Boundary Walls (10px wide)
+        for (let y = 0; y < gh; y++) {
+            for (let x = 0; x < 10; x++) {
+                data[y * gw + x] = 1;
+            }
+            for (let x = gw - 10; x < gw; x++) {
+                data[y * gw + x] = 1;
+            }
+        }
     }
 });
 
