@@ -454,6 +454,8 @@ class Puffin {
             spr = SPRITE_PANIC[Math.floor(this.animFrame / 2) % 2];
         } else if (this.state === ST_NUKE_PANIC) {
             spr = SPRITE_NUKE_PANIC[Math.floor(this.animFrame / 2) % 2];
+        } else if (this.state === ST_CLIMB) {
+            spr = SPRITE_CLIMB;
         } else if (this.state === ST_MINE) {
             spr = SPRITE_MINE;
         } else if (this.state === ST_PLATFORM) {
@@ -584,7 +586,13 @@ class Puffin {
     
     draw(ctx) {
         if (this.state === ST_DEAD || this.state === ST_EXITED) return;
-        
+
+        // Ground shadow (skipped when airborne)
+        if (this.state !== ST_FALL && this.state !== ST_FLOAT && this.state !== ST_SPLAT) {
+            ctx.fillStyle = 'rgba(0, 0, 20, 0.3)';
+            ctx.fillRect(Math.floor(this.x) + 1, Math.floor(this.y) + PUFFIN_H, PUFFIN_W - 2, 1);
+        }
+
         let spr = this.getSprite();
         
         ctx.save();
@@ -608,28 +616,52 @@ class Puffin {
         
         // Floater umbrella
         if (this.state === ST_FLOAT) {
-            ctx.fillStyle = '#ff5';
-            ctx.fillRect(0, -6, 8, 4);
-            ctx.fillStyle = '#555';
-            ctx.fillRect(3, -2, 2, 4);
+            // Canopy — two-tone stripes
+            ctx.fillStyle = '#ffdd00';
+            ctx.fillRect(0, -7, 8, 2);
+            ctx.fillStyle = '#ff8800';
+            ctx.fillRect(-1, -5, 10, 2);
+            ctx.fillStyle = '#ffdd00';
+            ctx.fillRect(0, -3, 8, 1);
+            // Wooden handle
+            ctx.fillStyle = '#442200';
+            ctx.fillRect(3, -2, 2, 5);
         } else if (this.isFloater && this.state !== ST_DEAD) {
-            // Closed umbrella on the back
-            ctx.fillStyle = '#cc0';
-            ctx.fillRect(4, 0, 2, 8);
+            // Closed umbrella furled on the back
+            ctx.fillStyle = '#cc8800';
+            ctx.fillRect(4, 0, 2, 9);
+            ctx.fillStyle = '#ffcc00';
+            ctx.fillRect(4, 0, 1, 5); // highlight stripe
         }
 
         if (this.state === ST_BASH || this.isBasher) {
-            // Boxing glove
-            ctx.fillStyle = '#f00';
-            let gloveX = (this.state === ST_BASH && this.animFrame % 10 < 5) ? 6 : 4; // Punching vs walking
-            ctx.fillRect(gloveX, 4, 4, 4);
+            // Boxing glove — larger, brighter
+            ctx.fillStyle = '#cc0000';
+            let gloveX = (this.state === ST_BASH && this.animFrame % 10 < 5) ? 7 : 5;
+            ctx.fillRect(gloveX, 3, 5, 5);
+            ctx.fillStyle = '#ff4444'; // highlight
+            ctx.fillRect(gloveX, 3, 3, 1);
         } else if (this.state === ST_DIG) {
-            // Pickaxe
-            ctx.fillStyle = '#555'; // Handle
-            let pickY = (this.animFrame % 10 < 5) ? 6 : 9; // Swinging animation
-            ctx.fillRect(2, pickY - 4, 2, 8);
-            ctx.fillStyle = '#aaa'; // Head
-            ctx.fillRect(0, pickY - 5, 6, 2);
+            // Pickaxe with wooden handle
+            ctx.fillStyle = '#8B4513';
+            let pickY = (this.animFrame % 10 < 5) ? 5 : 8;
+            ctx.fillRect(2, pickY - 3, 2, 7);
+            ctx.fillStyle = '#C0C0C0'; // metal head
+            ctx.fillRect(-1, pickY - 5, 8, 2);
+            ctx.fillStyle = '#555555'; // dark tip
+            ctx.fillRect(-1, pickY - 5, 2, 2);
+        } else if (this.state === ST_BUILD) {
+            // Yellow hard hat
+            ctx.fillStyle = '#f0c000';
+            ctx.fillRect(-1, -4, PUFFIN_W + 2, 2); // brim
+            ctx.fillRect(1, -6, PUFFIN_W - 2, 3);  // crown
+            ctx.fillStyle = '#b09000'; // shadow line on hat
+            ctx.fillRect(1, -4, 3, 1);
+        } else if (this.state === ST_CLIMB) {
+            // Climbing grip marks (pitons on wall side)
+            ctx.fillStyle = '#aaaaaa';
+            ctx.fillRect(5, 2, 3, 1);
+            ctx.fillRect(5, 6, 3, 1);
         }
         
         ctx.restore();
