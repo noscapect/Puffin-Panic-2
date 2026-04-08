@@ -14,7 +14,7 @@ const size = Number(args.size || 512);
 const steps = Number(args.steps || 22);
 const cfg = Number(args.cfg || 6.5);
 const seed = Number(args.seed || Math.floor(Math.random() * 2147483647));
-const checkpoint = args.ckpt || "sd_xl_base_1.0.safetensors";
+const checkpoint = args.ckpt || "zImageTurbo_turbo.safetensors";
 const outputName = args.out || `${presetName}_${Date.now()}.png`;
 
 const presetPath = path.resolve("scripts", "texture-presets.json");

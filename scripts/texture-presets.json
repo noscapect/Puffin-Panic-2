@@ -1,22 +1,22 @@
 {
   "ice": {
-    "positive": "seamless top-down ice texture, arctic frost, tiny crystal noise, pixel-art friendly, tileable",
-    "negative": "text, watermark, logo, people, animals"
+    "positive": "A seamless tileable overhead top-down texture of a cracked arctic ice surface. The ice is pale blue and white with intricate frost crystal patterns and light snow dusting. Shot from directly above with completely flat even lighting and no shadows. Photorealistic 4K game asset texture, suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, objects, sky, horizon, 3D perspective, depth of field, text, watermark, directional shadows, gradient background"
   },
   "water": {
-    "positive": "seamless top-down shallow water texture, soft caustics, blue gradient, game tile, tileable",
-    "negative": "text, watermark, logo, people, animals"
+    "positive": "A seamless tileable overhead top-down texture of a shallow tropical water surface. The water is clear turquoise with sandy bottom visible underneath. Gentle caustic light ripple patterns dance across the surface. Shot from directly above with soft uniform lighting. Photorealistic 4K game asset texture, suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, ocean waves, deep dark water, text, watermark, directional shadows"
   },
   "rock": {
-    "positive": "seamless top-down rocky ground texture, speckled stone, game tile, tileable",
-    "negative": "text, watermark, logo, people, animals"
+    "positive": "A seamless tileable overhead top-down texture of a natural grey stone ground. The surface shows weathered rock with cracks, pebbles, and rough uneven patches. Shot from directly above with completely flat even lighting and no shadows. Photorealistic 4K game asset texture, suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, directional shadows, gradient background"
   },
   "lava": {
-    "positive": "seamless top-down lava crust texture, glowing cracks, volcanic stone, game tile, tileable",
-    "negative": "text, watermark, logo, people, animals"
+    "positive": "A seamless tileable overhead top-down texture of a volcanic lava field. Dark black basalt rock is split by glowing orange-red molten lava cracks with bright ember highlights. Shot from directly above with the glow of the lava as the only light source. Photorealistic 4K game asset texture, suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, cold blue colors, water, ice"
   },
   "grass": {
-    "positive": "seamless top-down grass and dirt texture, stylized game tile, tileable",
-    "negative": "text, watermark, logo, people, animals"
+    "positive": "A seamless tileable overhead top-down texture of a lush grass ground. Short green grass with small wildflowers, patches of dirt, and tiny pebbles scattered across the surface. Shot from directly above with soft even daylight and no shadows. Photorealistic 4K game asset texture, suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, road, pavement, directional shadows"
   }
 }
