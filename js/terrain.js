@@ -81,7 +81,8 @@ function getThemeRenderProfile(themeName) {
         rock:    { noiseAmp: 14, depthTint: 0.12, crackChance: 0.04, rimBoost: [14, 16, 18], glaze: false },
         ice:     { noiseAmp: 9,  depthTint: 0.05, crackChance: 0.018, rimBoost: [30, 36, 44], glaze: true },
         lava:    { noiseAmp: 16, depthTint: 0.15, crackChance: 0.05, rimBoost: [22, 10, 4],  glaze: false },
-        crystal: { noiseAmp: 12, depthTint: 0.08, crackChance: 0.03, rimBoost: [20, 18, 26], glaze: true }
+        crystal: { noiseAmp: 12, depthTint: 0.08, crackChance: 0.03, rimBoost: [20, 18, 26], glaze: true },
+        water:   { noiseAmp: 10, depthTint: 0.06, crackChance: 0.02, rimBoost: [22, 30, 36], glaze: true }
     };
     return profiles[themeName] || profiles.grass;
 }
@@ -247,7 +248,8 @@ function getThemeColors() {
         rock: { surface: [128, 128, 128], terrain: [64, 64, 64] },
         ice: { surface: [173, 216, 230], terrain: [70, 130, 180] },
         lava: { surface: [255, 69, 0], terrain: [139, 0, 0] },
-        crystal: { surface: [224, 176, 255], terrain: [148, 103, 189] }
+        crystal: { surface: [224, 176, 255], terrain: [148, 103, 189] },
+        water: { surface: [126, 210, 236], terrain: [56, 122, 166] }
     };
     return themes[theme] || themes.grass;
 }

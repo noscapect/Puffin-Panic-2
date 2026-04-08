@@ -79,7 +79,8 @@ function getThemeSkyColors() {
         rock:    { top: '#2a2e39', mid: '#3a3d4a', bot: '#232532', veil: 'rgba(165, 180, 205, 0.10)' },
         ice:     { top: '#123b67', mid: '#1c4f7f', bot: '#16385b', veil: 'rgba(120, 205, 255, 0.14)' },
         lava:    { top: '#401515', mid: '#5a1f17', bot: '#2b0f0f', veil: 'rgba(255, 110, 60, 0.12)' },
-        crystal: { top: '#2f1f4f', mid: '#3a2f69', bot: '#23183f', veil: 'rgba(190, 140, 255, 0.12)' }
+        crystal: { top: '#2f1f4f', mid: '#3a2f69', bot: '#23183f', veil: 'rgba(190, 140, 255, 0.12)' },
+        water:   { top: '#0c3a63', mid: '#135684', bot: '#0b2f4a', veil: 'rgba(120, 220, 255, 0.14)' }
     };
     return skies[theme] || skies.grass;
 }
@@ -104,19 +105,16 @@ function triggerNuke() {
     let nukeBtn = document.getElementById('btn-nuke');
     if (nukeBtn) nukeBtn.classList.add('disabled');
     
-    // Set all active puffins to nuke panic state
-    puffins.forEach(p => {
-        if (p.state !== ST_DEAD && p.state !== ST_EXITED && p.state !== ST_SPLAT) {
-            p.nukePanicTicks = nukeCountdown;
-            p.state = ST_NUKE_PANIC;
-        }
+    // Set all active puffins to nuke panic with 1-second staggered explosions.
+    const livePuffins = puffins.filter(p => p.state !== ST_DEAD && p.state !== ST_EXITED && p.state !== ST_SPLAT);
+    livePuffins.forEach((p, index) => {
+        p.nukePanicTicks = nukeCountdown + (index * FPS);
+        p.state = ST_NUKE_PANIC;
     });
     
-    // Create warning particles for each puffin
-    puffins.forEach(p => {
-        if (p.state !== ST_DEAD && p.state !== ST_EXITED && p.state !== ST_SPLAT) {
-            createParticles(p.x + PUFFIN_W/2, p.y, 3, [255, 0, 0]);
-        }
+    // Create warning particles for each affected puffin.
+    livePuffins.forEach(p => {
+        createParticles(p.x + PUFFIN_W/2, p.y, 3, [255, 0, 0]);
     });
 }
 
@@ -482,6 +480,10 @@ function update() {
     gameState.ticks++;
     if (gameState.timeLeft > 0) gameState.timeLeft--;
 
+    if (nukeActivated && nukeCountdown > 0) {
+        nukeCountdown--;
+    }
+
     // Exit portal ambience particles.
     if (gameState.ticks % 3 === 0) {
         emitPortalAmbience();
@@ -603,15 +605,46 @@ function drawSignPost(ctx, prop) {
     ctx.textAlign = 'left';
 }
 
+function drawWaterZone(ctx, prop, ticks) {
+    const { x, y, w, h } = prop;
+    const t = ticks * 0.06;
+
+    const grad = ctx.createLinearGradient(x, y, x, y + h);
+    grad.addColorStop(0, 'rgba(80, 205, 245, 0.34)');
+    grad.addColorStop(0.55, 'rgba(20, 125, 190, 0.42)');
+    grad.addColorStop(1, 'rgba(8, 62, 118, 0.52)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, w, h);
+
+    // Crest line and small moving highlights to make water feel alive.
+    const wave = Math.sin(t) * 1.8;
+    ctx.fillStyle = 'rgba(200, 248, 255, 0.36)';
+    ctx.fillRect(x, y + wave, w, 2);
+
+    for (let i = 0; i < 18; i++) {
+        const sx = x + ((i * 29 + ticks * 1.3) % w);
+        const sy = y + 3 + (i % 3) * 2;
+        ctx.fillStyle = 'rgba(230, 255, 255, 0.15)';
+        ctx.fillRect(Math.floor(sx), Math.floor(sy), 6, 1);
+    }
+}
+
 function drawSceneProps(ctx) {
     const theme = getCurrentThemeName();
     const lvl = LEVELS[currentLevelIndex];
+
+    if (lvl && lvl.waterZones) {
+        for (const zone of lvl.waterZones) {
+            drawWaterZone(ctx, zone, gameState.ticks);
+        }
+    }
 
     // Level-specific declared props
     if (lvl && lvl.props) {
         for (const prop of lvl.props) {
             if (prop.type === 'rope')      drawRopeBridge(ctx, prop);
             else if (prop.type === 'sign') drawSignPost(ctx, prop);
+            else if (prop.type === 'water') drawWaterZone(ctx, prop, gameState.ticks);
         }
     }
 

@@ -157,6 +157,100 @@ class Puffin {
             gameState.dead++;
         }
     }
+
+    getWaterZoneAt(px, py) {
+        const lvl = LEVELS[currentLevelIndex];
+        if (!lvl || !lvl.waterZones) return null;
+        for (const zone of lvl.waterZones) {
+            const inX = px >= zone.x && px <= zone.x + zone.w;
+            const bodyTouchesWater = (this.y + PUFFIN_H) >= zone.y && this.y <= (zone.y + zone.h + 2);
+            const pointInWater = py >= zone.y && py <= zone.y + zone.h;
+            if (inX && (bodyTouchesWater || pointInWater)) {
+                return zone;
+            }
+        }
+        return null;
+    }
+
+    doSwim(zone) {
+        // Keep puffins buoyant at the surface with a tiny bob.
+        const bob = Math.sin(this.animFrame * 0.18) * 0.35;
+        const targetY = zone.y - Math.floor(PUFFIN_H * 0.55) + bob;
+        const dy = targetY - this.y;
+        this.y += Math.max(-1.2, Math.min(1.2, dy));
+
+        // Safety clamp so they cannot sink to the bottom of the water zone.
+        const maxDepthY = zone.y + zone.h - PUFFIN_H + 1;
+        if (this.y > maxDepthY) this.y = maxDepthY;
+
+        // Swim toward the exit by default; this keeps puzzle flow deterministic.
+        const exitCenterX = EXIT.x + EXIT.w / 2;
+        const desiredDir = this.x <= exitCenterX ? 1 : -1;
+        if (this.vx !== desiredDir && this.animFrame % 6 === 0) {
+            this.vx = desiredDir;
+        }
+
+        if (this.animFrame % 2 === 0) {
+            const swimSpeed = 0.9;
+            const nextX = this.x + this.vx * swimSpeed;
+            const centerY = Math.floor(this.y + PUFFIN_H / 2);
+            const probeX = Math.floor(nextX + (this.vx > 0 ? PUFFIN_W : 0));
+            const leadX = Math.floor(nextX + (this.vx > 0 ? PUFFIN_W - 1 : 0));
+
+            const tryShoreExit = () => {
+                const shorelineX = leadX + this.vx * 2;
+                const testXs = [leadX, shorelineX];
+                for (const tx of testXs) {
+                    let landingY = null;
+                    // Allow a much larger upward search so puffins can climb onto banks.
+                    for (let dy = -20; dy <= 18; dy++) {
+                        const testY = Math.floor(this.y + dy);
+                        const testCenterY = Math.floor(testY + PUFFIN_H / 2);
+                        const clearBody = !isSolidAt(tx, testCenterY) && !isSolidAt(tx + this.vx, testCenterY);
+                        const clearFeet = !isSolidAt(tx, testY + PUFFIN_H);
+                        const floorUnderFeet = isSolidAt(tx, testY + PUFFIN_H + 1);
+                        if (clearBody && clearFeet && floorUnderFeet) {
+                            landingY = testY;
+                            break;
+                        }
+                    }
+                    if (landingY !== null && !this.checkBlocker(tx, landingY + PUFFIN_H / 2)) {
+                        this.x = nextX;
+                        this.y = landingY;
+                        this.state = ST_WALK;
+                        this.vy = 0;
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            const outOfPool = nextX < zone.x + 1 || nextX > (zone.x + zone.w - PUFFIN_W - 1);
+            const nearRightEdge = this.vx > 0 && (this.x + PUFFIN_W) >= (zone.x + zone.w - 3);
+            const nearLeftEdge = this.vx < 0 && this.x <= (zone.x + 3);
+
+            if (outOfPool || nearRightEdge || nearLeftEdge) {
+                if (tryShoreExit()) return;
+
+                // If no valid shoreline, stay in water and keep paddling at edge.
+                this.vx = desiredDir;
+            } else if (!isSolidAt(probeX, centerY) && !this.checkBlocker(probeX, centerY)) {
+                this.x = nextX;
+            } else {
+                // Stay afloat while waiting for terrain to be opened.
+                this.vx = desiredDir;
+            }
+
+            // Small surface splashes while paddling.
+            if (typeof createSwimSplashParticles === 'function' && this.animFrame % 6 === 0) {
+                createSwimSplashParticles(
+                    this.x + PUFFIN_W / 2,
+                    zone.y + 1,
+                    this.vx
+                );
+            }
+        }
+    }
     
     doFall() {
         this.vy += 0.2; // gravity
@@ -168,6 +262,17 @@ class Puffin {
         
         for (let i = 0; i < steps; i++) {
             this.y += this.vy / steps;
+
+            const swimZone = this.getWaterZoneAt(
+                Math.floor(this.x + PUFFIN_W / 2),
+                Math.floor(this.y + PUFFIN_H / 2)
+            );
+            if (swimZone) {
+                this.state = ST_WALK;
+                this.vy = 0;
+                this.doSwim(swimZone);
+                return;
+            }
             
             // Check landing at feet
             let fx = Math.floor(this.x);
@@ -204,6 +309,15 @@ class Puffin {
     }
     
     doWalk() {
+        const swimZone = this.getWaterZoneAt(
+            Math.floor(this.x + PUFFIN_W / 2),
+            Math.floor(this.y + PUFFIN_H / 2)
+        );
+        if (swimZone) {
+            this.doSwim(swimZone);
+            return;
+        }
+
         // Fall off edge check
         let fx = Math.floor(this.x);
         let fy = Math.floor(this.y + PUFFIN_H + 1);

@@ -1,9 +1,11 @@
 // Level Manager - Handles level data
 const LEVELS = [];
-const TOTAL_LEVELS = 20;
+const TOTAL_LEVELS = 22;
 
 // Get theme for a level
 function getLevelTheme(levelNum) {
+    const level = LEVELS[levelNum - 1];
+    if (level && level.theme) return level.theme;
     if (levelNum <= 3) return 'grass';
     if (levelNum <= 6) return 'desert';
     if (levelNum <= 9) return 'snow';
@@ -467,6 +469,75 @@ LEVELS.push({
             }
         }
     }
+});
+
+// Level 22: Tidal Lock
+LEVELS.push({
+    name: "22: Tidal Lock",
+    total: 25,
+    required: 20,
+    spawnRate: FPS * 2,
+    time: 6 * 60 * FPS,
+    entrance: { x: 36, y: 64 },
+    exit: { x: 356, y: 98, w: 20, h: 12 },
+    theme: 'water',
+    skills: { floater: 0, bomber: 2, blocker: 2, builder: 5, basher: 2, digger: 2, climber: 0, miner: 6, platformer: 0 },
+    waterZones: [
+        { x: 118, y: 122, w: 168, h: 66 }
+    ],
+    buildTerrain: function(data, gw, gh) {
+        // Deep floor to catch poor routing choices.
+        for (let y = 188; y < gh; y++) {
+            for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
+        }
+
+        // Boundary walls.
+        for (let y = 0; y < gh; y++) {
+            for (let x = 0; x < 5; x++) data[y * gw + x] = 1;
+            for (let x = gw - 5; x < gw; x++) data[y * gw + x] = 1;
+        }
+
+        // Spawn shelf and early corridor.
+        for (let y = 76; y < 92; y++) {
+            for (let x = 18; x < 150; x++) data[y * gw + x] = 1;
+        }
+
+        // Left retaining wall to force a drop into the basin.
+        for (let y = 92; y < 188; y++) {
+            for (let x = 112; x < 120; x++) data[y * gw + x] = 1;
+        }
+
+        // Floodgate wall in the middle: miners must open a channel.
+        for (let y = 96; y < 188; y++) {
+            for (let x = 224; x < 236; x++) data[y * gw + x] = 1;
+        }
+
+        // Right shoreline and climb to exit.
+        // Wide shoreline catches swimmers and prevents cliff-edge soft-locks.
+        for (let y = 120; y < 132; y++) {
+            for (let x = 286; x < 396; x++) data[y * gw + x] = 1;
+        }
+
+        // Upper approach to the exit.
+        for (let y = 108; y < 120; y++) {
+            for (let x = 330; x < 396; x++) data[y * gw + x] = 1;
+        }
+
+        // Solid backing below shoreline removes the lower-right stuck zone entirely.
+        for (let y = 132; y < 188; y++) {
+            for (let x = 286; x < 396; x++) data[y * gw + x] = 1;
+        }
+
+        // Ceiling cap to keep the route constrained.
+        for (let y = 0; y < 18; y++) {
+            for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
+        }
+    },
+    props: [
+        { type: 'water', x: 118, y: 122, w: 168, h: 66 },
+        { type: 'sign', x: 96, y: 74, text: 'MINE GATE', dir: 'right' },
+        { type: 'sign', x: 318, y: 130, text: 'BUILD', dir: 'right' }
+    ]
 });
 
 // Export LevelManager for custom level loading

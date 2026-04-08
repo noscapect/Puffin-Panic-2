@@ -107,6 +107,25 @@ function createSparkParticles(x, y) {
     }
 }
 
+// Visual polish: Surface splashes while swimming
+function createSwimSplashParticles(x, y, dir = 1) {
+    for (let i = 0; i < 3; i++) {
+        let p = new Particle(
+            x + (Math.random() - 0.5) * 5,
+            y + (Math.random() - 0.5) * 2,
+            [190, 240, 255],
+            false
+        );
+        p.vx = (Math.random() * 1.2 + 0.2) * -dir + (Math.random() - 0.5) * 0.4;
+        p.vy = -1.0 - Math.random() * 1.4;
+        p.gravityScale = 0.55;
+        p.collisionEnabled = false;
+        p.fadeRate = 1.35;
+        p.life = 8 + Math.random() * 7;
+        particles.push(p);
+    }
+}
+
 // Visual Polish: Create explosion shockwave particles
 function createShockwave(x, y) {
     for (let i = 0; i < 12; i++) {
