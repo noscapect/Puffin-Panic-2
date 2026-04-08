@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "texture:gen": "node scripts/generate-texture.mjs"
+  },
   "dependencies": {
     "@gradio/client": "^2.1.0"
   }

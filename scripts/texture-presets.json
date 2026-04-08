@@ -1,0 +1,22 @@
+{
+  "ice": {
+    "positive": "seamless top-down ice texture, arctic frost, tiny crystal noise, pixel-art friendly, tileable",
+    "negative": "text, watermark, logo, people, animals"
+  },
+  "water": {
+    "positive": "seamless top-down shallow water texture, soft caustics, blue gradient, game tile, tileable",
+    "negative": "text, watermark, logo, people, animals"
+  },
+  "rock": {
+    "positive": "seamless top-down rocky ground texture, speckled stone, game tile, tileable",
+    "negative": "text, watermark, logo, people, animals"
+  },
+  "lava": {
+    "positive": "seamless top-down lava crust texture, glowing cracks, volcanic stone, game tile, tileable",
+    "negative": "text, watermark, logo, people, animals"
+  },
+  "grass": {
+    "positive": "seamless top-down grass and dirt texture, stylized game tile, tileable",
+    "negative": "text, watermark, logo, people, animals"
+  }
+}
