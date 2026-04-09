@@ -1,0 +1,26 @@
+{
+  "file": "D:\\Temp\\Puffin Panic 2\\levels\\level_087.json",
+  "mapSize": {
+    "width": 400,
+    "height": 220,
+    "expectedCells": 88000
+  },
+  "terrain": {
+    "pairCount": 643,
+    "totalRLECount": 88000,
+    "solidCells": 32470,
+    "solidPct": 36.9,
+    "connectedComponents": 4,
+    "tinyComponents": 0,
+    "topSurface": 884,
+    "flatTopSurface": 873,
+    "flatSurfacePct": 98.76,
+    "jaggednessScore": 11
+  },
+  "issues": [],
+  "score": {
+    "pass": true,
+    "errorCount": 0,
+    "warnCount": 0
+  }
+}

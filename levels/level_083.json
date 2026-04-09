@@ -21,10 +21,10 @@
     "bomber": 5,
     "blocker": 4,
     "builder": 5,
-    "basher": 0,
-    "digger": 0,
-    "climber": 0,
-    "miner": 0,
+    "basher": 3,
+    "digger": 1,
+    "climber": 6,
+    "miner": 2,
     "platformer": 0
   },
   "terrain": [

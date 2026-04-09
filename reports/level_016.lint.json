@@ -6,10 +6,10 @@
     "expectedCells": 88000
   },
   "terrain": {
-    "pairCount": 475,
+    "pairCount": 701,
     "totalRLECount": 88000,
-    "solidCells": 46921,
-    "solidPct": 53.32,
+    "solidCells": 48871,
+    "solidPct": 55.54,
     "connectedComponents": 1,
     "tinyComponents": 0,
     "topSurface": 390,

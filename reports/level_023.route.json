@@ -1,0 +1,70 @@
+{
+  "file": "D:\\Temp\\Puffin Panic 2\\levels\\level_023.json",
+  "mapSize": {
+    "width": 400,
+    "height": 220,
+    "cells": 88000
+  },
+  "route": {
+    "ok": false,
+    "reason": "No route found with current heuristic operations and skill budget.",
+    "spawn": {
+      "id": 39,
+      "x": 30,
+      "y": 80
+    },
+    "exit": {
+      "id": 403,
+      "x": 368,
+      "y": 176
+    },
+    "budget": {
+      "builder": 9,
+      "basher": 7,
+      "climber": 6,
+      "floater": 2
+    },
+    "used": null,
+    "nodes": 417,
+    "iterations": 209141,
+    "closest": {
+      "distToExit": 46,
+      "node": {
+        "id": 363,
+        "x": 368,
+        "y": 130
+      },
+      "used": {
+        "builder": 1,
+        "basher": 1,
+        "climber": 0,
+        "floater": 0
+      },
+      "steps": 311
+    },
+    "blockedByBudget": {
+      "builder": 106,
+      "basher": 273,
+      "climber": 550,
+      "floater": 0
+    },
+    "suggestion": [
+      "Consider increasing climber (budget pressure seen 550 times).",
+      "Consider increasing basher (budget pressure seen 273 times).",
+      "Consider increasing builder (budget pressure seen 106 times)."
+    ],
+    "recommendedDelta": {
+      "builder": 2,
+      "basher": 1,
+      "climber": 2,
+      "floater": 0
+    },
+    "recommendedBudget": {
+      "builder": 11,
+      "basher": 8,
+      "climber": 8,
+      "floater": 2
+    }
+  },
+  "generatedAt": "2026-04-09T18:29:23.966Z"
+}

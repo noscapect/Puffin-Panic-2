@@ -23,7 +23,7 @@
     "builder": 5,
     "basher": 0,
     "digger": 0,
-    "climber": 0,
+    "climber": 2,
     "miner": 0,
     "platformer": 0
   },

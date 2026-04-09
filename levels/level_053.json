@@ -22,9 +22,9 @@
     "blocker": 3,
     "builder": 6,
     "basher": 4,
-    "digger": 0,
-    "climber": 3,
-    "miner": 0,
+    "digger": 1,
+    "climber": 9,
+    "miner": 2,
     "platformer": 0
   },
   "terrain": [

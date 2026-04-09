@@ -6,23 +6,18 @@
     "expectedCells": 88000
   },
   "terrain": {
-    "pairCount": 661,
+    "pairCount": 898,
     "totalRLECount": 88000,
-    "solidCells": 44351,
-    "solidPct": 50.4,
+    "solidCells": 46951,
+    "solidPct": 53.35,
     "connectedComponents": 9,
     "tinyComponents": 1,
-    "topSurface": 638,
-    "flatTopSurface": 493,
-    "flatSurfacePct": 77.27,
-    "jaggednessScore": 87
+    "topSurface": 630,
+    "flatTopSurface": 485,
+    "flatSurfacePct": 76.98,
+    "jaggednessScore": 85
   },
   "issues": [
-    {
-      "code": "ENTRANCE_BLOCKED",
-      "severity": "warn",
-      "detail": "Entrance has 9 blocked cells in 3x3 zone."
-    },
     {
       "code": "SMALL_FRAGMENTS",
       "severity": "warn",
@@ -32,6 +27,6 @@
   "score": {
     "pass": true,
     "errorCount": 0,
-    "warnCount": 2
+    "warnCount": 1
   }
 }

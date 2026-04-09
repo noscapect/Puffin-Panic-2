@@ -535,7 +535,8 @@ class Puffin {
     
     doBuild() {
         this.actionTicks++;
-        if (this.actionTicks % 10 === 0) {
+        // Faster cadence so trailing puffins are less likely to outrun the builder.
+        if (this.actionTicks % 6 === 0) {
             let bx = Math.floor(this.x + (this.vx * 4));
             let by = Math.floor(this.y + PUFFIN_H);
             
@@ -672,13 +673,22 @@ class Puffin {
     }
     
     checkBlocker(tx, ty) {
-        // Check if hitting another blocking puffin
+        // Check if hitting another blocking puffin or queued behind an active builder.
         for (let p of puffins) {
             if (p === this) continue;
             if (p.state === ST_BLOCK) {
                 let dx = Math.abs(tx - p.x);
                 let dy = Math.abs(ty - (p.y + PUFFIN_H/2));
                 if (dx < 6 && dy < 10) return true;
+            } else if (p.state === ST_BUILD) {
+                let dy = Math.abs(ty - (p.y + PUFFIN_H/2));
+                if (dy >= 10) continue;
+
+                // Hold followers behind the builder while building so they cannot pass and fall.
+                let behindBuilder = p.vx > 0
+                    ? tx >= (p.x - 8) && tx <= (p.x + 2)
+                    : tx <= (p.x + PUFFIN_W + 8) && tx >= (p.x + PUFFIN_W - 2);
+                if (behindBuilder) return true;
             }
         }
         return false;

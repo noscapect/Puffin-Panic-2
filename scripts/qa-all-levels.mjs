@@ -61,7 +61,8 @@ function runQA(levelFile) {
 
 // ─── Apply recommended budget fix ─────────────────────────────────────────────
 function applyBudgetFix(levelFile, recommendedBudget) {
-    const data = JSON.parse(readFileSync(levelFile, 'utf8'));
+    const raw = readFileSync(levelFile, 'utf8').replace(/^\uFEFF/, '');
+    const data = JSON.parse(raw);
     const current = data.skills || {};
     let changed = false;
     for (const [skill, count] of Object.entries(recommendedBudget)) {

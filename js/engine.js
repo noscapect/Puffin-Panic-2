@@ -132,7 +132,13 @@ function getThemeSkyColors() {
         crystal_dense:  { top: '#352553', mid: '#47326c', bot: '#281b3f', veil: 'rgba(206, 156, 248, 0.12)' },
         fungus_glow:    { top: '#1d3f3d', mid: '#2c5a52', bot: '#183532', veil: 'rgba(112, 236, 188, 0.12)' },
         toxic_sludge:   { top: '#394028', mid: '#4f5c33', bot: '#2a311f', veil: 'rgba(186, 225, 86, 0.10)' },
-        concept_999:    { top: '#1f4f88', mid: '#3e7db0', bot: '#215079', veil: 'rgba(188, 230, 255, 0.14)' }
+        concept_999:    { top: '#1f4f88', mid: '#3e7db0', bot: '#215079', veil: 'rgba(188, 230, 255, 0.14)' },
+        sandstone:  { top: '#6b4c1a', mid: '#8a611f', bot: '#4f3612', veil: 'rgba(245, 195, 100, 0.12)' },
+        deep_sea:   { top: '#071a2e', mid: '#0d2840', bot: '#050f1e', veil: 'rgba(60, 140, 200, 0.12)' },
+        iron_ore:   { top: '#232323', mid: '#2e2e2e', bot: '#1a1a1a', veil: 'rgba(185, 100, 50, 0.10)' },
+        coral:      { top: '#0d4a5e', mid: '#146378', bot: '#0a3848', veil: 'rgba(120, 220, 210, 0.14)' },
+        amber:      { top: '#5a3a0a', mid: '#7a5218', bot: '#40280a', veil: 'rgba(255, 200, 80, 0.14)' },
+        bone_white: { top: '#5a5a5a', mid: '#707070', bot: '#484848', veil: 'rgba(230, 225, 210, 0.10)' }
     };
     return skies[theme] || skies.grass;
 }
@@ -921,6 +927,295 @@ function drawThemeAtmosphere(ctx, layer) {
     }
 }
 
+function drawThemeBackground(ctx) {
+    const theme = getCurrentThemeName();
+    const t = gameState.ticks;
+    const arcticThemes   = new Set(['snow','ice','packed_snow','frozen_mud','black_ice']);
+    const volcanicThemes = new Set(['lava','volcanic_ash','obsidian_floor']);
+    const desertBgThemes = new Set(['desert','salt_flats','sandstone']);
+    const caveThemes     = new Set(['cave','wet_cave_stone','iron_ore','mud']);
+    const underThemes    = new Set(['water','deep_sea','coral']);
+    const magicThemes    = new Set(['crystal','crystal_dense','fungus_glow','toxic_sludge','amber']);
+
+    if (arcticThemes.has(theme)) {
+        // Stars
+        const stars = [
+            {x:  15, y:  8, s:1, sp:0.018}, {x:  42, y: 22, s:1, sp:0.031},
+            {x:  78, y: 12, s:2, sp:0.014}, {x: 105, y: 35, s:1, sp:0.022},
+            {x: 138, y:  6, s:1, sp:0.028}, {x: 165, y: 48, s:2, sp:0.017},
+            {x: 195, y: 18, s:1, sp:0.033}, {x: 230, y: 55, s:1, sp:0.025},
+            {x: 258, y: 10, s:2, sp:0.019}, {x: 285, y: 32, s:1, sp:0.038},
+            {x: 312, y: 68, s:1, sp:0.021}, {x: 345, y: 14, s:2, sp:0.016},
+            {x: 372, y: 42, s:1, sp:0.029}, {x: 390, y: 22, s:1, sp:0.024},
+            {x:  60, y: 75, s:1, sp:0.036}, {x: 210, y: 76, s:1, sp:0.020},
+            {x: 330, y: 90, s:1, sp:0.027}, {x:  88, y: 50, s:1, sp:0.041}
+        ];
+        stars.forEach(star => {
+            let brightness = 0.35 + Math.sin(t * star.sp + star.x * 0.1) * 0.45;
+            ctx.fillStyle = `rgba(240, 245, 255, ${brightness})`;
+            ctx.fillRect(star.x, star.y, star.s, star.s);
+        });
+        // Moon — outer glow halo
+        ctx.fillStyle = 'rgba(255, 245, 220, 0.12)';
+        ctx.beginPath(); ctx.arc(320, 38, 22, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255, 245, 220, 0.20)';
+        ctx.beginPath(); ctx.arc(320, 38, 18, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#ede8d8';
+        ctx.beginPath(); ctx.arc(320, 38, 14, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,0.10)';
+        ctx.beginPath(); ctx.arc(315, 34, 3.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.beginPath(); ctx.arc(323, 41, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(312, 42, 1.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(326, 33, 1.0, 0, Math.PI*2); ctx.fill();
+        // Aurora borealis
+        let auroraOffset = Math.sin(t * 0.01) * 10;
+        ctx.fillStyle = `rgba(0, 255, 100, ${0.07 + Math.sin(t * 0.005) * 0.03})`;
+        ctx.beginPath();
+        ctx.moveTo(0, 80 + auroraOffset);
+        ctx.quadraticCurveTo(200, 28 + auroraOffset, 400, 88 + auroraOffset);
+        ctx.lineTo(400, 0); ctx.lineTo(0, 0); ctx.fill();
+        ctx.fillStyle = `rgba(0, 150, 255, ${0.05 + Math.sin(t * 0.008 + 1) * 0.025})`;
+        ctx.beginPath();
+        ctx.moveTo(0, 100 + auroraOffset);
+        ctx.quadraticCurveTo(150, 48 + auroraOffset, 400, 108 + auroraOffset);
+        ctx.lineTo(400, 0); ctx.lineTo(0, 0); ctx.fill();
+        ctx.fillStyle = `rgba(180, 0, 255, ${0.03 + Math.sin(t * 0.006 + 2) * 0.02})`;
+        ctx.beginPath();
+        ctx.moveTo(0, 90 + auroraOffset);
+        ctx.quadraticCurveTo(280, 38 + auroraOffset, 400, 95 + auroraOffset);
+        ctx.lineTo(400, 0); ctx.lineTo(0, 0); ctx.fill();
+        // Parallax ridges
+        const driftFar = Math.sin(t * 0.002) * 4;
+        const driftMid = Math.sin(t * 0.003 + 0.8) * 6;
+        ctx.save();
+        ctx.translate(driftFar, 0);
+        ctx.fillStyle = 'rgba(20, 36, 60, 0.45)';
+        ctx.beginPath();
+        ctx.moveTo(-12, 126);
+        ctx.lineTo(24, 94); ctx.lineTo(60, 102); ctx.lineTo(92, 78);
+        ctx.lineTo(126, 88); ctx.lineTo(162, 66); ctx.lineTo(198, 82);
+        ctx.lineTo(235, 62); ctx.lineTo(275, 78); ctx.lineTo(312, 58);
+        ctx.lineTo(350, 74); ctx.lineTo(388, 64); ctx.lineTo(420, 80);
+        ctx.lineTo(420, 126); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        ctx.save();
+        ctx.translate(driftMid, 0);
+        ctx.fillStyle = 'rgba(35, 58, 88, 0.58)';
+        ctx.beginPath();
+        ctx.moveTo(-16, 140);
+        ctx.lineTo(22, 108); ctx.lineTo(48, 118); ctx.lineTo(78, 92);
+        ctx.lineTo(108, 102); ctx.lineTo(138, 82); ctx.lineTo(170, 98);
+        ctx.lineTo(202, 78); ctx.lineTo(236, 96); ctx.lineTo(266, 74);
+        ctx.lineTo(298, 90); ctx.lineTo(328, 84); ctx.lineTo(360, 96);
+        ctx.lineTo(390, 86); ctx.lineTo(420, 100);
+        ctx.lineTo(420, 140); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        // Snow caps on visible peaks
+        ctx.fillStyle = 'rgba(215, 233, 255, 0.22)';
+        [[78,92],[138,82],[202,78],[266,74],[328,84]].forEach(([px, py]) => {
+            ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px+11, py+11); ctx.lineTo(px-11, py+11); ctx.closePath(); ctx.fill();
+        });
+        // Haze
+        let hazeAlpha = 0.08 + Math.sin(t * 0.006) * 0.02;
+        ctx.fillStyle = `rgba(170, 210, 255, ${hazeAlpha})`;
+        ctx.fillRect(0, 84, GAME_WIDTH, 46);
+        return;
+    }
+
+    if (volcanicThemes.has(theme)) {
+        // Glowing lava horizon
+        let horizonGlow = 0.18 + Math.sin(t * 0.022) * 0.06;
+        ctx.fillStyle = `rgba(255, 80, 20, ${horizonGlow * 0.5})`;
+        ctx.fillRect(0, 110, GAME_WIDTH, 35);
+        ctx.fillStyle = `rgba(255, 130, 40, ${horizonGlow * 0.22})`;
+        ctx.fillRect(0, 96, GAME_WIDTH, 20);
+        // Jagged volcanic ridges
+        ctx.save();
+        ctx.translate(Math.sin(t * 0.002) * 3, 0);
+        ctx.fillStyle = 'rgba(14, 8, 6, 0.82)';
+        ctx.beginPath();
+        ctx.moveTo(-10, 130);
+        ctx.lineTo(18, 96); ctx.lineTo(35, 118); ctx.lineTo(58, 84);
+        ctx.lineTo(80, 102); ctx.lineTo(105, 72); ctx.lineTo(130, 96);
+        ctx.lineTo(158, 66); ctx.lineTo(185, 90); ctx.lineTo(215, 62);
+        ctx.lineTo(245, 86); ctx.lineTo(272, 58); ctx.lineTo(298, 80);
+        ctx.lineTo(325, 54); ctx.lineTo(355, 76); ctx.lineTo(385, 62);
+        ctx.lineTo(420, 82); ctx.lineTo(420, 130); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        // Distant embers on ridge line
+        for (let i = 0; i < 5; i++) {
+            const ex = (i * 87 + t * 0.22) % GAME_WIDTH;
+            const ey = 66 + ((i * 23 + t * 0.10) % 28);
+            const eg = 0.10 + Math.abs(Math.sin((t + i * 13) * 0.04)) * 0.18;
+            ctx.fillStyle = `rgba(255, ${100 + i * 15}, 20, ${eg})`;
+            ctx.fillRect(Math.floor(ex), Math.floor(ey), 2, 1);
+        }
+        return;
+    }
+
+    if (desertBgThemes.has(theme)) {
+        // Warm glow near horizon
+        ctx.fillStyle = 'rgba(240, 170, 60, 0.10)';
+        ctx.fillRect(0, 88, GAME_WIDTH, 50);
+        // Rounded dune silhouettes
+        const driftFar = Math.sin(t * 0.0015) * 3;
+        const driftMid = Math.sin(t * 0.0022 + 1.2) * 5;
+        ctx.save();
+        ctx.translate(driftFar, 0);
+        ctx.fillStyle = 'rgba(80, 48, 16, 0.38)';
+        ctx.beginPath();
+        ctx.moveTo(-10, 130);
+        ctx.bezierCurveTo(40, 130, 65, 90, 105, 96);
+        ctx.bezierCurveTo(145, 102, 168, 80, 210, 86);
+        ctx.bezierCurveTo(250, 92, 272, 70, 312, 78);
+        ctx.bezierCurveTo(352, 86, 378, 76, 420, 84);
+        ctx.lineTo(420, 130); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        ctx.save();
+        ctx.translate(driftMid, 0);
+        ctx.fillStyle = 'rgba(110, 70, 24, 0.52)';
+        ctx.beginPath();
+        ctx.moveTo(-10, 142);
+        ctx.bezierCurveTo(30, 142, 55, 112, 95, 118);
+        ctx.bezierCurveTo(135, 124, 158, 102, 198, 108);
+        ctx.bezierCurveTo(238, 114, 262, 92, 302, 100);
+        ctx.bezierCurveTo(342, 108, 370, 96, 420, 106);
+        ctx.lineTo(420, 142); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        // Heat shimmer band
+        let shimmerAlpha = 0.06 + Math.sin(t * 0.025) * 0.02;
+        ctx.fillStyle = `rgba(255, 210, 110, ${shimmerAlpha})`;
+        ctx.fillRect(0, 116, GAME_WIDTH, 18);
+        return;
+    }
+
+    if (caveThemes.has(theme)) {
+        // Darkness above with stalactite silhouettes
+        ctx.fillStyle = 'rgba(5, 3, 2, 0.70)';
+        ctx.fillRect(0, 0, GAME_WIDTH, 68);
+        for (let i = 0; i < 12; i++) {
+            const sx = 12 + i * 34 + ((i * 17) % 18) - 8;
+            const sh = 10 + ((i * 11) % 20);
+            ctx.fillStyle = 'rgba(18, 14, 12, 0.80)';
+            ctx.beginPath();
+            ctx.moveTo(sx - 6, 0); ctx.lineTo(sx + 6, 0); ctx.lineTo(sx, sh); ctx.closePath(); ctx.fill();
+        }
+        // Dripping water glints
+        for (let i = 0; i < 6; i++) {
+            const dx = (i * 67 + t * 0.3) % GAME_WIDTH;
+            const dy = 16 + ((i * 13 + t * 0.8) % 22);
+            ctx.fillStyle = 'rgba(130, 175, 210, 0.18)';
+            ctx.fillRect(Math.floor(dx), Math.floor(dy), 1, 2);
+        }
+        return;
+    }
+
+    if (underThemes.has(theme)) {
+        // Caustic light columns from above
+        for (let i = 0; i < 8; i++) {
+            const cx = (i * 54 + Math.sin(t * 0.018 + i * 0.9) * 12 + GAME_WIDTH) % GAME_WIDTH;
+            const cw = 8 + ((i * 7) % 12);
+            const alpha = 0.04 + Math.abs(Math.sin(t * 0.025 + i * 1.3)) * 0.07;
+            ctx.fillStyle = `rgba(100, 210, 235, ${alpha})`;
+            ctx.fillRect(Math.floor(cx), 0, cw, GAME_HEIGHT);
+        }
+        // Surface glow at top
+        let surfaceGlow = 0.10 + Math.sin(t * 0.03) * 0.04;
+        ctx.fillStyle = `rgba(80, 200, 230, ${surfaceGlow})`;
+        ctx.fillRect(0, 0, GAME_WIDTH, 28);
+        // Rising bubble trails
+        for (let i = 0; i < 12; i++) {
+            const bx = (i * 38 + t * 0.18) % GAME_WIDTH;
+            const by = GAME_HEIGHT - ((i * 41 + t * (0.45 + (i % 4) * 0.18)) % GAME_HEIGHT);
+            ctx.fillStyle = 'rgba(200, 240, 255, 0.10)';
+            ctx.fillRect(Math.floor(bx), Math.floor(by), 1, 2);
+        }
+        return;
+    }
+
+    if (magicThemes.has(theme)) {
+        const [r, g, b] = theme === 'amber'        ? [255, 190, 60]
+                        : theme === 'fungus_glow'  ? [80, 255, 170]
+                        : theme === 'toxic_sludge' ? [160, 230, 60]
+                        : [200, 140, 255];
+        // Tinted stars
+        const starPositions = [
+            {x:22,  y:12, s:1, sp:0.022}, {x:60,  y:26, s:1, sp:0.018},
+            {x:96,  y:10, s:2, sp:0.031}, {x:138, y:38, s:1, sp:0.025},
+            {x:175, y: 6, s:1, sp:0.019}, {x:215, y:50, s:2, sp:0.028},
+            {x:252, y:18, s:1, sp:0.034}, {x:290, y:34, s:1, sp:0.021},
+            {x:325, y:58, s:2, sp:0.017}, {x:358, y:22, s:1, sp:0.029},
+            {x:385, y:46, s:1, sp:0.024}, {x:68,  y:64, s:1, sp:0.038}
+        ];
+        starPositions.forEach(star => {
+            let brightness = 0.25 + Math.sin(t * star.sp + star.x * 0.08) * 0.38;
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${brightness})`;
+            ctx.fillRect(star.x, star.y, star.s, star.s);
+        });
+        // Bioluminescent glow orbs
+        for (let i = 0; i < 4; i++) {
+            const bx = 45 + i * 88 + Math.sin(t * 0.012 + i) * 8;
+            const by = 46 + Math.sin(t * 0.018 + i * 1.7) * 14;
+            const ba = 0.05 + Math.sin(t * 0.02 + i * 2.3) * 0.035;
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${ba})`;
+            ctx.beginPath(); ctx.arc(bx, by, 22, 0, Math.PI*2); ctx.fill();
+        }
+        return;
+    }
+
+    // Default: faint stars for remaining themes (grass, rock, mossy, cliff, etc.)
+    const defaultStars = [
+        {x: 32, y:14, s:1, sp:0.025}, {x: 82, y: 8, s:1, sp:0.019},
+        {x:144, y:30, s:2, sp:0.031}, {x:202, y:12, s:1, sp:0.022},
+        {x:262, y:36, s:1, sp:0.027}, {x:315, y:18, s:2, sp:0.015},
+        {x:362, y:26, s:1, sp:0.033}
+    ];
+    defaultStars.forEach(star => {
+        let brightness = 0.18 + Math.sin(t * star.sp + star.x * 0.1) * 0.28;
+        ctx.fillStyle = `rgba(240, 245, 255, ${brightness})`;
+        ctx.fillRect(star.x, star.y, star.s, star.s);
+    });
+}
+
+function drawThemeMist(ctx) {
+    const theme = getCurrentThemeName();
+    const t = gameState.ticks;
+    const mistBase  = 0.14 + Math.sin(t * 0.009) * 0.03;
+    const mistDrift = Math.sin(t * 0.01) * 3;
+    const volcanicThemes = new Set(['lava','volcanic_ash','obsidian_floor']);
+    const desertBgThemes = new Set(['desert','salt_flats','sandstone']);
+    const caveThemes     = new Set(['cave','wet_cave_stone','iron_ore','mud']);
+    const underThemes    = new Set(['water','deep_sea','coral']);
+    const magicThemes    = new Set(['crystal','crystal_dense','fungus_glow','toxic_sludge','amber']);
+    let c1, c2, c3, s1, s2;
+    if (volcanicThemes.has(theme)) {
+        c1=[255,120,60]; c2=[220,80,30]; c3=[180,50,15]; s1=[255,140,80]; s2=[220,100,50];
+    } else if (desertBgThemes.has(theme)) {
+        c1=[235,185,100]; c2=[210,155,70]; c3=[185,130,50]; s1=[240,200,120]; s2=[220,175,90];
+    } else if (caveThemes.has(theme)) {
+        c1=[30,28,26]; c2=[22,20,18]; c3=[14,12,10]; s1=[40,36,32]; s2=[30,28,24];
+    } else if (underThemes.has(theme)) {
+        c1=[60,180,210]; c2=[40,160,195]; c3=[25,140,180]; s1=[80,200,230]; s2=[60,180,215];
+    } else if (magicThemes.has(theme)) {
+        const [r,g,b] = theme==='amber'?[220,160,50]:theme==='fungus_glow'?[60,200,140]:theme==='toxic_sludge'?[120,180,40]:[150,100,220];
+        c1=[r,g,b]; c2=[r*.85|0,g*.85|0,b*.85|0]; c3=[r*.7|0,g*.7|0,b*.7|0]; s1=[r,g,b]; s2=[r*.9|0,g*.9|0,b*.9|0];
+    } else {
+        c1=[185,225,255]; c2=[140,198,245]; c3=[95,160,220]; s1=[205,235,255]; s2=[185,222,250];
+    }
+    let mistGrad = ctx.createLinearGradient(0, 126, 0, GAME_HEIGHT);
+    mistGrad.addColorStop(0,    `rgba(${c1[0]},${c1[1]},${c1[2]},${mistBase * 0.12})`);
+    mistGrad.addColorStop(0.55, `rgba(${c2[0]},${c2[1]},${c2[2]},${mistBase * 0.35})`);
+    mistGrad.addColorStop(1,    `rgba(${c3[0]},${c3[1]},${c3[2]},${mistBase * 0.55})`);
+    ctx.fillStyle = mistGrad;
+    ctx.fillRect(0, 124, GAME_WIDTH, GAME_HEIGHT - 124);
+    ctx.fillStyle = `rgba(${s1[0]},${s1[1]},${s1[2]},0.08)`;
+    ctx.fillRect(14 + mistDrift, 138, 145, 10);
+    ctx.fillRect(188 - mistDrift * 0.6, 146, 130, 8);
+    ctx.fillStyle = `rgba(${s2[0]},${s2[1]},${s2[2]},0.06)`;
+    ctx.fillRect(78 - mistDrift * 0.4, 156, 170, 9);
+}
+
 function draw() {
     const sky = getThemeSkyColors();
     let skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -1045,74 +1340,62 @@ function draw() {
         ctx.fill();
     });
 
-    // Broad haze layer behind gameplay geometry
-    let hazeAlpha = 0.08 + Math.sin(gameState.ticks * 0.006) * 0.02;
-    ctx.fillStyle = `rgba(170, 210, 255, ${hazeAlpha})`;
-    ctx.fillRect(0, 84, GAME_WIDTH, 46);
+    // Theme-specific background scene (stars / ridges / volcanics / underwater / etc.)
+    drawThemeBackground(ctx);
+
+    // Draw Entrance — wooden trapdoor hatch
+    drawThemeAtmosphere(ctx, 'front');
     
+    // Draw Puffins
+    puffins.forEach(p => p.draw(ctx));
+    
+    // Theme-specific background scene
+    drawThemeBackground(ctx);
+
     // Draw Entrance — wooden trapdoor hatch
     let ex = ENTRANCE.x, ey = ENTRANCE.y;
-    // Frame
     ctx.fillStyle = '#5a3010';
     ctx.fillRect(ex - 12, ey - 10, 24, 5);
-    // Plank left
     ctx.fillStyle = '#7a4820';
     ctx.fillRect(ex - 10, ey - 9, 9, 3);
-    // Plank right
     ctx.fillStyle = '#8a5528';
     ctx.fillRect(ex + 1, ey - 9, 9, 3);
-    // Gap between planks (open hatch)
     ctx.fillStyle = '#1a0800';
     ctx.fillRect(ex - 1, ey - 9, 2, 3);
-    // Dark opening hole
     ctx.fillStyle = '#030308';
     ctx.fillRect(ex - 9, ey - 4, 18, 9);
-    // Warm glow from inside
     let hatchWarmth = 0.18 + Math.sin(gameState.ticks * 0.07) * 0.06;
     ctx.fillStyle = `rgba(255, 200, 80, ${hatchWarmth})`;
     ctx.fillRect(ex - 7, ey - 3, 14, 7);
-    // Bobbing down-arrow indicator
     let arrowBob = Math.floor(Math.sin(gameState.ticks * 0.12) * 2);
     ctx.fillStyle = '#ffee00';
     ctx.fillRect(ex - 1, ey - 17 + arrowBob, 2, 5);
     ctx.fillRect(ex - 3, ey - 14 + arrowBob, 6, 2);
-    
+
     // Draw Exit — glowing stone doorway
     let exitGlow = 0.5 + Math.sin(gameState.ticks * 0.08) * 0.28;
-    // Wide outer halo
     ctx.fillStyle = `rgba(0, 255, 80, ${exitGlow * 0.10})`;
     ctx.fillRect(EXIT.x - 6, EXIT.y - 8, EXIT.w + 12, EXIT.h + 12);
-    // Stone arch / door frame (two layers for depth)
     ctx.fillStyle = '#3a2a18';
     ctx.fillRect(EXIT.x - 3, EXIT.y - 2, EXIT.w + 6, EXIT.h + 3);
     ctx.fillStyle = '#553c24';
     ctx.fillRect(EXIT.x - 2, EXIT.y - 1, EXIT.w + 4, EXIT.h + 2);
-    // Portal interior — vivid green
-    let g = Math.floor(160 + 90 * exitGlow);
-    ctx.fillStyle = `rgb(0, ${g}, ${Math.floor(30 + 20 * exitGlow)})`;
+    let exitG = Math.floor(160 + 90 * exitGlow);
+    ctx.fillStyle = `rgb(0, ${exitG}, ${Math.floor(30 + 20 * exitGlow)})`;
     ctx.fillRect(EXIT.x, EXIT.y, EXIT.w, EXIT.h);
-    // Shine highlight on left edge
     ctx.fillStyle = `rgba(200, 255, 200, ${0.12 + exitGlow * 0.08})`;
     ctx.fillRect(EXIT.x + 1, EXIT.y + 1, Math.floor(EXIT.w / 2) - 1, EXIT.h - 2);
-    // Sign panel above door
     ctx.fillStyle = '#221508';
     ctx.fillRect(EXIT.x - 1, EXIT.y - 6, EXIT.w + 2, 4);
-    // Pulsing green indicator on sign
     if (Math.floor(gameState.ticks / 12) % 2) {
         ctx.fillStyle = `rgba(0, 255, 80, ${exitGlow})`;
         ctx.fillRect(EXIT.x + EXIT.w / 2 - 3, EXIT.y - 5, 6, 2);
     }
-
-    // Soft bloom around the portal (additive pass).
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     let portalGlow = ctx.createRadialGradient(
-        EXIT.x + EXIT.w / 2,
-        EXIT.y + EXIT.h / 2,
-        2,
-        EXIT.x + EXIT.w / 2,
-        EXIT.y + EXIT.h / 2,
-        18
+        EXIT.x + EXIT.w / 2, EXIT.y + EXIT.h / 2, 2,
+        EXIT.x + EXIT.w / 2, EXIT.y + EXIT.h / 2, 18
     );
     portalGlow.addColorStop(0, `rgba(100, 255, 180, ${0.25 + exitGlow * 0.22})`);
     portalGlow.addColorStop(0.45, `rgba(40, 220, 150, ${0.12 + exitGlow * 0.16})`);
@@ -1122,7 +1405,7 @@ function draw() {
     ctx.arc(EXIT.x + EXIT.w / 2, EXIT.y + EXIT.h / 2, 18, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    
+
     // Draw Terrain
     ctx.drawImage(offscreenCanvas, 0, 0);
 
@@ -1132,32 +1415,19 @@ function draw() {
     // Theme atmosphere behind actors
     drawThemeAtmosphere(ctx, 'behind');
 
-    // Foreground mist pass in front of terrain, behind actors
-    let mistBase = 0.14 + Math.sin(gameState.ticks * 0.009) * 0.03;
-    let mistGrad = ctx.createLinearGradient(0, 126, 0, GAME_HEIGHT);
-    mistGrad.addColorStop(0, `rgba(185, 225, 255, ${mistBase * 0.12})`);
-    mistGrad.addColorStop(0.55, `rgba(140, 198, 245, ${mistBase * 0.35})`);
-    mistGrad.addColorStop(1, `rgba(95, 160, 220, ${mistBase * 0.55})`);
-    ctx.fillStyle = mistGrad;
-    ctx.fillRect(0, 124, GAME_WIDTH, GAME_HEIGHT - 124);
-
-    // Horizontal drifting mist strips
-    const mistDrift = Math.sin(gameState.ticks * 0.01) * 3;
-    ctx.fillStyle = 'rgba(205, 235, 255, 0.08)';
-    ctx.fillRect(14 + mistDrift, 138, 145, 10);
-    ctx.fillRect(188 - mistDrift * 0.6, 146, 130, 8);
-    ctx.fillStyle = 'rgba(185, 222, 250, 0.06)';
-    ctx.fillRect(78 - mistDrift * 0.4, 156, 170, 9);
+    // Foreground mist pass — theme-aware colours
+    drawThemeMist(ctx);
 
     // Theme atmosphere in front of terrain haze, still behind puffins
     drawThemeAtmosphere(ctx, 'front');
-    
+
+
     // Draw Puffins
     puffins.forEach(p => p.draw(ctx));
-    
+
     // Draw Particles
     particles.forEach(p => p.draw(ctx));
-    
+
     // Draw Cursor Reticle
     if (activeSkill && currentSkillCounts[activeSkill] > 0) {
         ctx.strokeStyle = hoveredPuffin ? '#0f0' : '#fff';
@@ -1173,7 +1443,6 @@ function draw() {
         let seconds = Math.ceil(nukeCountdown / FPS);
         ctx.fillStyle = `rgba(255, 0, 0, ${0.5 + Math.sin(gameState.ticks * 0.2) * 0.3})`;
         ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-        
         ctx.fillStyle = '#f00';
         ctx.font = 'bold 24px monospace';
         ctx.textAlign = 'center';
@@ -1183,8 +1452,17 @@ function draw() {
 
     ctx.restore();
 
-    // Subtle post-process: cold grade + vignette.
-    ctx.fillStyle = 'rgba(120, 170, 230, 0.055)';
+    // Subtle post-process: theme-tinted grade + vignette.
+    const _ppGrades = {
+        lava:[200,70,20], volcanic_ash:[180,80,30], obsidian_floor:[160,60,40],
+        desert:[210,150,55], salt_flats:[200,175,100], sandstone:[215,165,70],
+        cave:[12,10,8], wet_cave_stone:[18,22,28], iron_ore:[20,18,14], mud:[30,22,14],
+        water:[20,120,180], deep_sea:[10,60,120], coral:[20,140,170],
+        crystal:[120,60,200], crystal_dense:[100,50,180], amber:[220,160,40],
+        fungus_glow:[60,180,100], toxic_sludge:[100,160,30]
+    };
+    const [_ppr, _ppg, _ppb] = _ppGrades[getCurrentThemeName()] || [120,170,230];
+    ctx.fillStyle = `rgba(${_ppr}, ${_ppg}, ${_ppb}, 0.05)`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     let vignette = ctx.createRadialGradient(
@@ -1200,7 +1478,7 @@ function draw() {
     vignette.addColorStop(1, 'rgba(4, 8, 18, 0.30)');
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+
     // Draw achievement notification
     if (typeof Achievements !== 'undefined') {
         Achievements.draw(ctx);

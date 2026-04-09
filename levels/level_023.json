@@ -20,11 +20,11 @@
     "floater": 2,
     "bomber": 0,
     "blocker": 2,
-    "builder": 3,
-    "basher": 4,
-    "digger": 0,
-    "climber": 0,
-    "miner": 0,
+    "builder": 9,
+    "basher": 7,
+    "digger": 1,
+    "climber": 6,
+    "miner": 2,
     "platformer": 0
   },
   "terrain": [

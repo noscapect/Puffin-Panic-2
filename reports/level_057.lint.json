@@ -1,0 +1,32 @@
+{
+  "file": "D:\\Temp\\Puffin Panic 2\\levels\\level_057.json",
+  "mapSize": {
+    "width": 400,
+    "height": 220,
+    "expectedCells": 88000
+  },
+  "terrain": {
+    "pairCount": 707,
+    "totalRLECount": 88000,
+    "solidCells": 52925,
+    "solidPct": 60.14,
+    "connectedComponents": 1,
+    "tinyComponents": 0,
+    "topSurface": 1096,
+    "flatTopSurface": 1091,
+    "flatSurfacePct": 99.54,
+    "jaggednessScore": 5
+  },
+  "issues": [
+    {
+      "code": "EXIT_BLOCKED",
+      "severity": "warn",
+      "detail": "Exit rectangle contains 21 solid cells."
+    }
+  ],
+  "score": {
+    "pass": true,
+    "errorCount": 0,
+    "warnCount": 1
+  }
+}

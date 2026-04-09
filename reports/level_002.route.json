@@ -11,15 +11,15 @@
     "spawn": {
       "id": 25,
       "x": 30,
-      "y": 50
+      "y": 150
     },
     "exit": {
-      "id": 297,
-      "x": 360,
-      "y": 55
+      "id": 316,
+      "x": 370,
+      "y": 154
     },
     "budget": {
-      "builder": 12,
+      "builder": 3,
       "basher": 0,
       "climber": 0,
       "floater": 0
@@ -32,6 +32,26 @@
     },
     "actions": [
       "spawn",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
       "walk:R",
       "walk:R",
       "walk:R",
@@ -278,24 +298,24 @@
       "walk:R",
       "walk:R",
       "walk:R",
-      "walk:R",
-      "walk:R",
-      "walk:R",
-      "walk:R",
-      "walk:R",
-      "walk:R",
-      "walk:R",
-      "walk:R",
-      "walk:R",
-      "walk:R",
-      "walk:R",
       "fall:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
+      "walk:R",
       "walk:R",
       "walk:R"
     ],
-    "steps": 268,
-    "nodes": 320,
-    "iterations": 672
+    "steps": 288,
+    "nodes": 390,
+    "iterations": 808
   },
-  "generatedAt": "2026-04-09T11:21:31.639Z"
+  "generatedAt": "2026-04-09T18:29:19.671Z"
 }
