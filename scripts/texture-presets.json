@@ -106,5 +106,29 @@
   "concept_999": {
     "positive": "A seamless tileable overhead top-down texture of compact platformer dirt from a bright cartoon grassland world. Rich warm brown soil with layered compacted earth, tiny stones, root fibers, and soft speckled shading. Keep color harmony natural and game-readable. Shot from directly above with flat even diffuse lighting and no directional shadows. High-quality game terrain texture suitable for tiling in a 2D side-scrolling platformer.",
     "negative": "people, faces, animals, sky, horizon, side view, perspective view, deep shadows, text, watermark, logos, isolated objects"
+  },
+  "sandstone": {
+    "positive": "A seamless tileable overhead top-down texture of ancient sandstone temple blocks. Warm golden-tan carved stone with chiselled masonry joints, hieroglyphic dust traces, desert grit embedded in mortar, and subtle orange-cream mineral banding. Shot from directly above with flat diffuse lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, modern concrete, isolated objects"
+  },
+  "deep_sea": {
+    "positive": "A seamless tileable overhead top-down texture of deep ocean seafloor sediment. Dark cold-blue silt with pale mineral nodules, bioluminescent speck trails, sparse tiny shells, and pressure-cracked crusts. Shot from directly above with dim deep-sea ambient lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, shallow sunny water, coral reefs, isolated objects"
+  },
+  "iron_ore": {
+    "positive": "A seamless tileable overhead top-down texture of underground iron ore mine wall. Dark charcoal rock studded with orange-brown iron ore veins, metallic crystal clusters, pick-axe scratch marks, and powdery ochre mineral dust. Shot from directly above with flat dim mine-lamp lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, bright daylight, isolated objects"
+  },
+  "coral": {
+    "positive": "A seamless tileable overhead top-down texture of shallow coral reef floor. Warm turquoise-lit sandy seabed with dense pink and orange brain coral clusters, white-tipped branching coral stubs, tiny tropical fish shadows, and rippling light caustics. Shot from directly above with soft underwater ambient light and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, dark deep ocean, isolated objects"
+  },
+  "amber": {
+    "positive": "A seamless tileable overhead top-down texture of fossilised amber stone floor. Warm honey-gold translucent resin with swirling internal turbidity, trapped air bubbles, dark insect silhouette inclusions, and polished facet patches. Shot from directly above with soft transmitted golden glow and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, clear glass, modern surfaces, isolated objects"
+  },
+  "bone_white": {
+    "positive": "A seamless tileable overhead top-down texture of ancient bone-white dungeon stone. Bleached pale limestone with grey fissures, fossilised shell fragments, calcium mineral deposits, and subtle yellowish age staining. Shot from directly above with flat even diffuse lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, dark stone, isolated objects"
   }
 }

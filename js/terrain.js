@@ -88,7 +88,8 @@ function preloadTerrainTextures(callback) {
         'grass', 'desert', 'snow', 'rock', 'ice', 'lava', 'crystal', 'water', 'mud', 'cave', 'mossy',
         'cliff_chalk', 'slate_ledge', 'frozen_mud', 'packed_snow', 'black_ice',
         'volcanic_ash', 'obsidian_floor', 'salt_flats', 'wet_cave_stone', 'rusty_metal',
-        'wood_planks', 'mossy_ruin', 'crystal_dense', 'fungus_glow', 'toxic_sludge', 'concept_999'
+        'wood_planks', 'mossy_ruin', 'crystal_dense', 'fungus_glow', 'toxic_sludge', 'concept_999',
+        'sandstone', 'deep_sea', 'iron_ore', 'coral', 'amber', 'bone_white'
     ];
     let pending = themes.length;
     _terrainTexState.total = themes.length;
@@ -150,7 +151,13 @@ const _texTileScale = {
     crystal_dense: 3,
     fungus_glow:   3,
     toxic_sludge:  4,
-    concept_999:   4
+    concept_999:   4,
+    sandstone:     3,
+    deep_sea:      3,
+    iron_ore:      3,
+    coral:         3,
+    amber:         3,
+    bone_white:    3
 };
 
 function sampleTerrainTexture(themeName, x, y) {
@@ -194,7 +201,13 @@ function getThemeRenderProfile(themeName) {
         crystal_dense: { noiseAmp: 12, depthTint: 0.08, crackChance: 0.03,  rimBoost: [22, 20, 28],  glaze: true,  surfaceBlend: 0.67, surfaceRows: 2 },
         fungus_glow:   { noiseAmp: 10, depthTint: 0.07, crackChance: 0.02,  rimBoost: [16, 28, 22],  glaze: true,  surfaceBlend: 0.70, surfaceRows: 3 },
         toxic_sludge:  { noiseAmp: 12, depthTint: 0.11, crackChance: 0.02,  rimBoost: [14, 22, 10],  glaze: false, surfaceBlend: 0.62, surfaceRows: 2 },
-        concept_999:   { noiseAmp: 11, depthTint: 0.10, crackChance: 0.02,  rimBoost: [18, 16, 10],  glaze: false, surfaceBlend: 0.74, surfaceRows: 3 }
+        concept_999:   { noiseAmp: 11, depthTint: 0.10, crackChance: 0.02,  rimBoost: [18, 16, 10],  glaze: false, surfaceBlend: 0.74, surfaceRows: 3 },
+        sandstone:     { noiseAmp: 12, depthTint: 0.10, crackChance: 0.03,  rimBoost: [22, 18, 12],  glaze: false, surfaceBlend: 0.68, surfaceRows: 2 },
+        deep_sea:      { noiseAmp: 9,  depthTint: 0.06, crackChance: 0.015, rimBoost: [18, 24, 32],  glaze: true,  surfaceBlend: 0.45, surfaceRows: 1 },
+        iron_ore:      { noiseAmp: 14, depthTint: 0.13, crackChance: 0.045, rimBoost: [20, 14, 10],  glaze: false, surfaceBlend: 0.48, surfaceRows: 1 },
+        coral:         { noiseAmp: 10, depthTint: 0.07, crackChance: 0.02,  rimBoost: [24, 18, 14],  glaze: true,  surfaceBlend: 0.74, surfaceRows: 3 },
+        amber:         { noiseAmp: 11, depthTint: 0.08, crackChance: 0.025, rimBoost: [24, 18, 8],   glaze: true,  surfaceBlend: 0.72, surfaceRows: 2 },
+        bone_white:    { noiseAmp: 9,  depthTint: 0.06, crackChance: 0.02,  rimBoost: [24, 22, 18],  glaze: false, surfaceBlend: 0.60, surfaceRows: 2 }
     };
     return profiles[themeName] || profiles.grass;
 }
@@ -425,7 +438,13 @@ function getThemeColors() {
         mossy_ruin:     { surface: [92, 132, 84], terrain: [84, 92, 82] },
         crystal_dense:  { surface: [210, 176, 238], terrain: [124, 92, 168] },
         fungus_glow:    { surface: [106, 178, 138], terrain: [64, 92, 78] },
-        toxic_sludge:   { surface: [122, 152, 78], terrain: [78, 98, 52] }
+        toxic_sludge:   { surface: [122, 152, 78],  terrain: [78, 98, 52] },
+        sandstone:      { surface: [212, 176, 118], terrain: [168, 132, 80] },
+        deep_sea:       { surface: [48,  84, 118],  terrain: [28,  54, 80]  },
+        iron_ore:       { surface: [108, 86,  72],  terrain: [68,  58, 56]  },
+        coral:          { surface: [220, 140, 100], terrain: [158, 88, 64]  },
+        amber:          { surface: [224, 172, 72],  terrain: [160, 110, 40] },
+        bone_white:     { surface: [220, 212, 196], terrain: [164, 148, 124] }
     };
     return themes[theme] || themes.grass;
 }

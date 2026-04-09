@@ -10,10 +10,11 @@ const args = Object.fromEntries(
 
 const endpoint = (args.endpoint || process.env.COMFYUI_URL || "http://127.0.0.1:8188").replace(/\/$/, "");
 const presetName = args.preset || "water";
-const size = Number(args.size || 512);
-const steps = Number(args.steps || 22);
-const cfg = Number(args.cfg || 6.5);
+const size = Number(args.size || 1024);
+const steps = Number(args.steps || 9);
+const cfg = Number(args.cfg || 1.2);
 const seed = Number(args.seed || Math.floor(Math.random() * 2147483647));
+const timeoutSec = Number(args.timeout || 900);
 const checkpoint = args.ckpt || "zImageTurbo_turbo.safetensors";
 const outputName = args.out || `${presetName}_${Date.now()}.png`;
 
@@ -26,61 +27,63 @@ if (!preset) {
 }
 
 const workflow = {
+  // Load zImageTurbo model (model only — no embedded CLIP/VAE)
   "1": {
-    inputs: {
-      ckpt_name: checkpoint
-    },
+    inputs: { ckpt_name: checkpoint },
     class_type: "CheckpointLoaderSimple"
   },
+  // Load CLIP separately (Qwen 3 4B, lumina2 type required by zImageTurbo)
   "2": {
-    inputs: {
-      text: preset.positive,
-      clip: ["1", 1]
-    },
-    class_type: "CLIPTextEncode"
+    inputs: { clip_name: "qwen_3_4b_fp8_mixed.safetensors", type: "lumina2" },
+    class_type: "CLIPLoader"
   },
+  // Load VAE separately
   "3": {
-    inputs: {
-      text: preset.negative,
-      clip: ["1", 1]
-    },
+    inputs: { vae_name: "ae_zim.safetensors" },
+    class_type: "VAELoader"
+  },
+  // Wrap model with flow-based sampling (shift=3)
+  "4": {
+    inputs: { model: ["1", 0], shift: 3.0 },
+    class_type: "ModelSamplingAuraFlow"
+  },
+  // Positive prompt
+  "5": {
+    inputs: { text: preset.positive, clip: ["2", 0] },
     class_type: "CLIPTextEncode"
   },
-  "4": {
-    inputs: {
-      width: size,
-      height: size,
-      batch_size: 1
-    },
+  // Negative prompt
+  "6": {
+    inputs: { text: preset.negative, clip: ["2", 0] },
+    class_type: "CLIPTextEncode"
+  },
+  // Latent image
+  "7": {
+    inputs: { width: size, height: size, batch_size: 1 },
     class_type: "EmptyLatentImage"
   },
-  "5": {
+  // KSampler: euler_flow + zimage_turbo scheduler
+  "8": {
     inputs: {
-      seed,
-      steps,
-      cfg,
-      sampler_name: "euler",
-      scheduler: "normal",
-      denoise: 1,
-      model: ["1", 0],
-      positive: ["2", 0],
-      negative: ["3", 0],
-      latent_image: ["4", 0]
+      seed, steps, cfg,
+      sampler_name: "euler_flow",
+      scheduler: "zimage_turbo",
+      denoise: 1.0,
+      model: ["4", 0],
+      positive: ["5", 0],
+      negative: ["6", 0],
+      latent_image: ["7", 0]
     },
     class_type: "KSampler"
   },
-  "6": {
-    inputs: {
-      samples: ["5", 0],
-      vae: ["1", 2]
-    },
+  // VAE Decode using separate VAE
+  "9": {
+    inputs: { samples: ["8", 0], vae: ["3", 0] },
     class_type: "VAEDecode"
   },
-  "7": {
-    inputs: {
-      filename_prefix: "puffin_texture",
-      images: ["6", 0]
-    },
+  // Save output
+  "10": {
+    inputs: { filename_prefix: "puffin_texture", images: ["9", 0] },
     class_type: "SaveImage"
   }
 };
@@ -96,17 +99,23 @@ async function queuePrompt() {
 }
 
 async function waitForImage(promptId) {
-  for (let i = 0; i < 240; i++) {
+  const started = Date.now();
+  const maxPolls = Math.max(1, timeoutSec);
+  for (let i = 0; i < maxPolls; i++) {
     const res = await fetch(`${endpoint}/history/${promptId}`);
     if (res.ok) {
       const data = await res.json();
       const item = data[promptId];
-      const images = item?.outputs?.["7"]?.images;
+      const images = item?.outputs?.["10"]?.images;
       if (images?.length) return images[0];
+    }
+    if ((i + 1) % 10 === 0) {
+      const elapsed = Math.floor((Date.now() - started) / 1000);
+      console.log(`  waiting... ${elapsed}s`);
     }
     await new Promise((r) => setTimeout(r, 1000));
   }
-  throw new Error("Timed out waiting for image result from ComfyUI");
+  throw new Error(`Timed out waiting for image result from ComfyUI after ${timeoutSec}s`);
 }
 
 async function downloadImage(meta) {
@@ -134,7 +143,7 @@ async function main() {
   await fs.writeFile(outPath, bytes);
 
   console.log(`Saved texture: ${outPath}`);
-  console.log(`seed=${seed} size=${size} steps=${steps} cfg=${cfg} preset=${presetName}`);
+  console.log(`seed=${seed} size=${size} steps=${steps} cfg=${cfg} timeout=${timeoutSec}s preset=${presetName}`);
 }
 
 main().catch((err) => {

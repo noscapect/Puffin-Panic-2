@@ -352,30 +352,49 @@ class Puffin {
             let wallMid = isSolidAt(nx, Math.floor(this.y + PUFFIN_H/2));
             let wallBottom = isSolidAt(nx, Math.floor(this.y + PUFFIN_H - 1));
             
-            if (wallMid || this.checkBlocker(nx, this.y + PUFFIN_H/2)) {
-                // Climbers scale vertical walls
-                if (this.isClimber && wallMid) {
-                    this.state = ST_CLIMB;
-                    this.actionTicks = 0;
-                    return;
-                }
-                
-                // Bashers start digging when hitting wall
-                if (this.isBasher && wallMid) {
-                    this.state = ST_BASH;
-                    this.actionTicks = 0;
-                    return;
+            if (wallMid || wallBottom || this.checkBlocker(nx, this.y + PUFFIN_H/2)) {
+                // Try stepping up (ramp climbing) — up to 6 pixels
+                let stepped = false;
+                if (!this.checkBlocker(nx, this.y + PUFFIN_H/2)) {
+                    const MAX_STEP = 6;
+                    for (let step = 1; step <= MAX_STEP; step++) {
+                        let testY = this.y - step;
+                        let headClear = !isSolidAt(nx, Math.floor(testY));
+                        let midClear  = !isSolidAt(nx, Math.floor(testY + PUFFIN_H/2));
+                        let feetClear = !isSolidAt(nx, Math.floor(testY + PUFFIN_H - 1));
+                        let floorSolid = isSolidAt(nx, Math.floor(testY + PUFFIN_H));
+                        if (headClear && midClear && feetClear && floorSolid) {
+                            this.x = nextX;
+                            this.y = testY;
+                            stepped = true;
+                            break;
+                        }
+                        // Also accept stepping onto open air (will fall next frame)
+                        if (headClear && midClear && feetClear && !floorSolid) {
+                            this.x = nextX;
+                            this.y = testY;
+                            stepped = true;
+                            break;
+                        }
+                    }
                 }
 
-                // Otherwise turn around
-                this.vx *= -1;
-            } else if (wallBottom) {
-                // Step up 1 pixel
-                let topClear = !isSolidAt(nx, Math.floor(this.y - 1));
-                if (topClear) {
-                    this.x = nextX;
-                    this.y -= 1;
-                } else {
+                if (!stepped) {
+                    // Climbers scale vertical walls
+                    if (this.isClimber && wallMid) {
+                        this.state = ST_CLIMB;
+                        this.actionTicks = 0;
+                        return;
+                    }
+                    
+                    // Bashers start digging when hitting wall
+                    if (this.isBasher && wallMid) {
+                        this.state = ST_BASH;
+                        this.actionTicks = 0;
+                        return;
+                    }
+
+                    // Otherwise turn around
                     this.vx *= -1;
                 }
             } else {
