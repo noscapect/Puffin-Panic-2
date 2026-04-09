@@ -3,7 +3,7 @@
   "name": "51: Minekart Mayhem",
   "total": 22,
   "required": 16,
-  "spawnRate": 54,
+  "spawnRate": 41,
   "time": 13200,
   "entrance": {
     "x": 28,

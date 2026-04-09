@@ -257,9 +257,15 @@
             text-shadow: 0 1px 0 #000;
         }
         .rate-control input[type="range"] {
-            width: 68px;
+            width: 92px;
             height: 4px;
             accent-color: #42d1ff;
+        }
+        .rate-step {
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            line-height: 1;
         }
         
         #message-overlay {
@@ -347,7 +353,7 @@
             </div>
             
             <div style="margin-top: clamp(12px, 2vw, 20px); color: #fff; font-size: clamp(12px, 1.5vw, 16px); font-weight: bold; text-shadow: 2px 2px 4px #000;">
-                Arrow Keys: Skills 1-9 | N: Nuke | ESC: Pause
+                Mouse: Assign Skills | +/- or [ ]: Release Rate | N: Nuke | ESC: Pause
             </div>
             
             <div style="position: absolute; bottom: clamp(10px, 1.5vw, 20px); text-align: center; color: #000; font-size: clamp(11px, 1.5vw, 14px); font-weight: bold; text-shadow: 1px 1px 3px #fff;">
@@ -384,9 +390,11 @@
         <!-- Right: Controls -->
         <div id="controls-panel">
             <div class="rate-control">
-                <span>Rate:</span>
-                <input type="range" id="release-rate" min="1" max="10" value="5" oninput="updateReleaseRate(this.value)">
-                <span id="release-rate-val" style="color:#5f5;">5</span>
+                <span>RR</span>
+                <button onclick="changeReleaseRate(-1)" class="control-btn rate-step" title="Lower release rate">-</button>
+                <input type="range" id="release-rate" min="1" max="99" value="50" oninput="updateReleaseRate(this.value)">
+                <button onclick="changeReleaseRate(1)" class="control-btn rate-step" title="Raise release rate">+</button>
+                <span id="release-rate-val" style="color:#5f5; min-width:22px; text-align:right;">50</span>
             </div>
             <div class="control-row">
                 <button id="btn-speed" onclick="toggleSpeed()" class="control-btn">Speed: 1x</button>

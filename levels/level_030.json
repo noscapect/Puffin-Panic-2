@@ -3,7 +3,7 @@
   "name": "30: Cascade Falls",
   "total": 25,
   "required": 18,
-  "spawnRate": 56,
+  "spawnRate": 42,
   "time": 12000,
   "entrance": {
     "x": 28,

@@ -11,8 +11,13 @@ class Puffin {
         
         // Skill trackers
         this.bomberTicks = -1;
+        this.bomberPulseTicks = 0;
+        this.bomberFinalCueTicks = 0;
         this.actionTicks = 0;
         this.bricksLayed = 0;
+        this.shrugTicks = 0;
+        this.builderFailTicks = 0;
+        this.turnCooldown = 0;
         this.isFloater = false;
         this.isBasher = false;
         this.isClimber = false;
@@ -59,6 +64,10 @@ class Puffin {
         if (this.state === ST_DEAD || this.state === ST_EXITED) return;
         
         this.animFrame++;
+
+        if (this.turnCooldown > 0) this.turnCooldown--;
+        if (this.bomberPulseTicks > 0) this.bomberPulseTicks--;
+        if (this.bomberFinalCueTicks > 0) this.bomberFinalCueTicks--;
         
         // Play footstep sounds and create dust particles while walking
         if ((this.state === ST_WALK || this.state === ST_BASH) && this.animFrame % 10 === 0) {
@@ -69,11 +78,14 @@ class Puffin {
             }
         }
         
-        // Bomber logic
+        // Bomber logic — canonical: keeps walking/acting until the moment of explosion
         if (this.bomberTicks > 0) {
             this.bomberTicks--;
-            if (this.bomberTicks === Math.floor(FPS * 1.5) && this.state !== ST_FALL && this.state !== ST_FLOAT) {
-                this.state = ST_PANIC;
+            if (this.bomberTicks > 0 && this.bomberTicks % FPS === 0) {
+                this.bomberPulseTicks = 8;
+            }
+            if (this.bomberTicks <= FPS && this.animFrame % 3 === 0) {
+                this.bomberFinalCueTicks = 2;
             }
             if (this.bomberTicks === 0) {
                 this.explode();
@@ -293,7 +305,7 @@ class Puffin {
             let fx = Math.floor(this.x);
             let fy = Math.floor(this.y + PUFFIN_H);
             
-            if (isSolidAt(fx, fy) || this.checkBlocker(fx, fy)) {
+            if (isSolidAt(fx, fy)) {
                 // Snap to top of terrain
                 this.y = fy - PUFFIN_H - 1;
                 while (isSolidAt(Math.floor(this.x), Math.floor(this.y + PUFFIN_H))) {
@@ -324,6 +336,17 @@ class Puffin {
     }
     
     doWalk() {
+        if (this.builderFailTicks > 0) {
+            this.builderFailTicks--;
+            return;
+        }
+
+        // Builder shrug: brief frozen pause before resuming walk after 12 bricks
+        if (this.shrugTicks > 0) {
+            this.shrugTicks--;
+            return;
+        }
+
         const swimZone = this.getWaterZoneAt(
             Math.floor(this.x + PUFFIN_W / 2),
             Math.floor(this.y + PUFFIN_H / 2)
@@ -351,11 +374,12 @@ class Puffin {
             // Check wall at mid-body and feet
             let wallMid = isSolidAt(nx, Math.floor(this.y + PUFFIN_H/2));
             let wallBottom = isSolidAt(nx, Math.floor(this.y + PUFFIN_H - 1));
+            let hitBlocker = this.checkBlocker(nx, this.y + PUFFIN_H/2);
             
-            if (wallMid || wallBottom || this.checkBlocker(nx, this.y + PUFFIN_H/2)) {
+            if (wallMid || wallBottom || hitBlocker) {
                 // Try stepping up (ramp climbing) — up to 6 pixels
                 let stepped = false;
-                if (!this.checkBlocker(nx, this.y + PUFFIN_H/2)) {
+                if (!hitBlocker) {
                     const MAX_STEP = 6;
                     for (let step = 1; step <= MAX_STEP; step++) {
                         let testY = this.y - step;
@@ -380,6 +404,15 @@ class Puffin {
                 }
 
                 if (!stepped) {
+                    if (hitBlocker) {
+                        // Tiny turn buffer to avoid jittering crowds around blockers.
+                        if (this.turnCooldown <= 0) {
+                            this.vx *= -1;
+                            this.turnCooldown = 7;
+                        }
+                        return;
+                    }
+
                     // Climbers scale vertical walls
                     if (this.isClimber && wallMid) {
                         this.state = ST_CLIMB;
@@ -413,7 +446,7 @@ class Puffin {
             let cy = Math.floor(this.y + PUFFIN_H/2);
             for (let y = -5; y <= 5; y++) {
                 for (let x = -2; x <= 2; x++) {
-                    if (canDigAt(cx+x, cy+y)) {
+                    if (canDigAt(cx+x, cy+y, this.vx)) {
                         setTerrain(cx+x, cy+y, 0);
                         carved = true;
                     }
@@ -427,7 +460,14 @@ class Puffin {
             } else {
                 // Check if there's still solid terrain ahead - only exit if truly clear
                 let ahead = isSolidAt(Math.floor(this.x + this.vx), Math.floor(this.y + PUFFIN_H/2));
-                if (!ahead) {
+                if (ahead) {
+                    // Steel impact: spark, stop bashing, and turn away.
+                    if (typeof createSparkParticles === 'function') createSparkParticles(cx, cy);
+                    if (typeof playSound === 'function') playSound('bash');
+                    this.state = ST_WALK;
+                    this.isBasher = false;
+                    this.vx *= -1;
+                } else {
                     // Path is clear, return to normal walking (basher is consumed)
                     this.state = ST_WALK;
                     this.isBasher = false;
@@ -439,15 +479,27 @@ class Puffin {
     doDig() {
         this.actionTicks++;
         if (this.actionTicks % 10 === 0) {
+            // Blockers turn active diggers away before the next dig stroke.
+            if (this.checkBlocker(Math.floor(this.x + this.vx * 2), this.y + PUFFIN_H / 2)) {
+                this.state = ST_WALK;
+                this.vx *= -1;
+                return;
+            }
+
             this.y += 1;
             let cx = Math.floor(this.x);
             let cy = Math.floor(this.y + PUFFIN_H);
             let carved = false;
+            let blockedBySteel = false;
             for (let y = 0; y <= 3; y++) {
                 for (let x = -3; x <= 3; x++) {
-                    if (canDigAt(cx+x, cy+y)) {
-                        setTerrain(cx+x, cy+y, 0);
+                    const tx = cx + x;
+                    const ty = cy + y;
+                    if (canDigAt(tx, ty, this.vx)) {
+                        setTerrain(tx, ty, 0);
                         carved = true;
+                    } else if (isSolidAt(tx, ty)) {
+                        blockedBySteel = true;
                     }
                 }
             }
@@ -456,10 +508,18 @@ class Puffin {
                 createParticles(cx, cy, 3, [150,150,150]);
                 if (typeof playSound === 'function') playSound('dig');
             } else {
-                // Hit steel or bottom - stop digging
-                this.state = ST_FALL;
-                this.fallStartY = this.y;
-                this.vy = 0;
+                if (blockedBySteel) {
+                    if (typeof createSparkParticles === 'function') createSparkParticles(cx, cy);
+                    if (typeof playSound === 'function') playSound('bash');
+                }
+                // Stop digging: walk if standing, otherwise fall.
+                if (isSolidAt(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 1))) {
+                    this.state = ST_WALK;
+                } else {
+                    this.state = ST_FALL;
+                    this.fallStartY = this.y;
+                    this.vy = 0;
+                }
             }
         }
     }
@@ -468,19 +528,29 @@ class Puffin {
         // Diagonal digging downward and forward
         this.actionTicks++;
         if (this.actionTicks % 12 === 0) {
+            // Blockers should repel miners too.
+            if (this.checkBlocker(Math.floor(this.x + this.vx * 4), this.y + PUFFIN_H / 2)) {
+                this.state = ST_WALK;
+                this.vx *= -1;
+                return;
+            }
+
             this.y += 1;
             this.x += this.vx * 0.5;
             let cx = Math.floor(this.x + this.vx * 3);
             let cy = Math.floor(this.y + PUFFIN_H);
             let carved = false;
+            let blockedBySteel = false;
             // Dig diagonally downward in direction facing
             for (let y = 0; y <= 4; y++) {
                 for (let x = 0; x <= 4; x++) {
                     let tx = cx + (this.vx * x);
                     let ty = cy + y;
-                    if (canDigAt(tx, ty)) {
+                    if (canDigAt(tx, ty, this.vx)) {
                         setTerrain(tx, ty, 0);
                         carved = true;
+                    } else if (isSolidAt(tx, ty)) {
+                        blockedBySteel = true;
                     }
                 }
             }
@@ -489,10 +559,18 @@ class Puffin {
                 updateTerrainPixels(startX, cy, 5, 5);
                 createParticles(cx, cy, 3, [150,150,150]);
             } else {
-                // Hit steel or bottom - stop mining
-                this.state = ST_FALL;
-                this.fallStartY = this.y;
-                this.vy = 0;
+                if (blockedBySteel) {
+                    if (typeof createSparkParticles === 'function') createSparkParticles(cx, cy);
+                    if (typeof playSound === 'function') playSound('bash');
+                }
+                // Stop mining: walk if standing, otherwise fall.
+                if (isSolidAt(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 1))) {
+                    this.state = ST_WALK;
+                } else {
+                    this.state = ST_FALL;
+                    this.fallStartY = this.y;
+                    this.vy = 0;
+                }
             }
         }
     }
@@ -539,13 +617,28 @@ class Puffin {
         if (this.actionTicks % 6 === 0) {
             let bx = Math.floor(this.x + (this.vx * 4));
             let by = Math.floor(this.y + PUFFIN_H);
+
+            const failBuild = () => {
+                this.state = ST_WALK;
+                this.vx *= -1;
+                this.builderFailTicks = 12;
+                if (typeof createSparkParticles === 'function') createSparkParticles(bx, by - 1);
+                if (typeof playSound === 'function') playSound('bash');
+            };
             
             // Smart Builder: Stop building if hitting a wall
             let checkX = Math.floor(this.x + this.vx * 4);
             let checkY = Math.floor(this.y - 1 + PUFFIN_H / 2);
             if (isSolidAt(checkX, checkY)) {
-                this.state = ST_WALK;
-                this.vx *= -1; // Turn around
+                failBuild();
+                return;
+            }
+
+            // Only the *leading edge* must be clear.
+            // Interior overlap is expected when extending a staircase.
+            const leadX = bx + (this.vx * 3);
+            if (isSolidAt(leadX, by) || isSolidAt(leadX, by - 1)) {
+                failBuild();
                 return;
             }
 
@@ -566,8 +659,15 @@ class Puffin {
             if (typeof Achievements !== 'undefined') {
                 Achievements.trackBuild();
             }
-            
-            // Builder now builds indefinitely until clicked again (no auto-stop at 12)
+
+            // Canonical Lemmings: hard stop at 12 bricks, shrug, then resume walking
+            if (this.bricksLayed >= 12) {
+                this.shrugTicks = 20; // ~0.6s shrug pause
+                this.state = ST_WALK;
+                if (typeof createDustParticles === 'function') createDustParticles(this.x, this.y + PUFFIN_H);
+                if (typeof playSound === 'function') playSound('build');
+                return;
+            }
             
             if (typeof playSound === 'function') playSound('build');
         }
@@ -575,8 +675,14 @@ class Puffin {
     
     getSprite() {
         let spr = SPRITE_WALK[0];
-        if (this.state === ST_WALK || this.state === ST_BASH || this.state === ST_BUILD || this.state === ST_DIG) {
+        if (this.state === ST_WALK) {
             spr = SPRITE_WALK[Math.floor(this.animFrame / 5) % 2];
+        } else if (this.state === ST_BUILD) {
+            spr = SPRITE_BUILD;
+        } else if (this.state === ST_BASH) {
+            spr = SPRITE_BASH;
+        } else if (this.state === ST_DIG) {
+            spr = SPRITE_DIG;
         } else if (this.state === ST_FALL || this.state === ST_FLOAT) {
             spr = SPRITE_FALL;
         } else if (this.state === ST_BLOCK) {
@@ -673,22 +779,15 @@ class Puffin {
     }
     
     checkBlocker(tx, ty) {
-        // Check if hitting another blocking puffin or queued behind an active builder.
+        // Only walking/active ground skills are blocked; fallers pass through.
+        if (this.state === ST_FALL || this.state === ST_FLOAT) return false;
+
         for (let p of puffins) {
             if (p === this) continue;
             if (p.state === ST_BLOCK) {
                 let dx = Math.abs(tx - p.x);
                 let dy = Math.abs(ty - (p.y + PUFFIN_H/2));
                 if (dx < 6 && dy < 10) return true;
-            } else if (p.state === ST_BUILD) {
-                let dy = Math.abs(ty - (p.y + PUFFIN_H/2));
-                if (dy >= 10) continue;
-
-                // Hold followers behind the builder while building so they cannot pass and fall.
-                let behindBuilder = p.vx > 0
-                    ? tx >= (p.x - 8) && tx <= (p.x + 2)
-                    : tx <= (p.x + PUFFIN_W + 8) && tx >= (p.x + PUFFIN_W - 2);
-                if (behindBuilder) return true;
             }
         }
         return false;
@@ -952,21 +1051,24 @@ class Puffin {
         }
 
         if (this.state === ST_DIG) {
-            // Pickaxe with wooden handle
+            // Digger uses a shovel so it reads differently from the miner.
             ctx.fillStyle = '#8B4513';
-            let pickY = (this.animFrame % 10 < 5) ? 5 : 8;
-            ctx.fillRect(2, pickY - 3, 2, 7);
-            ctx.fillStyle = '#C0C0C0'; // metal head
-            ctx.fillRect(-1, pickY - 5, 8, 2);
-            ctx.fillStyle = '#555555'; // dark tip
-            ctx.fillRect(-1, pickY - 5, 2, 2);
+            const shovelLift = this.animFrame % 10 < 5 ? 0 : 1;
+            ctx.fillRect(3, 1 + shovelLift, 1, 8);
+            ctx.fillStyle = '#b7c3ce';
+            ctx.fillRect(1, 0 + shovelLift, 5, 2);
+            ctx.fillRect(2, 8, 3, 2);
         } else if (this.state === ST_BUILD) {
-            // Yellow hard hat
+            // Builder silhouette: hard hat plus the next brick in hand.
             ctx.fillStyle = '#f0c000';
             ctx.fillRect(-1, -4, PUFFIN_W + 2, 2); // brim
             ctx.fillRect(1, -6, PUFFIN_W - 2, 3);  // crown
             ctx.fillStyle = '#b09000'; // shadow line on hat
             ctx.fillRect(1, -4, 3, 1);
+            ctx.fillStyle = '#d28c42';
+            ctx.fillRect(6, 7, 3, 2);
+            ctx.fillStyle = '#9f6130';
+            ctx.fillRect(6, 8, 3, 1);
         } else if (this.state === ST_CLIMB) {
             // Climbing grip marks (pitons on wall side)
             ctx.fillStyle = '#aaaaaa';
@@ -1024,24 +1126,28 @@ class Puffin {
         }
 
         if (this.isBasher && this.state !== ST_DEAD) {
-            // Basher kit: boxing gloves on wrists
-            ctx.fillStyle = '#ffcc00'; // gold gloves
+            // Basher kit: heavier gloves and a helmet beacon so the role reads at a glance.
+            ctx.fillStyle = '#d64545';
+            ctx.fillRect(1, -5, 6, 2);
+            ctx.fillStyle = '#fff1a8';
+            ctx.fillRect(5, -5, 1, 1);
+            ctx.fillStyle = '#ffcc00';
             
             if (this.state === ST_BASH) {
                 // Animate punching during bash
                 let punchedGlove = (this.animFrame % 10 < 5) ? 0 : 1; // alternate which glove extends
-                let leftX = punchedGlove === 0 ? -2 : 0;
+                let leftX = punchedGlove === 0 ? -3 : 0;
                 let rightX = punchedGlove === 1 ? 8 : 6;
                 
-                ctx.fillRect(leftX, 8, 3, 3);   // left wrist (may extend)
-                ctx.fillRect(rightX, 8, 3, 3); // right wrist (may extend)
+                ctx.fillRect(leftX, 7, 3, 4);
+                ctx.fillRect(rightX, 7, 3, 4);
                 ctx.fillStyle = '#ff8800'; // darker accent
-                ctx.fillRect(leftX, 8, 1, 1);
-                ctx.fillRect(rightX, 8, 1, 1);
+                ctx.fillRect(leftX, 7, 1, 1);
+                ctx.fillRect(rightX, 7, 1, 1);
             } else {
                 // Resting position
-                ctx.fillRect(0, 8, 2, 3);  // left wrist
-                ctx.fillRect(6, 8, 2, 3); // right wrist
+                ctx.fillRect(0, 8, 2, 3);
+                ctx.fillRect(6, 8, 2, 3);
                 ctx.fillStyle = '#ff6600'; // darker accent
                 ctx.fillRect(0, 8, 1, 1);
                 ctx.fillRect(6, 8, 1, 1);
@@ -1054,6 +1160,28 @@ class Puffin {
                 ctx.lineWidth = 1;
                 ctx.strokeRect(-1, 7, PUFFIN_W + 2, 6);
             }
+        }
+
+        if (this.shrugTicks > 0) {
+            // Builder shrug beat after the 12th brick.
+            ctx.fillStyle = '#162233';
+            ctx.fillRect(-2, 4, 3, 2);
+            ctx.fillRect(PUFFIN_W - 1, 4, 3, 2);
+            if (this.animFrame % 12 < 6) {
+                ctx.fillStyle = 'rgba(255, 238, 160, 0.8)';
+                ctx.fillRect(3, -8, 2, 2);
+            }
+        }
+
+        if (this.builderFailTicks > 0) {
+            ctx.strokeStyle = 'rgba(255, 90, 90, 0.9)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(2, -7);
+            ctx.lineTo(6, -3);
+            ctx.moveTo(6, -7);
+            ctx.lineTo(2, -3);
+            ctx.stroke();
         }
         
         ctx.restore();
@@ -1073,6 +1201,23 @@ class Puffin {
                     ctx.lineWidth = 1;
                     ctx.strokeRect(Math.floor(this.x)-1, Math.floor(this.y)-1, PUFFIN_W+2, PUFFIN_H+2);
                 }
+            }
+
+            if (this.bomberPulseTicks > 0) {
+                const pulse = this.bomberPulseTicks / 8;
+                const radius = 9 + (1 - pulse) * 10;
+                ctx.strokeStyle = `rgba(255, 120, 80, ${pulse * 0.75})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(Math.floor(this.x + PUFFIN_W / 2), Math.floor(this.y + PUFFIN_H / 2), radius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            if (this.bomberFinalCueTicks > 0) {
+                const alpha = 0.55 + (this.bomberFinalCueTicks / 2) * 0.35;
+                ctx.strokeStyle = `rgba(255, 255, 200, ${alpha})`;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(Math.floor(this.x)-2, Math.floor(this.y)-2, PUFFIN_W+4, PUFFIN_H+4);
             }
         }
 

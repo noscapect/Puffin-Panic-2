@@ -3,7 +3,7 @@
   "name": "8: Safe Landing",
   "total": 10,
   "required": 8,
-  "spawnRate": 78,
+  "spawnRate": 54,
   "time": 10200,
   "entrance": {
     "x": 180,

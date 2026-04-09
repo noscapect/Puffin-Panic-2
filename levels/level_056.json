@@ -3,7 +3,7 @@
   "name": "56: Root Maze",
   "total": 24,
   "required": 19,
-  "spawnRate": 60,
+  "spawnRate": 44,
   "time": 12000,
   "entrance": {
     "x": 124,

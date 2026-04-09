@@ -3,7 +3,7 @@
   "name": "7: Break Through",
   "total": 15,
   "required": 12,
-  "spawnRate": 72,
+  "spawnRate": 50,
   "time": 10200,
   "entrance": {
     "x": 25,

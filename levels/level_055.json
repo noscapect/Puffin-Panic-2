@@ -3,7 +3,7 @@
   "name": "55: The Amber Tomb",
   "total": 20,
   "required": 15,
-  "spawnRate": 52,
+  "spawnRate": 40,
   "time": 13200,
   "entrance": {
     "x": 28,

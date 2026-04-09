@@ -3,7 +3,7 @@
   "name": "5: The Turnaround",
   "total": 12,
   "required": 10,
-  "spawnRate": 78,
+  "spawnRate": 54,
   "time": 10200,
   "entrance": {
     "x": 260,

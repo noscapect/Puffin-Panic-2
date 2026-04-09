@@ -21,12 +21,21 @@ function isSolidAt(x, y) {
     return isSolidTerrain(getTerrain(x, y));
 }
 
-function isDiggableTerrain(val) {
-    return val === 1; // Only type 1 is diggable; type 10 (steel) is not
+function isOneWayTerrain(val) {
+    return val === 11 || val === 12;
 }
 
-function canDigAt(x, y) {
-    return isDiggableTerrain(getTerrain(x, y));
+function isDiggableTerrain(val, digDir = 0) {
+    if (val === 1) return true;
+    // One-way right (11) can only be excavated when moving right.
+    if (val === 11) return digDir > 0;
+    // One-way left (12) can only be excavated when moving left.
+    if (val === 12) return digDir < 0;
+    return false; // Steel and other solid materials are not diggable.
+}
+
+function canDigAt(x, y, digDir = 0) {
+    return isDiggableTerrain(getTerrain(x, y), digDir);
 }
 
 // Fix: Ensure terrain modifications don't create unreachable areas
@@ -219,7 +228,29 @@ function getTerrainPixelColor(x, y, theme, profile, themeName) {
     if (v === 0) return [0, 0, 0, 0];
 
     if (v === 10) {
+        // Steel
         return [130, 94, 60, 255];
+    }
+
+    if (v === 11 || v === 12) {
+        // One-way terrain with subtle directional chevrons.
+        const base = [72, 102, 138];
+        const brighten = ((x + y) % 6) < 2;
+        let r = base[0] + (brighten ? 18 : 0);
+        let g = base[1] + (brighten ? 20 : 0);
+        let b = base[2] + (brighten ? 24 : 0);
+
+        const mod = 10;
+        const shifted = v === 11
+            ? ((x - y) % mod + mod) % mod
+            : ((x + y) % mod + mod) % mod;
+        if (shifted <= 1 || shifted >= mod - 2) {
+            r += 34;
+            g += 38;
+            b += 44;
+        }
+
+        return [clampColor(r), clampColor(g), clampColor(b), 255];
     }
 
     if (v >= 10) {

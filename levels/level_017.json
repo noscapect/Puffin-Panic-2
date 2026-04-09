@@ -3,7 +3,7 @@
   "name": "17: Volcano",
   "total": 25,
   "required": 18,
-  "spawnRate": 56,
+  "spawnRate": 42,
   "time": 11700,
   "entrance": {
     "x": 30,

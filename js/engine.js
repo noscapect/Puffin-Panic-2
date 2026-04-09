@@ -3,6 +3,11 @@ let currentLevelIndex = 0;
 let TOTAL_PUFFINS = 20;
 let REQUIRED_PUFFINS = 15;
 let SPAWN_RATE = FPS * 2;
+let currentReleaseRate = 50;
+const MIN_RELEASE_RATE = 1;
+const MAX_RELEASE_RATE = 99;
+const MIN_SPAWN_INTERVAL = 3;
+const MAX_SPAWN_INTERVAL = FPS * 2;
 let ENTRANCE = { x: 70, y: 20 };
 let EXIT = { x: 340, y: 78, w: 20, h: 12 };
 let loopId = null;
@@ -36,13 +41,41 @@ function toggleSpeed() {
     if (btn) btn.innerText = 'Speed: ' + gameSpeed + 'x';
 }
 
+function clampReleaseRate(value) {
+    return Math.max(MIN_RELEASE_RATE, Math.min(MAX_RELEASE_RATE, Number(value) || MIN_RELEASE_RATE));
+}
+
+function spawnIntervalFromReleaseRate(value) {
+    const rate = clampReleaseRate(value);
+    const t = (rate - MIN_RELEASE_RATE) / (MAX_RELEASE_RATE - MIN_RELEASE_RATE);
+    return Math.max(MIN_SPAWN_INTERVAL, Math.round(MAX_SPAWN_INTERVAL - (MAX_SPAWN_INTERVAL - MIN_SPAWN_INTERVAL) * t));
+}
+
+function releaseRateFromSpawnInterval(interval) {
+    const clampedInterval = Math.max(MIN_SPAWN_INTERVAL, Math.min(MAX_SPAWN_INTERVAL, Number(interval) || MAX_SPAWN_INTERVAL));
+    const t = (MAX_SPAWN_INTERVAL - clampedInterval) / (MAX_SPAWN_INTERVAL - MIN_SPAWN_INTERVAL);
+    return clampReleaseRate(Math.round(MIN_RELEASE_RATE + t * (MAX_RELEASE_RATE - MIN_RELEASE_RATE)));
+}
+
+function syncReleaseRateControls() {
+    const rateSlider = document.getElementById('release-rate');
+    const rateVal = document.getElementById('release-rate-val');
+    if (rateSlider) rateSlider.value = String(currentReleaseRate);
+    if (rateVal) rateVal.innerText = String(currentReleaseRate);
+}
+
 function updateReleaseRate(value) {
-    // Value 1-10, where 10 = fastest (spawn every frame), 1 = slowest
-    // Map to spawn rate multiplier: 10 -> 0.5, 1 -> 10
-    let baseRate = FPS * 2; // Base spawn rate
-    let multiplier = (11 - value) / 5; // 10 -> 0.2, 1 -> 2.0
-    SPAWN_RATE = Math.max(1, Math.floor(baseRate * multiplier));
-    document.getElementById('release-rate-val').innerText = value;
+    const nextRate = clampReleaseRate(value);
+    currentReleaseRate = nextRate;
+    SPAWN_RATE = spawnIntervalFromReleaseRate(nextRate);
+    if (gameState && typeof gameState.spawnCountdown === 'number') {
+        gameState.spawnCountdown = Math.min(gameState.spawnCountdown, SPAWN_RATE);
+    }
+    syncReleaseRateControls();
+}
+
+function changeReleaseRate(delta) {
+    updateReleaseRate(currentReleaseRate + delta);
 }
 
 function refreshTextureControls() {
@@ -97,7 +130,8 @@ let gameState = {
     dead: 0,
     active: true,
     paused: false,
-    timeLeft: 5 * 60 * FPS
+    timeLeft: 5 * 60 * FPS,
+    spawnCountdown: spawnIntervalFromReleaseRate(currentReleaseRate)
 };
 let mouseX = 0, mouseY = 0;
 let hoveredPuffin = null;
@@ -105,6 +139,38 @@ let nukeActivated = false;
 let nukeCountdown = -1;
 let screenShake = 0;
 let screenShakeIntensity = 0;
+
+function getBestPuffinAt(x, y, skillId = activeSkill) {
+    let best = null;
+    let bestScore = Infinity;
+
+    for (let p of puffins) {
+        if (p.state === ST_DEAD || p.state === ST_EXITED) continue;
+
+        const cx = p.x + PUFFIN_W / 2;
+        const cy = p.y + PUFFIN_H / 2;
+        const dist = Math.hypot(cx - x, cy - y);
+        const inExpandedBox =
+            x >= p.x - 2 && x <= p.x + PUFFIN_W + 2 &&
+            y >= p.y - 2 && y <= p.y + PUFFIN_H + 2;
+        const maxDist = inExpandedBox ? 22 : 16;
+        if (dist > maxDist) continue;
+
+        let score = dist;
+        if (inExpandedBox) score -= 5;
+        if (skillId && p.canAcceptSkill(skillId)) score -= 3;
+        if (p.state === ST_WALK || p.state === ST_BUILD || p.state === ST_BASH || p.state === ST_MINE || p.state === ST_DIG) {
+            score -= 1;
+        }
+
+        if (score < bestScore) {
+            bestScore = score;
+            best = p;
+        }
+    }
+
+    return best;
+}
 
 function getThemeSkyColors() {
     const theme = getCurrentThemeName();
@@ -202,6 +268,7 @@ function setupInputs() {
     canvas.addEventListener('mousedown', e => {
         // Skip if in editor mode, game not active, or paused
         if (editorMode || !gameState.active || gameState.paused) return;
+        const target = getBestPuffinAt(mouseX, mouseY, activeSkill);
         
         // Right-click to cancel active skill
         if (e.button === 2) {
@@ -213,16 +280,16 @@ function setupInputs() {
         // Left-click to assign skill or toggle blocker/builder
         if (e.button === 0) {
             // If no skill selected, try to toggle a blocker, builder, or miner
-            if (!activeSkill && hoveredPuffin) {
-                if (hoveredPuffin.toggleBlocker()) {
+            if (!activeSkill && target) {
+                if (target.toggleBlocker()) {
                     playSound('click');
                     return;
                 }
-                if (hoveredPuffin.toggleBuilder()) {
+                if (target.toggleBuilder()) {
                     playSound('click');
                     return;
                 }
-                if (hoveredPuffin.toggleMiner()) {
+                if (target.toggleMiner()) {
                     playSound('click');
                     return;
                 }
@@ -231,8 +298,8 @@ function setupInputs() {
             // Assign skill if one is selected
             if (activeSkill) {
                 if (currentSkillCounts[activeSkill] <= 0) return;
-                if (hoveredPuffin && hoveredPuffin.canAcceptSkill(activeSkill)) {
-                    hoveredPuffin.assignSkill(activeSkill);
+                if (target && target.canAcceptSkill(activeSkill)) {
+                    target.assignSkill(activeSkill);
                     currentSkillCounts[activeSkill]--;
                     // Track skill use for achievements
                     if (typeof Achievements !== 'undefined') {
@@ -257,9 +324,19 @@ function setupInputs() {
                 togglePause();
             }
         }
+        if (!gameState.active || gameState.paused) return;
+
         // N key for nuke
-        if (e.key === 'n' && gameState.active && !gameState.paused) {
+        if (e.key === 'n' || e.key === 'N') {
             triggerNuke();
+        }
+
+        // Classic-style release-rate control.
+        if (e.key === '[' || e.key === '-' || e.key === '_') {
+            changeReleaseRate(-1);
+        }
+        if (e.key === ']' || e.key === '=' || e.key === '+') {
+            changeReleaseRate(1);
         }
     });
 }
@@ -384,7 +461,8 @@ function loadLevel(index) {
     
     TOTAL_PUFFINS = lvl.total;
     REQUIRED_PUFFINS = lvl.required;
-    SPAWN_RATE = lvl.spawnRate;
+    currentReleaseRate = releaseRateFromSpawnInterval(lvl.spawnRate);
+    SPAWN_RATE = spawnIntervalFromReleaseRate(currentReleaseRate);
     ENTRANCE = lvl.entrance;
     EXIT = lvl.exit;
 
@@ -401,7 +479,8 @@ function loadLevel(index) {
         dead: 0,
         active: true,
         paused: false,
-        timeLeft: lvl.time
+        timeLeft: lvl.time,
+        spawnCountdown: SPAWN_RATE
     };
     
     // Init skills
@@ -422,12 +501,8 @@ function loadLevel(index) {
     let nukeBtn = document.getElementById('btn-nuke');
     if (nukeBtn) nukeBtn.classList.remove('disabled');
     
-    // Reset release rate slider
-    let rateSlider = document.getElementById('release-rate');
-    if (rateSlider) {
-        rateSlider.value = 5;
-        updateReleaseRate(5);
-    }
+    // Reset release rate controls to the level's default.
+    syncReleaseRateControls();
     
     terrainData.fill(0);
     lvl.buildTerrain(terrainData, GAME_WIDTH, GAME_HEIGHT);
@@ -475,8 +550,9 @@ function buildUI() {
 }
 
 function updateUI() {
-    document.getElementById('lbl-out').innerText = gameState.spawned;
-    document.getElementById('lbl-in').innerText = `${gameState.saved} / ${REQUIRED_PUFFINS}`;
+    document.getElementById('lbl-out').innerText = `${gameState.spawned}/${TOTAL_PUFFINS}`;
+    document.getElementById('lbl-in').innerText = `${gameState.saved}/${REQUIRED_PUFFINS}`;
+    syncReleaseRateControls();
     
     let secs = Math.floor(gameState.timeLeft / FPS);
     let m = Math.floor(secs / 60);
@@ -577,25 +653,17 @@ function update() {
     }
     
     // Spawning
-    if (gameState.ticks % SPAWN_RATE === 0 && gameState.spawned < TOTAL_PUFFINS) {
-        puffins.push(new Puffin(ENTRANCE.x, ENTRANCE.y));
-        gameState.spawned++;
+    if (gameState.spawned < TOTAL_PUFFINS) {
+        gameState.spawnCountdown--;
+        if (gameState.spawnCountdown <= 0) {
+            puffins.push(new Puffin(ENTRANCE.x, ENTRANCE.y));
+            gameState.spawned++;
+            gameState.spawnCountdown = SPAWN_RATE;
+        }
     }
     
     // Hover logic
-    hoveredPuffin = null;
-    let minDist = 15;
-    for (let p of puffins) {
-        if (p.state !== ST_DEAD && p.state !== ST_EXITED) {
-            let cx = p.x + PUFFIN_W/2;
-            let cy = p.y + PUFFIN_H/2;
-            let d = Math.hypot(cx - mouseX, cy - mouseY);
-            if (d < minDist) {
-                minDist = d;
-                hoveredPuffin = p;
-            }
-        }
-    }
+    hoveredPuffin = getBestPuffinAt(mouseX, mouseY, activeSkill);
     
     // Update entities
     puffins.forEach(p => p.update());
@@ -1226,133 +1294,22 @@ function draw() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = sky.veil;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+
     ctx.save();
-    
-    // Visual polish: Apply screen shake
+
     if (screenShake > 0) {
         let shakeX = (Math.random() - 0.5) * screenShakeIntensity * 2;
         let shakeY = (Math.random() - 0.5) * screenShakeIntensity * 2;
         ctx.translate(shakeX, shakeY);
         screenShake--;
-        screenShakeIntensity *= 0.9; // Decay intensity
+        screenShakeIntensity *= 0.9;
         if (screenShakeIntensity < 0.5) screenShakeIntensity = 0;
     }
-    
+
     ctx.scale(SCALE, SCALE);
-    
-    // Star field — varied sizes and twinkle speeds
-    const stars = [
-        {x:  15, y:  8, s:1, sp:0.018}, {x:  42, y: 22, s:1, sp:0.031},
-        {x:  78, y: 12, s:2, sp:0.014}, {x: 105, y: 35, s:1, sp:0.022},
-        {x: 138, y:  6, s:1, sp:0.028}, {x: 165, y: 48, s:2, sp:0.017},
-        {x: 195, y: 18, s:1, sp:0.033}, {x: 230, y: 55, s:1, sp:0.025},
-        {x: 258, y: 10, s:2, sp:0.019}, {x: 285, y: 32, s:1, sp:0.038},
-        {x: 312, y: 68, s:1, sp:0.021}, {x: 345, y: 14, s:2, sp:0.016},
-        {x: 372, y: 42, s:1, sp:0.029}, {x: 390, y: 22, s:1, sp:0.024},
-        {x:  60, y: 75, s:1, sp:0.036}, {x: 210, y: 76, s:1, sp:0.020},
-        {x: 330, y: 90, s:1, sp:0.027}, {x:  88, y: 50, s:1, sp:0.041}
-    ];
-    stars.forEach(star => {
-        let brightness = 0.35 + Math.sin(gameState.ticks * star.sp + star.x * 0.1) * 0.45;
-        ctx.fillStyle = `rgba(240, 245, 255, ${brightness})`;
-        ctx.fillRect(star.x, star.y, star.s, star.s);
-    });
-    
-    // Moon — outer glow halo
-    ctx.fillStyle = 'rgba(255, 245, 220, 0.12)';
-    ctx.beginPath(); ctx.arc(320, 38, 22, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = 'rgba(255, 245, 220, 0.20)';
-    ctx.beginPath(); ctx.arc(320, 38, 18, 0, Math.PI*2); ctx.fill();
-    // Moon surface
-    ctx.fillStyle = '#ede8d8';
-    ctx.beginPath(); ctx.arc(320, 38, 14, 0, Math.PI*2); ctx.fill();
-    // Mare craters (dark patches)
-    ctx.fillStyle = 'rgba(0,0,0,0.10)';
-    ctx.beginPath(); ctx.arc(315, 34, 3.5, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.08)';
-    ctx.beginPath(); ctx.arc(323, 41, 2.5, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(312, 42, 1.5, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(326, 33, 1.0, 0, Math.PI*2); ctx.fill();
 
-    // Aurora borealis — layered curtains
-    let auroraOffset = Math.sin(gameState.ticks * 0.01) * 10;
-    ctx.fillStyle = `rgba(0, 255, 100, ${0.07 + Math.sin(gameState.ticks * 0.005) * 0.03})`;
-    ctx.beginPath();
-    ctx.moveTo(0, 80 + auroraOffset);
-    ctx.quadraticCurveTo(200, 28 + auroraOffset, 400, 88 + auroraOffset);
-    ctx.lineTo(400, 0); ctx.lineTo(0, 0); ctx.fill();
-    ctx.fillStyle = `rgba(0, 150, 255, ${0.05 + Math.sin(gameState.ticks * 0.008 + 1) * 0.025})`;
-    ctx.beginPath();
-    ctx.moveTo(0, 100 + auroraOffset);
-    ctx.quadraticCurveTo(150, 48 + auroraOffset, 400, 108 + auroraOffset);
-    ctx.lineTo(400, 0); ctx.lineTo(0, 0); ctx.fill();
-    ctx.fillStyle = `rgba(180, 0, 255, ${0.03 + Math.sin(gameState.ticks * 0.006 + 2) * 0.02})`;
-    ctx.beginPath();
-    ctx.moveTo(0, 90 + auroraOffset);
-    ctx.quadraticCurveTo(280, 38 + auroraOffset, 400, 95 + auroraOffset);
-    ctx.lineTo(400, 0); ctx.lineTo(0, 0); ctx.fill();
-
-    // Layered parallax ridges
-    const driftFar = Math.sin(gameState.ticks * 0.002) * 4;
-    const driftMid = Math.sin(gameState.ticks * 0.003 + 0.8) * 6;
-
-    // Far ridge
-    ctx.save();
-    ctx.translate(driftFar, 0);
-    ctx.fillStyle = 'rgba(20, 36, 60, 0.45)';
-    ctx.beginPath();
-    ctx.moveTo(-12, 126);
-    ctx.lineTo(24, 94); ctx.lineTo(60, 102); ctx.lineTo(92, 78);
-    ctx.lineTo(126, 88); ctx.lineTo(162, 66); ctx.lineTo(198, 82);
-    ctx.lineTo(235, 62); ctx.lineTo(275, 78); ctx.lineTo(312, 58);
-    ctx.lineTo(350, 74); ctx.lineTo(388, 64); ctx.lineTo(420, 80);
-    ctx.lineTo(420, 126);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    // Mid ridge
-    ctx.save();
-    ctx.translate(driftMid, 0);
-    ctx.fillStyle = 'rgba(35, 58, 88, 0.58)';
-    ctx.beginPath();
-    ctx.moveTo(-16, 140);
-    ctx.lineTo(22, 108); ctx.lineTo(48, 118); ctx.lineTo(78, 92);
-    ctx.lineTo(108, 102); ctx.lineTo(138, 82); ctx.lineTo(170, 98);
-    ctx.lineTo(202, 78); ctx.lineTo(236, 96); ctx.lineTo(266, 74);
-    ctx.lineTo(298, 90); ctx.lineTo(328, 84); ctx.lineTo(360, 96);
-    ctx.lineTo(390, 86); ctx.lineTo(420, 100);
-    ctx.lineTo(420, 140);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    // Snow caps on visible peaks
-    ctx.fillStyle = 'rgba(215, 233, 255, 0.22)';
-    const peaks = [[78,92],[138,82],[202,78],[266,74],[328,84]];
-    peaks.forEach(([px, py]) => {
-        ctx.beginPath();
-        ctx.moveTo(px, py);
-        ctx.lineTo(px + 11, py + 11);
-        ctx.lineTo(px - 11, py + 11);
-        ctx.closePath();
-        ctx.fill();
-    });
-
-    // Theme-specific background scene (stars / ridges / volcanics / underwater / etc.)
     drawThemeBackground(ctx);
 
-    // Draw Entrance — wooden trapdoor hatch
-    drawThemeAtmosphere(ctx, 'front');
-    
-    // Draw Puffins
-    puffins.forEach(p => p.draw(ctx));
-    
-    // Theme-specific background scene
-    drawThemeBackground(ctx);
-
-    // Draw Entrance — wooden trapdoor hatch
     let ex = ENTRANCE.x, ey = ENTRANCE.y;
     ctx.fillStyle = '#5a3010';
     ctx.fillRect(ex - 12, ey - 10, 24, 5);
@@ -1372,7 +1329,6 @@ function draw() {
     ctx.fillRect(ex - 1, ey - 17 + arrowBob, 2, 5);
     ctx.fillRect(ex - 3, ey - 14 + arrowBob, 6, 2);
 
-    // Draw Exit — glowing stone doorway
     let exitGlow = 0.5 + Math.sin(gameState.ticks * 0.08) * 0.28;
     ctx.fillStyle = `rgba(0, 255, 80, ${exitGlow * 0.10})`;
     ctx.fillRect(EXIT.x - 6, EXIT.y - 8, EXIT.w + 12, EXIT.h + 12);
@@ -1394,8 +1350,12 @@ function draw() {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     let portalGlow = ctx.createRadialGradient(
-        EXIT.x + EXIT.w / 2, EXIT.y + EXIT.h / 2, 2,
-        EXIT.x + EXIT.w / 2, EXIT.y + EXIT.h / 2, 18
+        EXIT.x + EXIT.w / 2,
+        EXIT.y + EXIT.h / 2,
+        2,
+        EXIT.x + EXIT.w / 2,
+        EXIT.y + EXIT.h / 2,
+        18
     );
     portalGlow.addColorStop(0, `rgba(100, 255, 180, ${0.25 + exitGlow * 0.22})`);
     portalGlow.addColorStop(0.45, `rgba(40, 220, 150, ${0.12 + exitGlow * 0.16})`);
@@ -1406,29 +1366,15 @@ function draw() {
     ctx.fill();
     ctx.restore();
 
-    // Draw Terrain
     ctx.drawImage(offscreenCanvas, 0, 0);
-
-    // Scene props: icicles, grass tufts, rope bridges, signs
     drawSceneProps(ctx);
-
-    // Theme atmosphere behind actors
     drawThemeAtmosphere(ctx, 'behind');
-
-    // Foreground mist pass — theme-aware colours
     drawThemeMist(ctx);
-
-    // Theme atmosphere in front of terrain haze, still behind puffins
     drawThemeAtmosphere(ctx, 'front');
 
-
-    // Draw Puffins
     puffins.forEach(p => p.draw(ctx));
-
-    // Draw Particles
     particles.forEach(p => p.draw(ctx));
 
-    // Draw Cursor Reticle
     if (activeSkill && currentSkillCounts[activeSkill] > 0) {
         ctx.strokeStyle = hoveredPuffin ? '#0f0' : '#fff';
         ctx.strokeRect(mouseX - 5, mouseY - 5, 10, 10);
@@ -1438,7 +1384,6 @@ function draw() {
         ctx.stroke();
     }
 
-    // Draw Nuke Countdown Warning
     if (nukeActivated && nukeCountdown > 0) {
         let seconds = Math.ceil(nukeCountdown / FPS);
         ctx.fillStyle = `rgba(255, 0, 0, ${0.5 + Math.sin(gameState.ticks * 0.2) * 0.3})`;
@@ -1452,17 +1397,16 @@ function draw() {
 
     ctx.restore();
 
-    // Subtle post-process: theme-tinted grade + vignette.
-    const _ppGrades = {
-        lava:[200,70,20], volcanic_ash:[180,80,30], obsidian_floor:[160,60,40],
-        desert:[210,150,55], salt_flats:[200,175,100], sandstone:[215,165,70],
-        cave:[12,10,8], wet_cave_stone:[18,22,28], iron_ore:[20,18,14], mud:[30,22,14],
-        water:[20,120,180], deep_sea:[10,60,120], coral:[20,140,170],
-        crystal:[120,60,200], crystal_dense:[100,50,180], amber:[220,160,40],
-        fungus_glow:[60,180,100], toxic_sludge:[100,160,30]
+    const postProcessGrades = {
+        lava: [200, 70, 20], volcanic_ash: [180, 80, 30], obsidian_floor: [160, 60, 40],
+        desert: [210, 150, 55], salt_flats: [200, 175, 100], sandstone: [215, 165, 70],
+        cave: [12, 10, 8], wet_cave_stone: [18, 22, 28], iron_ore: [20, 18, 14], mud: [30, 22, 14],
+        water: [20, 120, 180], deep_sea: [10, 60, 120], coral: [20, 140, 170],
+        crystal: [120, 60, 200], crystal_dense: [100, 50, 180], amber: [220, 160, 40],
+        fungus_glow: [60, 180, 100], toxic_sludge: [100, 160, 30]
     };
-    const [_ppr, _ppg, _ppb] = _ppGrades[getCurrentThemeName()] || [120,170,230];
-    ctx.fillStyle = `rgba(${_ppr}, ${_ppg}, ${_ppb}, 0.05)`;
+    const [gradeR, gradeG, gradeB] = postProcessGrades[getCurrentThemeName()] || [120, 170, 230];
+    ctx.fillStyle = `rgba(${gradeR}, ${gradeG}, ${gradeB}, 0.05)`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     let vignette = ctx.createRadialGradient(
@@ -1479,7 +1423,6 @@ function draw() {
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw achievement notification
     if (typeof Achievements !== 'undefined') {
         Achievements.draw(ctx);
     }

@@ -3,7 +3,7 @@
   "name": "27: Temple Staircase",
   "total": 25,
   "required": 21,
-  "spawnRate": 64,
+  "spawnRate": 46,
   "time": 10800,
   "entrance": {
     "x": 28,

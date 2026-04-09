@@ -3,7 +3,7 @@
   "name": "43: Mine Shaft",
   "total": 22,
   "required": 18,
-  "spawnRate": 60,
+  "spawnRate": 44,
   "time": 10800,
   "entrance": {
     "x": 28,

@@ -3,7 +3,7 @@
   "name": "59: The Canopy",
   "total": 22,
   "required": 17,
-  "spawnRate": 56,
+  "spawnRate": 42,
   "time": 13200,
   "entrance": {
     "x": 28,

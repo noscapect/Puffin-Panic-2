@@ -3,7 +3,7 @@
   "name": "48: Ore Cart Run",
   "total": 22,
   "required": 17,
-  "spawnRate": 56,
+  "spawnRate": 42,
   "time": 12600,
   "entrance": {
     "x": 28,

@@ -3,7 +3,7 @@
   "name": "21: The Ice Shard Ascent",
   "total": 20,
   "required": 14,
-  "spawnRate": 58,
+  "spawnRate": 43,
   "time": 12600,
   "entrance": {
     "x": 40,

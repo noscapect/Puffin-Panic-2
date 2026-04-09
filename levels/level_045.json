@@ -3,7 +3,7 @@
   "name": "45: The Crusher",
   "total": 20,
   "required": 14,
-  "spawnRate": 50,
+  "spawnRate": 39,
   "time": 13200,
   "entrance": {
     "x": 28,

@@ -3,7 +3,7 @@
   "name": "18: Magma Chamber",
   "total": 30,
   "required": 22,
-  "spawnRate": 56,
+  "spawnRate": 42,
   "time": 12000,
   "entrance": {
     "x": 30,

@@ -2,7 +2,7 @@
 // --- Enhanced Level Editor ---
 
 let editorMode = false;
-let editorTool = 'terrain'; // terrain, erase, fill, line, rect, entrance, exit
+let editorTool = 'terrain'; // terrain, steel, oneway_right, oneway_left, erase, fill, line, rect, entrance, exit
 let editorBrushSize = 1;
 let editorLevelData = null;
 let editorEntrance = { x: 70, y: 20 };
@@ -202,7 +202,7 @@ function editorLoop() {
     // Draw terrain count info
     ctx.fillStyle = '#fff';
     ctx.font = '8px monospace';
-    const terrainCount = Array.from(editorLevelData).filter(v => v === 1).length;
+    const terrainCount = Array.from(editorLevelData).filter(v => v !== 0).length;
     const percentage = ((terrainCount / (GAME_WIDTH * GAME_HEIGHT)) * 100).toFixed(1);
     ctx.fillText(`Terrain: ${terrainCount} pixels (${percentage}%)`, 5, GAME_HEIGHT - 5);
     
@@ -233,6 +233,9 @@ function showEditorUI() {
             <!-- Tools Row 1: Drawing Tools -->
             <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;justify-content:center;">
                 <button onclick="setEditorTool('terrain')" id="tool-terrain" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#4CAF50;color:white;border:none;cursor:pointer;font-size:13px;">🪨 Terrain</button>
+                <button onclick="setEditorTool('steel')" id="tool-steel" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#8D6E63;color:white;border:none;cursor:pointer;font-size:13px;">🧱 Steel</button>
+                <button onclick="setEditorTool('oneway_right')" id="tool-oneway_right" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#3F51B5;color:white;border:none;cursor:pointer;font-size:13px;">➡ One-Way</button>
+                <button onclick="setEditorTool('oneway_left')" id="tool-oneway_left" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#303F9F;color:white;border:none;cursor:pointer;font-size:13px;">⬅ One-Way</button>
                 <button onclick="setEditorTool('erase')" id="tool-erase" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#f44336;color:white;border:none;cursor:pointer;font-size:13px;">🧹 Erase</button>
                 <button onclick="setEditorTool('fill')" id="tool-fill" class="editor-tool-btn" style="padding:8px 14px;font-family:inherit;background:#9C27B0;color:white;border:none;cursor:pointer;font-size:13px;">🪣 Fill</button>
             </div>
@@ -377,7 +380,7 @@ function editorMouseDown(e) {
     // Fill tool
     if (editorTool === 'fill') {
         saveUndoState();
-        floodFill(coords.x, coords.y, 1);
+        floodFill(coords.x, coords.y, getEditorPaintValue(true));
         renderTerrainToOffscreen();
         return;
     }
@@ -422,10 +425,10 @@ function editorMouseMove(e) {
     mouseY = coords.y;
     
     // Continuous drawing while holding mouse
-    if (isDrawing && (editorTool === 'terrain' || editorTool === 'erase')) {
+    if (isDrawing && (editorTool === 'terrain' || editorTool === 'steel' || editorTool === 'oneway_right' || editorTool === 'oneway_left' || editorTool === 'erase')) {
         if (lastDrawX !== -1) {
             // Interpolate between last and current position for smooth drawing
-            drawLine(lastDrawX, lastDrawY, coords.x, coords.y, editorTool === 'terrain');
+            drawLine(lastDrawX, lastDrawY, coords.x, coords.y, editorTool !== 'erase');
         }
         lastDrawX = coords.x;
         lastDrawY = coords.y;
@@ -451,6 +454,7 @@ function drawLine(x0, y0, x1, y1, add) {
 }
 
 function drawShape(x0, y0, x1, y1, isLine) {
+    const paintVal = getEditorPaintValue(true);
     if (isLine) {
         drawLine(x0, y0, x1, y1, true);
     } else {
@@ -461,14 +465,22 @@ function drawShape(x0, y0, x1, y1, isLine) {
         const maxY = Math.max(y0, y1);
         
         for (let x = minX; x <= maxX; x++) {
-            setPixel(x, minY, 1);
-            setPixel(x, maxY, 1);
+            setPixel(x, minY, paintVal);
+            setPixel(x, maxY, paintVal);
         }
         for (let y = minY; y <= maxY; y++) {
-            setPixel(minX, y, 1);
-            setPixel(maxX, y, 1);
+            setPixel(minX, y, paintVal);
+            setPixel(maxX, y, paintVal);
         }
     }
+}
+
+function getEditorPaintValue(add) {
+    if (!add) return 0;
+    if (editorTool === 'steel') return 10;
+    if (editorTool === 'oneway_right') return 11;
+    if (editorTool === 'oneway_left') return 12;
+    return 1;
 }
 
 function setPixel(x, y, val) {
@@ -488,7 +500,7 @@ function editorWheelHandler(e) {
 }
 
 function paintTerrain(x, y, add) {
-    const val = add ? 1 : 0;
+    const val = getEditorPaintValue(add);
     const half = Math.floor(editorBrushSize / 2);
     
     for (let dy = -half; dy < editorBrushSize - half; dy++) {

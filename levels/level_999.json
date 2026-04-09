@@ -3,7 +3,7 @@
   "name": "Level 999: Concept Meadow Test",
   "total": 28,
   "required": 19,
-  "spawnRate": 48,
+  "spawnRate": 38,
   "time": 12600,
   "entrance": {
     "x": 56,

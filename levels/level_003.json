@@ -3,7 +3,7 @@
   "name": "3: Going Down",
   "total": 10,
   "required": 8,
-  "spawnRate": 84,
+  "spawnRate": 57,
   "time": 9600,
   "entrance": {
     "x": 55,

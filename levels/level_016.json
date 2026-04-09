@@ -3,7 +3,7 @@
   "name": "16: Inferno",
   "total": 25,
   "required": 18,
-  "spawnRate": 56,
+  "spawnRate": 42,
   "time": 11700,
   "entrance": {
     "x": 30,

@@ -3,7 +3,7 @@
   "name": "39: Shipwreck",
   "total": 24,
   "required": 18,
-  "spawnRate": 58,
+  "spawnRate": 43,
   "time": 12600,
   "entrance": {
     "x": 24,

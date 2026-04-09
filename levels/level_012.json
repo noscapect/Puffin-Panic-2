@@ -3,7 +3,7 @@
   "name": "12: The Sacrifice",
   "total": 20,
   "required": 15,
-  "spawnRate": 66,
+  "spawnRate": 47,
   "time": 10800,
   "entrance": {
     "x": 30,
