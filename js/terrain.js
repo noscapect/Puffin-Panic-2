@@ -88,7 +88,7 @@ function preloadTerrainTextures(callback) {
         'grass', 'desert', 'snow', 'rock', 'ice', 'lava', 'crystal', 'water', 'mud', 'cave', 'mossy',
         'cliff_chalk', 'slate_ledge', 'frozen_mud', 'packed_snow', 'black_ice',
         'volcanic_ash', 'obsidian_floor', 'salt_flats', 'wet_cave_stone', 'rusty_metal',
-        'wood_planks', 'mossy_ruin', 'crystal_dense', 'fungus_glow', 'toxic_sludge'
+        'wood_planks', 'mossy_ruin', 'crystal_dense', 'fungus_glow', 'toxic_sludge', 'concept_999'
     ];
     let pending = themes.length;
     _terrainTexState.total = themes.length;
@@ -149,7 +149,8 @@ const _texTileScale = {
     mossy_ruin:    3,
     crystal_dense: 3,
     fungus_glow:   3,
-    toxic_sludge:  4
+    toxic_sludge:  4,
+    concept_999:   4
 };
 
 function sampleTerrainTexture(themeName, x, y) {
@@ -192,7 +193,8 @@ function getThemeRenderProfile(themeName) {
         mossy_ruin:    { noiseAmp: 11, depthTint: 0.09, crackChance: 0.025, rimBoost: [12, 18, 12],  glaze: false, surfaceBlend: 0.72, surfaceRows: 3 },
         crystal_dense: { noiseAmp: 12, depthTint: 0.08, crackChance: 0.03,  rimBoost: [22, 20, 28],  glaze: true,  surfaceBlend: 0.67, surfaceRows: 2 },
         fungus_glow:   { noiseAmp: 10, depthTint: 0.07, crackChance: 0.02,  rimBoost: [16, 28, 22],  glaze: true,  surfaceBlend: 0.70, surfaceRows: 3 },
-        toxic_sludge:  { noiseAmp: 12, depthTint: 0.11, crackChance: 0.02,  rimBoost: [14, 22, 10],  glaze: false, surfaceBlend: 0.62, surfaceRows: 2 }
+        toxic_sludge:  { noiseAmp: 12, depthTint: 0.11, crackChance: 0.02,  rimBoost: [14, 22, 10],  glaze: false, surfaceBlend: 0.62, surfaceRows: 2 },
+        concept_999:   { noiseAmp: 11, depthTint: 0.10, crackChance: 0.02,  rimBoost: [18, 16, 10],  glaze: false, surfaceBlend: 0.74, surfaceRows: 3 }
     };
     return profiles[themeName] || profiles.grass;
 }

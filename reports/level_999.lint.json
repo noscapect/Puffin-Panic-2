@@ -1,0 +1,37 @@
+{
+  "file": "D:\\Temp\\Puffin Panic 2\\levels\\level_999.json",
+  "mapSize": {
+    "width": 400,
+    "height": 220,
+    "expectedCells": 88000
+  },
+  "terrain": {
+    "pairCount": 661,
+    "totalRLECount": 88000,
+    "solidCells": 44351,
+    "solidPct": 50.4,
+    "connectedComponents": 9,
+    "tinyComponents": 1,
+    "topSurface": 638,
+    "flatTopSurface": 493,
+    "flatSurfacePct": 77.27,
+    "jaggednessScore": 87
+  },
+  "issues": [
+    {
+      "code": "ENTRANCE_BLOCKED",
+      "severity": "warn",
+      "detail": "Entrance has 9 blocked cells in 3x3 zone."
+    },
+    {
+      "code": "SMALL_FRAGMENTS",
+      "severity": "warn",
+      "detail": "1 tiny components under 6 px."
+    }
+  ],
+  "score": {
+    "pass": true,
+    "errorCount": 0,
+    "warnCount": 2
+  }
+}

@@ -102,5 +102,9 @@
   "toxic_sludge": {
     "positive": "A seamless tileable overhead top-down texture of toxic sludge ground. Thick green-brown ooze with oily films, bubbling pits, dark sediment streaks, and chemical residue patterns. Shot from directly above with flat diffuse lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
     "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, clear water, isolated objects"
+  },
+  "concept_999": {
+    "positive": "A seamless tileable overhead top-down texture of compact platformer dirt from a bright cartoon grassland world. Rich warm brown soil with layered compacted earth, tiny stones, root fibers, and soft speckled shading. Keep color harmony natural and game-readable. Shot from directly above with flat even diffuse lighting and no directional shadows. High-quality game terrain texture suitable for tiling in a 2D side-scrolling platformer.",
+    "negative": "people, faces, animals, sky, horizon, side view, perspective view, deep shadows, text, watermark, logos, isolated objects"
   }
 }

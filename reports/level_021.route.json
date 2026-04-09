@@ -1,0 +1,68 @@
+{
+  "file": "D:\\Temp\\Puffin Panic 2\\levels\\level_021.json",
+  "mapSize": {
+    "width": 400,
+    "height": 220,
+    "cells": 88000
+  },
+  "route": {
+    "ok": false,
+    "reason": "No route found with current heuristic operations and skill budget.",
+    "spawn": {
+      "id": 80,
+      "x": 40,
+      "y": 140
+    },
+    "exit": {
+      "id": 307,
+      "x": 360,
+      "y": 203
+    },
+    "budget": {
+      "builder": 2,
+      "basher": 0,
+      "climber": 10,
+      "floater": 5
+    },
+    "used": null,
+    "nodes": 320,
+    "iterations": 120,
+    "closest": {
+      "distToExit": 284,
+      "node": {
+        "id": 169,
+        "x": 129,
+        "y": 140
+      },
+      "used": {
+        "builder": 0,
+        "basher": 0,
+        "climber": 0,
+        "floater": 0
+      },
+      "steps": 89
+    },
+    "blockedByBudget": {
+      "builder": 0,
+      "basher": 0,
+      "climber": 0,
+      "floater": 0
+    },
+    "suggestion": [
+      "Likely topology issue: adjust trench lips, add flatter bridge shoulder, or reduce vertical cliff steps."
+    ],
+    "recommendedDelta": {
+      "builder": 0,
+      "basher": 0,
+      "climber": 0,
+      "floater": 0
+    },
+    "recommendedBudget": {
+      "builder": 2,
+      "basher": 0,
+      "climber": 10,
+      "floater": 5
+    }
+  },
+  "generatedAt": "2026-04-09T11:21:35.325Z"
+}

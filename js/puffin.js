@@ -139,11 +139,26 @@ class Puffin {
                 break;
         }
         
-        // Check Exit
-        if (this.state !== ST_DEAD && this.state !== ST_SPLAT && this.state !== ST_FALL) {
-            let cx = this.x;
-            let cy = this.y + PUFFIN_H; // feet
-            if (cx >= EXIT.x && cx <= EXIT.x + EXIT.w && cy >= EXIT.y && cy <= EXIT.y + EXIT.h) {
+        // Check Exit (use box overlap to avoid precision misses with fractional positions)
+        if (this.state !== ST_DEAD && this.state !== ST_SPLAT && this.state !== ST_EXITED) {
+            const puffinLeft = this.x;
+            const puffinRight = this.x + PUFFIN_W;
+            const puffinTop = this.y;
+            const puffinBottom = this.y + PUFFIN_H;
+
+            const pad = 1;
+            const exitLeft = EXIT.x - pad;
+            const exitRight = EXIT.x + EXIT.w + pad;
+            const exitTop = EXIT.y - pad;
+            const exitBottom = EXIT.y + EXIT.h + pad;
+
+            const overlapsExit =
+                puffinRight >= exitLeft &&
+                puffinLeft <= exitRight &&
+                puffinBottom >= exitTop &&
+                puffinTop <= exitBottom;
+
+            if (overlapsExit) {
                 this.state = ST_EXITED;
                 gameState.saved++;
                 createParticles(this.x, this.y, 20, PALETTE[7], true, 7);
@@ -394,9 +409,9 @@ class Puffin {
                 // Check if there's still solid terrain ahead - only exit if truly clear
                 let ahead = isSolidAt(Math.floor(this.x + this.vx), Math.floor(this.y + PUFFIN_H/2));
                 if (!ahead) {
-                    // Path is clear, return to walking but keep isBasher flag
+                    // Path is clear, return to normal walking (basher is consumed)
                     this.state = ST_WALK;
-                    this.isBasher = true; // Stay a basher for if we hit another wall
+                    this.isBasher = false;
                 }
             }
         }

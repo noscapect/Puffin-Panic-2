@@ -131,7 +131,8 @@ function getThemeSkyColors() {
         mossy_ruin:     { top: '#284232', mid: '#355843', bot: '#22382d', veil: 'rgba(134, 186, 138, 0.10)' },
         crystal_dense:  { top: '#352553', mid: '#47326c', bot: '#281b3f', veil: 'rgba(206, 156, 248, 0.12)' },
         fungus_glow:    { top: '#1d3f3d', mid: '#2c5a52', bot: '#183532', veil: 'rgba(112, 236, 188, 0.12)' },
-        toxic_sludge:   { top: '#394028', mid: '#4f5c33', bot: '#2a311f', veil: 'rgba(186, 225, 86, 0.10)' }
+        toxic_sludge:   { top: '#394028', mid: '#4f5c33', bot: '#2a311f', veil: 'rgba(186, 225, 86, 0.10)' },
+        concept_999:    { top: '#1f4f88', mid: '#3e7db0', bot: '#215079', veil: 'rgba(188, 230, 255, 0.14)' }
     };
     return skies[theme] || skies.grass;
 }
@@ -735,7 +736,7 @@ function drawSceneProps(ctx) {
     const theme = getCurrentThemeName();
     const lvl = LEVELS[currentLevelIndex];
     const icyThemes = new Set(['ice', 'snow', 'crystal', 'black_ice', 'packed_snow', 'frozen_mud', 'crystal_dense', 'cliff_chalk']);
-    const grassThemes = new Set(['grass', 'mossy', 'mossy_ruin', 'fungus_glow']);
+    const grassThemes = new Set(['grass', 'mossy', 'mossy_ruin', 'fungus_glow', 'concept_999']);
 
     if (lvl && lvl.waterZones) {
         for (const zone of lvl.waterZones) {
@@ -809,7 +810,7 @@ function drawThemeAtmosphere(ctx, layer) {
     const crystalThemes = new Set(['crystal', 'crystal_dense', 'fungus_glow']);
     const desertThemes = new Set(['desert', 'salt_flats']);
     const iceThemes = new Set(['ice', 'black_ice', 'packed_snow', 'frozen_mud']);
-    const grassThemes = new Set(['grass', 'mossy', 'mossy_ruin']);
+    const grassThemes = new Set(['grass', 'mossy', 'mossy_ruin', 'concept_999']);
     const rockThemes = new Set(['rock', 'slate_ledge', 'wet_cave_stone', 'rusty_metal', 'wood_planks', 'cave']);
 
     if (snowThemes.has(theme)) {

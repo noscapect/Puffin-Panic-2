@@ -1,0 +1,26 @@
+{
+  "file": "D:\\Temp\\Puffin Panic 2\\levels\\level_999.json",
+  "preview": "D:\\Temp\\Puffin Panic 2\\reports\\level_999.preview.svg",
+  "mapSize": {
+    "width": 400,
+    "height": 220,
+    "cells": 88000
+  },
+  "terrain": {
+    "pairCount": 661,
+    "solidCells": 44351,
+    "solidPct": 50.4,
+    "topSurfaceCells": 638
+  },
+  "entrance": {
+    "x": 56,
+    "y": 70
+  },
+  "exit": {
+    "x": 362,
+    "y": 88,
+    "w": 20,
+    "h": 12
+  },
+  "theme": "concept_999"
+}

@@ -85,6 +85,22 @@ python scripts/generate-textures.py --preset black_ice
 
 This writes both a historical seed-stamped image and a canonical in-game texture in `img/generated`.
 
+## 🧪 Level Quality Tools
+
+The project includes lightweight quality scripts for external JSON levels:
+
+- `npm run level:lint -- --file levels/level_999.json --out reports/level_999.lint.json`
+	- Validates terrain RLE counts, spawn/exit clearance, tiny fragments, and surface jaggedness.
+	- Add `--strict` to treat spawn/exit issues as hard errors. Add `--no-fail` to always exit successfully while still writing reports.
+- `npm run level:preview -- --file levels/level_999.json --out reports/level_999.preview.svg --metrics reports/level_999.preview.json`
+	- Generates an SVG silhouette preview plus a metrics JSON summary.
+- `npm run level:qa`
+	- Runs both lint + preview for `levels/level_999.json` and writes reports under `reports/`.
+- `npm run level:route -- --file levels/level_999.json --out reports/level_999.route.json`
+	- Runs heuristic path analysis from entrance to exit and estimates required core skills (`builder`, `basher`, `climber`, `floater`).
+- `npm run level:qa:full`
+	- Runs lint + preview + route analysis and writes all reports for `levels/level_999.json`.
+
 ## 📁 Project Structure
 
 ```

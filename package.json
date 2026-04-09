@@ -1,6 +1,14 @@
 {
   "scripts": {
-    "texture:gen": "node scripts/generate-texture.mjs"
+    "texture:gen": "node scripts/generate-texture.mjs",
+    "level:bake": "node scripts/bake-levels.mjs",
+    "level:lint": "node scripts/lint-level.mjs",
+    "level:preview": "node scripts/preview-level.mjs",
+    "level:route": "node scripts/route-analyze.mjs",
+    "level:qa": "npm run level:lint -- --file levels/level_999.json --out reports/level_999.lint.json --no-fail && npm run level:preview -- --file levels/level_999.json --out reports/level_999.preview.svg --metrics reports/level_999.preview.json",
+    "level:qa:full": "npm run level:qa && npm run level:route -- --file levels/level_999.json --out reports/level_999.route.json --no-fail",
+    "levels:qa": "node scripts/qa-all-levels.mjs",
+    "levels:qa:fix": "node scripts/qa-all-levels.mjs --fix-budgets"
   },
   "dependencies": {
     "@gradio/client": "^2.1.0"
