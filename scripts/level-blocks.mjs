@@ -35,13 +35,15 @@ export function rect(d, x1, y1, x2, y2, v = 1) {
 // ─── Standard level boundaries ────────────────────────────────────────────────
 
 /**
- * Draw standard left/right side walls and a thick bottom floor.
- * lw / rw = left/right wall width (px). bh = bottom height (px).
+ * Draw unbreakable steel (value 10) borders on all four sides.
+ * lw / rw = left/right wall width (px). bh = bottom height (px). th = top height (px).
+ * Steel cannot be dug, bashed, mined, or bombed — puffins cannot escape the playfield.
  */
-export function borders(d, lw = 5, rw = 5, bh = 15) {
-    rect(d, 0, 0, lw, GH);
-    rect(d, GW - rw, 0, GW, GH);
-    rect(d, 0, GH - bh, GW, GH);
+export function borders(d, lw = 5, rw = 5, bh = 15, th = 5) {
+    rect(d, 0,       0,       lw,     GH, 10); // left wall  — steel
+    rect(d, GW - rw, 0,       GW,     GH, 10); // right wall — steel
+    rect(d, 0,       GH - bh, GW,     GH, 10); // floor      — steel
+    rect(d, 0,       0,       GW, th,     10); // ceiling    — steel
 }
 
 /**
