@@ -539,12 +539,140 @@ function clearEditor() {
     }
 }
 
+const SAVED_LEVEL_INDEX_KEY = 'puffinLevels';
+const SAVED_LEVEL_KEY_PREFIX = 'puffinLevel:';
+
+function getSavedLevelNames() {
+    try {
+        const raw = localStorage.getItem(SAVED_LEVEL_INDEX_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.filter(n => typeof n === 'string' && n.trim()) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function setSavedLevelNames(names) {
+    localStorage.setItem(SAVED_LEVEL_INDEX_KEY, JSON.stringify(names));
+}
+
+function getSavedLevelKey(name) {
+    return SAVED_LEVEL_KEY_PREFIX + name;
+}
+
+function buildRuntimeLevelFromEditorData(levelName, data) {
+    const compressed = Array.isArray(data.data) ? data.data : [];
+    const entrance = data.entrance || { x: 70, y: 20 };
+    const exit = data.exit || { x: 340, y: 78, w: 20, h: 12 };
+    const theme = data.theme || 'rock';
+    const skills = data.skills || { floater: 5, bomber: 3, blocker: 3, builder: 8, basher: 5, digger: 5, climber: 5, miner: 5, platformer: 0 };
+
+    return {
+        name: `[Custom] ${levelName}`,
+        total: data.total || 20,
+        required: data.required || 15,
+        spawnRate: data.spawnRate || FPS * 2,
+        time: data.time || 5 * 60 * FPS,
+        entrance,
+        exit,
+        theme,
+        skills,
+        isSavedCustom: true,
+        savedName: levelName,
+        buildTerrain: function(runtimeData, gw, gh) {
+            runtimeData.fill(0);
+            let idx = 0;
+            for (let i = 0; i < compressed.length; i += 2) {
+                const val = compressed[i] || 0;
+                const count = compressed[i + 1] || 0;
+                for (let j = 0; j < count; j++) {
+                    if (idx < runtimeData.length) runtimeData[idx++] = val;
+                }
+            }
+        }
+    };
+}
+
+function refreshDebugLevelSelect() {
+    const levelSelect = document.getElementById('debug-level-select');
+    if (!levelSelect) return;
+    const previous = parseInt(levelSelect.value || '0', 10);
+    levelSelect.innerHTML = '';
+    LEVELS.forEach((lvl, index) => {
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.innerText = lvl.name;
+        levelSelect.appendChild(opt);
+    });
+    if (LEVELS.length > 0) {
+        levelSelect.value = String(Math.max(0, Math.min(previous, LEVELS.length - 1)));
+    }
+}
+
+function upsertSavedLevelInRuntime(levelName, levelData) {
+    if (typeof LEVELS === 'undefined') return;
+    const runtimeLevel = buildRuntimeLevelFromEditorData(levelName, levelData);
+    const existingIndex = LEVELS.findIndex(l => l && l.isSavedCustom && l.savedName === levelName);
+    if (existingIndex >= 0) {
+        LEVELS[existingIndex] = runtimeLevel;
+    } else {
+        LEVELS.push(runtimeLevel);
+    }
+    refreshDebugLevelSelect();
+}
+
+function registerSavedLevelsIntoRuntime() {
+    if (typeof LEVELS === 'undefined') return;
+
+    // Migrate legacy single-save key if present.
+    try {
+        const legacy = localStorage.getItem('puffinLevel');
+        if (legacy) {
+            const legacyData = JSON.parse(legacy);
+            const legacyName = (legacyData && legacyData.name) ? String(legacyData.name) : 'Legacy Map';
+            localStorage.setItem(getSavedLevelKey(legacyName), JSON.stringify(legacyData));
+            const names = getSavedLevelNames();
+            if (!names.includes(legacyName)) {
+                names.push(legacyName);
+                setSavedLevelNames(names);
+            }
+            localStorage.removeItem('puffinLevel');
+        }
+    } catch (e) {
+        // Ignore malformed legacy payloads.
+    }
+
+    const names = getSavedLevelNames();
+    names.forEach(levelName => {
+        try {
+            const savedRaw = localStorage.getItem(getSavedLevelKey(levelName));
+            if (!savedRaw) return;
+            const levelData = JSON.parse(savedRaw);
+            const already = LEVELS.some(l => l && l.isSavedCustom && l.savedName === levelName);
+            if (!already) LEVELS.push(buildRuntimeLevelFromEditorData(levelName, levelData));
+        } catch (e) {
+            // Ignore broken saved entries and continue.
+        }
+    });
+}
+
 function saveLevelToStorage() {
     const levelData = exportLevelData();
-    levelData.name = document.getElementById('level-name').value || 'Custom Level';
+    const nameInput = document.getElementById('level-name');
+    const levelName = ((nameInput ? nameInput.value : '') || 'Custom Level').trim();
+    levelData.name = levelName;
+    levelData.theme = getCurrentThemeName();
+    levelData.skills = { floater: 5, bomber: 3, blocker: 3, builder: 8, basher: 5, digger: 5, climber: 5, miner: 5, platformer: 0 };
     try {
-        localStorage.setItem('puffinLevel', JSON.stringify(levelData));
-        alert('Level saved!');
+        localStorage.setItem(getSavedLevelKey(levelName), JSON.stringify(levelData));
+        const names = getSavedLevelNames();
+        if (!names.includes(levelName)) {
+            names.push(levelName);
+            setSavedLevelNames(names);
+        }
+        upsertSavedLevelInRuntime(levelName, levelData);
+        alert(`Level saved: ${levelName}`);
     } catch (e) {
         alert('Failed to save level.');
     }
@@ -552,14 +680,37 @@ function saveLevelToStorage() {
 
 function loadLevelFromStorage() {
     try {
-        const saved = localStorage.getItem('puffinLevel');
-        if (!saved) {
+        const names = getSavedLevelNames();
+        if (names.length === 0) {
             alert('No saved level found.');
             return;
         }
+
+        const requested = prompt(`Load which map?\n${names.map((n, i) => `${i + 1}. ${n}`).join('\n')}`, names[names.length - 1]);
+        if (requested === null) return;
+
+        let selectedName = requested.trim();
+        if (!selectedName) selectedName = names[names.length - 1];
+        if (/^\d+$/.test(selectedName)) {
+            const idx = parseInt(selectedName, 10) - 1;
+            if (idx >= 0 && idx < names.length) selectedName = names[idx];
+        }
+        if (!names.includes(selectedName)) {
+            alert('Saved map not found.');
+            return;
+        }
+
+        const saved = localStorage.getItem(getSavedLevelKey(selectedName));
+        if (!saved) {
+            alert('Saved map data missing.');
+            return;
+        }
+
         const data = JSON.parse(saved);
         importLevelData(data);
-        alert('Level loaded!');
+        const nameInput = document.getElementById('level-name');
+        if (nameInput) nameInput.value = selectedName;
+        alert(`Level loaded: ${selectedName}`);
     } catch (e) {
         alert('Failed to load level.');
     }
@@ -736,3 +887,6 @@ window.Editor = {
     undo: undo,
     redo: redo
 };
+
+// Load custom saved maps into LEVELS on startup so they appear in level select.
+registerSavedLevelsIntoRuntime();

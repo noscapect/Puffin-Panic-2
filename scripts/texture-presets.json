@@ -16,7 +16,91 @@
     "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, cold blue colors, water, ice"
   },
   "grass": {
-    "positive": "A seamless tileable overhead top-down texture of a lush grass ground. Short green grass with small wildflowers, patches of dirt, and tiny pebbles scattered across the surface. Shot from directly above with soft even daylight and no shadows. Photorealistic 4K game asset texture, suitable for tiling as a flat 2D ground texture.",
-    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, road, pavement, directional shadows"
+    "positive": "A seamless tileable texture of compacted dark brown garden soil packed with short chopped grass, small pebbles, tangled fibrous roots, and clumps of green moss. Earthy organic material. Flat macro closeup with completely even lighting and no shadows. Photorealistic 4K game asset texture suitable for tiling as a side-scrolling platformer terrain fill.",
+    "negative": "people, faces, animals, sky, horizon, tall grass blades, grass stalks sticking up, 3D perspective, depth of field, text, watermark, road, pavement, directional shadows, gradient background"
+  },
+  "desert": {
+    "positive": "A seamless tileable overhead top-down texture of a dry sandy desert ground. Warm golden sand with ripple patterns, small rocks, sparse dry cracked earth, and fine dust. Shot from directly above with flat even sunlight and no shadows. Photorealistic 4K game asset texture, suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, water, grass, directional shadows"
+  },
+  "snow": {
+    "positive": "A seamless tileable overhead top-down texture of a snowy ground surface. Smooth white snow with subtle footprint indentations, small icy patches, and delicate snowflake crystals. Shot from directly above with flat cold overcast light and no shadows. Photorealistic 4K game asset texture, suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, grass, dirt, directional shadows"
+  },
+  "crystal": {
+    "positive": "A seamless tileable overhead top-down texture of a magical crystal cave floor. Translucent purple and violet gemstone facets, glowing teal veins, and sparkling mineral fragments embedded in dark rock. Shot from directly above with soft bioluminescent light. Photorealistic 4K game asset texture, suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, grass, sand, directional shadows"
+  },
+  "mud": {
+    "positive": "A seamless tileable texture of thick dark brown swamp mud ground. Wet glistening mud with puddles, animal tracks, sunken pebbles, dead leaves, and tangled pale roots. Organic and soggy. Flat macro closeup with completely even soft diffuse lighting and no directional shadows. Photorealistic 4K game asset texture suitable for tiling as a side-scrolling platformer terrain fill.",
+    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, dry sand, grass blades sticking up, directional shadows"
+  },
+  "cave": {
+    "positive": "A seamless tileable texture of a dark underground cave stone floor. Rough grey-black basalt with mineral streaks of orange, pale blue and white, embedded pebbles, dust, and tiny crystal fragments. Flat macro closeup with dim ambient cave light and no directional shadows. Photorealistic 4K game asset texture suitable for tiling as a side-scrolling platformer terrain fill.",
+    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, grass, bright sunlight, warm colours, directional shadows"
+  },
+  "mossy": {
+    "positive": "A seamless tileable texture of old grey stone covered in thick lush green and brown moss. Dense moss patches fill the crevices between rough stone chunks. Damp jungle feel with small ferns and lichen. Flat macro closeup with soft even diffuse lighting and no directional shadows. Photorealistic 4K game asset texture suitable for tiling as a side-scrolling platformer terrain fill.",
+    "negative": "people, faces, animals, sky, horizon, 3D perspective, depth of field, text, watermark, dry stone, sand, directional shadows"
+  },
+  "cliff_chalk": {
+    "positive": "A seamless tileable overhead top-down texture of pale chalk cliff stone. Dry powdery white-beige sedimentary rock with brittle fractures, tiny fossil flecks, and dusty crevices. Shot from directly above with flat even diffuse lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, strong directional shadows, isolated objects"
+  },
+  "slate_ledge": {
+    "positive": "A seamless tileable overhead top-down texture of layered dark slate ledge rock. Thin horizontal strata, fractured plates, subtle mineral streaks, and compact grit between layers. Shot from directly above with flat even diffuse lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, bright sunlight shadows, isolated objects"
+  },
+  "frozen_mud": {
+    "positive": "A seamless tileable overhead top-down texture of muddy ground with thin frozen crust. Dark brown soil, shallow icy films, trapped pebbles, and dull reflective wet patches. Shot from directly above with flat cold overcast lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, strong directional shadows, isolated objects"
+  },
+  "packed_snow": {
+    "positive": "A seamless tileable overhead top-down texture of compacted worn snow path. Dirty white snow with grey compressed zones, tiny ice grains, and subtle foot-worn depressions. Shot from directly above with flat cold diffuse lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, clean untouched powder drifts, isolated objects"
+  },
+  "black_ice": {
+    "positive": "A seamless tileable overhead top-down texture of dark black ice surface. Glassy charcoal-blue frozen layer with trapped bubbles, hairline crack webs, and slick reflective sheen. Shot from directly above with flat even lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, snow piles, isolated objects"
+  },
+  "volcanic_ash": {
+    "positive": "A seamless tileable overhead top-down texture of volcanic ash ground. Matte charcoal ash, fine gritty particles, scattered clinker stones, and faint ember dust specks. Shot from directly above with flat diffuse lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, flowing lava rivers, isolated objects"
+  },
+  "obsidian_floor": {
+    "positive": "A seamless tileable overhead top-down texture of fractured obsidian floor. Dark glass-like volcanic rock with sharp crack lines, subtle iridescent highlights, and embedded ash grit. Shot from directly above with flat even lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, molten lava pools, isolated objects"
+  },
+  "salt_flats": {
+    "positive": "A seamless tileable overhead top-down texture of dry salt flats. Pale off-white polygonal crust plates, cracked seams, powdery salt dust, and subtle beige mineral staining. Shot from directly above with flat even lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, water puddles, isolated objects"
+  },
+  "wet_cave_stone": {
+    "positive": "A seamless tileable overhead top-down texture of wet cave stone floor. Dark grey rock with damp reflective patches, mineral streaks, shallow puddle seams, and fine gravel. Shot from directly above with soft ambient cave lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, bright daylight, isolated objects"
+  },
+  "rusty_metal": {
+    "positive": "A seamless tileable overhead top-down texture of old rusty metal platform surface. Worn steel plates with orange-brown oxidation, chipped paint fragments, rivet hints, and grime. Shot from directly above with flat even lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, logos, isolated objects"
+  },
+  "wood_planks": {
+    "positive": "A seamless tileable overhead top-down texture of weathered wooden planks. Aged brown timber boards with grain lines, worn edges, subtle nail marks, and dust in seams. Shot from directly above with flat diffuse lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, perspective floorboards, isolated objects"
+  },
+  "mossy_ruin": {
+    "positive": "A seamless tileable overhead top-down texture of ancient ruin stone blocks with moss. Weathered grey masonry, cracked mortar seams, green lichen growth, and damp age stains. Shot from directly above with flat diffuse lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, carved symbols, isolated objects"
+  },
+  "crystal_dense": {
+    "positive": "A seamless tileable overhead top-down texture of dense crystal cave floor. Tight clusters of translucent violet and cyan crystal shards, dark mineral matrix, and subtle internal glow veins. Shot from directly above with soft ambient bioluminescent lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, isolated giant crystals, strong directional shadows"
+  },
+  "fungus_glow": {
+    "positive": "A seamless tileable overhead top-down texture of bioluminescent cave fungus mat. Dark damp substrate covered with teal and lime glowing fungal patches, soft spores, and thin organic filaments. Shot from directly above with soft ambient glow and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, mushrooms standing upright, isolated objects"
+  },
+  "toxic_sludge": {
+    "positive": "A seamless tileable overhead top-down texture of toxic sludge ground. Thick green-brown ooze with oily films, bubbling pits, dark sediment streaks, and chemical residue patterns. Shot from directly above with flat diffuse lighting and no directional shadows. Photorealistic 4K game asset texture, readable at low scale and suitable for tiling as a flat 2D ground texture.",
+    "negative": "people, faces, animals, plants, sky, horizon, 3D perspective, depth of field, text, watermark, clear water, isolated objects"
   }
 }

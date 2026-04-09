@@ -12,16 +12,17 @@ In **Puffin Panic 2**, puffins emerge from an entrance and walk blindly through 
 
 ## ✨ Features
 
-- **10 Challenging Levels** - From simple tutorials to complex multi-obstacle challenges
-- **9 Unique Skills** - Each with specific use cases and strategic applications
+- **21 Playable Campaign Levels** - Includes handcrafted stages 1-19 plus advanced stages 21 and 22
+- **8 Classic Lemmings-Style Skills** - Tactical toolkit for route solving and rescue optimization
 - **Pixel Art Graphics** - Retro-styled visuals with animated puffin sprites
 - **Destructible Terrain** - Modify the environment to create paths
+- **AI-Generated Terrain Texture Themes** - ComfyUI-generated materials are integrated directly into gameplay
 - **Sound Effects & Music** - Procedural audio using Web Audio API (no external files needed!)
-- **Speed Control** - Toggle between 1x and 2x game speed
+- **Speed Control** - Toggle between 1x, 2x, and 4x game speed
 - **Release Rate Control** - Adjust how quickly puffins emerge
 - **Nuke Mode** - Emergency option to eliminate all remaining puffins
 - **Pause & Retry** - Full game state control
-- **Bug Fixes** - Puffin collision detection, removable blockers, visual bomber countdown, terrain protection
+- **Level Editor & External Level Loading** - Import JSON levels and iterate quickly
 
 ## 🛠️ Skills
 
@@ -35,7 +36,6 @@ In **Puffin Panic 2**, puffins emerge from an entrance and walk blindly through 
 | **Digger** | ⛏️ | Digs straight down through terrain |
 | **Climber** | 🧗 | Allows the puffin to climb vertical walls and traverse over obstacles |
 | **Miner** | ⚒️ | Digs diagonally downward in the direction the puffin is facing |
-| **Platform** | 🪜 | Places small platform segments that puffins can walk across gaps |
 
 ## 🎯 How to Play
 
@@ -45,7 +45,7 @@ In **Puffin Panic 2**, puffins emerge from an entrance and walk blindly through 
 - **Right Click** - Deselect the current skill
 - **N Key** - Activate the nuke (emergency elimination of all puffins)
 - **Escape** - Pause the game / Deselect skill
-- **Speed Button** - Toggle between 1x and 2x game speed
+- **Speed Button** - Toggle between 1x, 2x, and 4x game speed
 - **Sound Button** - Toggle sound effects and background music on/off
 - **Release Rate Slider** - Adjust puffin spawn speed (1 = slowest, 10 = fastest)
 
@@ -64,21 +64,49 @@ In **Puffin Panic 2**, puffins emerge from an entrance and walk blindly through 
 - **Builders** create stairs that multiple puffins can use
 - **Climbers** can scale any vertical wall if there's space above
 - **Miners** are great for diagonal paths through thick terrain
-- **Platforms** help bridge small gaps with segmented platforms
+
+## 🧱 Terrain Themes
+
+The game supports both classic and generated texture themes. Recent additions include:
+
+- `cliff_chalk`, `slate_ledge`, `frozen_mud`, `packed_snow`, `black_ice`
+- `volcanic_ash`, `obsidian_floor`, `salt_flats`, `wet_cave_stone`
+- `rusty_metal`, `wood_planks`, `mossy_ruin`, `crystal_dense`, `fungus_glow`, `toxic_sludge`
+
+Generated textures are loaded from `img/generated` and used automatically when their theme is assigned to a level.
+
+## 🖼️ Texture Generation (ComfyUI)
+
+Texture prompts are managed in `scripts/texture-presets.json` and can be generated with ComfyUI via:
+
+```bash
+python scripts/generate-textures.py --preset black_ice
+```
+
+This writes both a historical seed-stamped image and a canonical in-game texture in `img/generated`.
 
 ## 📁 Project Structure
 
 ```
 Puffin Panic 2/
 ├── index.html          # Main HTML file with game canvas and UI
+├── img/
+│   └── generated/       # Generated terrain textures used by themes
 ├── js/
 │   ├── constants.js    # Game constants, sprite data, skill definitions
 │   ├── engine.js       # Main game loop, input handling, UI management
-│   ├── levels.js       # Level definitions (10 levels with terrain)
+│   ├── levels.js       # Campaign level definitions + theme assignments
+│   ├── levelEditor.js  # Built-in level editor and export/import helpers
 │   ├── particle.js     # Particle system for effects and explosions
 │   ├── puffin.js       # Puffin class with AI and skill behaviors
 │   ├── sound.js        # Procedural audio system (Web Audio API)
 │   └── terrain.js      # Terrain rendering and modification system
+├── levels/
+│   └── level_001.json  # Example external/imported level
+├── scripts/
+│   ├── generate-textures.py # ComfyUI zImageTurbo texture pipeline
+│   ├── generate-texture.py  # Single-shot texture generator
+│   └── texture-presets.json # Prompt presets by theme
 └── README.md           # This file
 ```
 
@@ -107,23 +135,35 @@ Then navigate to `http://localhost:8000` in your browser.
 
 - **Canvas Resolution**: 1600×880 pixels (scaled 4x from 400×220 internal resolution)
 - **Game Loop**: 30 FPS with frame-based timing
-- **Rendering**: Pixel-perfect rendering with `image-rendering: pixelated`
-- **Terrain System**: Pixel-based destructible terrain with surface shading
+- **Rendering**: Layered canvas rendering with dynamic atmosphere, props, and terrain overlays
+- **Terrain System**: Pixel-based destructible terrain with theme-aware texture blending
 - **Sprite System**: 8×12 pixel puffin sprites with multiple animation frames
 - **No Dependencies**: Pure vanilla JavaScript, no external libraries
 
 ## 📜 Level List
 
-1. **Breaking Through** - Learn to bash through walls
-2. **Mind the Gap** - Use builders to bridge gaps
-3. **Down We Go** - Dig downward to reach lower exits
-4. **Stop Right There** - Use blockers to redirect puffins
-5. **Mary Poppins** - Floaters save puffins from deadly falls
-6. **Explosive Solutions** - Combine blockers and bombers
-7. **Climbing High** - Climbers scale vertical obstacles
-8. **Mine Cart Madness** - Miners dig diagonal paths
-9. **Platform Party** - Platforms bridge multiple gaps
-10. **The Ultimate Challenge** - Use all skills to overcome a complex maze
+1. **Just a Walk in the Park**
+2. **Bridge Over Troubled Water**
+3. **The Great Escape**
+4. **Sandstorm**
+5. **Salt Pyramid**
+6. **Oasis Trap**
+7. **Blizzard**
+8. **Avalanche**
+9. **Frostbite**
+10. **The Summit**
+11. **Stone Cold**
+12. **Rusted Quarry**
+13. **Crystal Caves**
+14. **Frozen Lake**
+15. **Glacier**
+16. **Inferno**
+17. **Volcano**
+18. **Magma Chamber**
+19. **Glowing Kingdom**
+20. *(reserved for future stage)*
+21. **The Ice Shard Ascent**
+22. **Flooded Grotto**
 
 ## 🤝 Contributing
 

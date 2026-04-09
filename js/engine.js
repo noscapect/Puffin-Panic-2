@@ -45,6 +45,42 @@ function updateReleaseRate(value) {
     document.getElementById('release-rate-val').innerText = value;
 }
 
+function refreshTextureControls() {
+    if (!window.TerrainTextures || typeof window.TerrainTextures.status !== 'function') return;
+    const status = window.TerrainTextures.status();
+
+    const btn = document.getElementById('btn-texture-mode');
+    if (btn) {
+        btn.innerText = status.enabled ? 'Textures: ON' : 'Textures: OFF';
+    }
+
+    const blendSlider = document.getElementById('texture-blend');
+    const blendVal = document.getElementById('texture-blend-val');
+    const blendPct = Math.round((status.blend || 0) * 100);
+    if (blendSlider) blendSlider.value = String(blendPct);
+    if (blendVal) blendVal.innerText = `${blendPct}%`;
+
+    // Optional tooltip text for quick verification.
+    if (btn) {
+        btn.title = `Loaded textures: ${status.loaded}/${status.total}`;
+    }
+}
+
+function toggleTextureMode() {
+    if (!window.TerrainTextures || typeof window.TerrainTextures.status !== 'function') return;
+    const status = window.TerrainTextures.status();
+    window.TerrainTextures.setEnabled(!status.enabled);
+    refreshTextureControls();
+}
+
+function updateTextureBlend(value) {
+    if (!window.TerrainTextures || typeof window.TerrainTextures.setBlend !== 'function') return;
+    const blend = Math.max(0, Math.min(100, Number(value))) / 100;
+    window.TerrainTextures.setBlend(blend);
+    const blendVal = document.getElementById('texture-blend-val');
+    if (blendVal) blendVal.innerText = `${Math.round(blend * 100)}%`;
+}
+
 
 // --- Game Engine Variables ---
 let canvas, ctx, offscreenCanvas, offCtx;
@@ -80,7 +116,22 @@ function getThemeSkyColors() {
         ice:     { top: '#123b67', mid: '#1c4f7f', bot: '#16385b', veil: 'rgba(120, 205, 255, 0.14)' },
         lava:    { top: '#401515', mid: '#5a1f17', bot: '#2b0f0f', veil: 'rgba(255, 110, 60, 0.12)' },
         crystal: { top: '#2f1f4f', mid: '#3a2f69', bot: '#23183f', veil: 'rgba(190, 140, 255, 0.12)' },
-        water:   { top: '#0c3a63', mid: '#135684', bot: '#0b2f4a', veil: 'rgba(120, 220, 255, 0.14)' }
+        water:   { top: '#0c3a63', mid: '#135684', bot: '#0b2f4a', veil: 'rgba(120, 220, 255, 0.14)' },
+        cliff_chalk:    { top: '#445768', mid: '#5d6f7d', bot: '#394957', veil: 'rgba(220, 214, 188, 0.10)' },
+        slate_ledge:    { top: '#262c35', mid: '#343d49', bot: '#202833', veil: 'rgba(175, 188, 205, 0.10)' },
+        frozen_mud:     { top: '#2b3d4f', mid: '#405468', bot: '#273849', veil: 'rgba(180, 205, 228, 0.11)' },
+        packed_snow:    { top: '#2a4159', mid: '#3a5978', bot: '#28435d', veil: 'rgba(210, 225, 240, 0.14)' },
+        black_ice:      { top: '#183a5c', mid: '#245278', bot: '#183a58', veil: 'rgba(136, 197, 242, 0.15)' },
+        volcanic_ash:   { top: '#3a2522', mid: '#4f312c', bot: '#2a1b19', veil: 'rgba(216, 126, 92, 0.10)' },
+        obsidian_floor: { top: '#2d2637', mid: '#3d324b', bot: '#241f2c', veil: 'rgba(184, 140, 205, 0.11)' },
+        salt_flats:     { top: '#6c5f52', mid: '#847564', bot: '#4f473d', veil: 'rgba(238, 218, 186, 0.10)' },
+        wet_cave_stone: { top: '#1e303f', mid: '#2b4256', bot: '#1a2a36', veil: 'rgba(132, 180, 214, 0.10)' },
+        rusty_metal:    { top: '#4f3a34', mid: '#6b4b40', bot: '#3b2e2a', veil: 'rgba(216, 138, 100, 0.10)' },
+        wood_planks:    { top: '#524437', mid: '#6f5a46', bot: '#3f3429', veil: 'rgba(210, 168, 118, 0.10)' },
+        mossy_ruin:     { top: '#284232', mid: '#355843', bot: '#22382d', veil: 'rgba(134, 186, 138, 0.10)' },
+        crystal_dense:  { top: '#352553', mid: '#47326c', bot: '#281b3f', veil: 'rgba(206, 156, 248, 0.12)' },
+        fungus_glow:    { top: '#1d3f3d', mid: '#2c5a52', bot: '#183532', veil: 'rgba(112, 236, 188, 0.12)' },
+        toxic_sludge:   { top: '#394028', mid: '#4f5c33', bot: '#2a311f', veil: 'rgba(186, 225, 86, 0.10)' }
     };
     return skies[theme] || skies.grass;
 }
@@ -228,6 +279,22 @@ function updateCanvasScale() {
     });
 }
 
+function populateLevelSelect() {
+    let levelSelect = document.getElementById('debug-level-select');
+    if (!levelSelect) return;
+    const previous = parseInt(levelSelect.value || '0', 10);
+    levelSelect.innerHTML = '';
+    LEVELS.forEach((lvl, index) => {
+        let opt = document.createElement('option');
+        opt.value = index;
+        opt.innerText = lvl.name;
+        levelSelect.appendChild(opt);
+    });
+    if (LEVELS.length > 0) {
+        levelSelect.value = String(Math.max(0, Math.min(previous, LEVELS.length - 1)));
+    }
+}
+
 
 // --- Main Game Logic ---
 
@@ -244,19 +311,32 @@ window.onload = function() {
 
     setupInputs();
 
-    let levelSelect = document.getElementById('debug-level-select');
-    if (levelSelect) {
-        LEVELS.forEach((lvl, index) => {
-            let opt = document.createElement('option');
-            opt.value = index;
-            opt.innerText = lvl.name;
-            levelSelect.appendChild(opt);
+    populateLevelSelect();
+
+    if (window.LevelManager && typeof window.LevelManager.loadExternalLevels === 'function') {
+        window.LevelManager.loadExternalLevels().then(() => {
+            populateLevelSelect();
         });
     }
     
     // Draw initial background
     ctx.fillStyle = '#111a22';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    refreshTextureControls();
+
+    // Preload photo textures in background; re-render terrain once ready
+    preloadTerrainTextures(() => {
+        // Re-render the terrain with newly loaded textures.
+        // offscreenCanvas is always ready here (created above in window.onload).
+        // If no level is loaded yet this is a no-op visually; loadLevel() will
+        // pick up the cached textures when the player presses Start.
+        // If a level IS already loaded (race: Start pressed before textures finished)
+        // this re-render applies the textures immediately.
+        if (typeof terrainData !== 'undefined' && offscreenCanvas) {
+            renderTerrainToOffscreen();
+        }
+        refreshTextureControls();
+    });
 };
 
 function startGame() {
@@ -588,7 +668,29 @@ function drawRopeBridge(ctx, prop) {
 
 function drawSignPost(ctx, prop) {
     const { x, y, text, dir = 'right' } = prop;
-    const boardX = dir === 'right' ? x + 2 : x - 14;
+
+    // Choose the clearer side so sign text is less likely to overlap dense terrain.
+    function scoreSide(side) {
+        const boardX = side === 'right' ? x + 2 : x - 14;
+        const startX = Math.max(0, boardX - 1);
+        const endX = Math.min(GAME_WIDTH - 1, boardX + 14);
+        const startY = Math.max(0, y - 13);
+        const endY = Math.min(GAME_HEIGHT - 1, y + 2);
+        let score = 0;
+
+        for (let sy = startY; sy <= endY; sy++) {
+            for (let sx = startX; sx <= endX; sx++) {
+                if (terrainData[sy * GAME_WIDTH + sx] !== 0) score++;
+            }
+        }
+        return score;
+    }
+
+    const preferredDir = prop.autoDir === false
+        ? dir
+        : (scoreSide('right') <= scoreSide('left') ? 'right' : 'left');
+
+    const boardX = preferredDir === 'right' ? x + 2 : x - 14;
     // Post
     ctx.fillStyle = '#3a1e06';
     ctx.fillRect(x, y, 2, 14);
@@ -600,8 +702,8 @@ function drawSignPost(ctx, prop) {
     // Text
     ctx.fillStyle = '#ffe090';
     ctx.font = '6px monospace';
-    ctx.textAlign = dir === 'right' ? 'left' : 'right';
-    ctx.fillText(text, boardX + (dir === 'right' ? 2 : 12), y - 4);
+    ctx.textAlign = preferredDir === 'right' ? 'left' : 'right';
+    ctx.fillText(text, boardX + (preferredDir === 'right' ? 2 : 12), y - 4);
     ctx.textAlign = 'left';
 }
 
@@ -632,6 +734,8 @@ function drawWaterZone(ctx, prop, ticks) {
 function drawSceneProps(ctx) {
     const theme = getCurrentThemeName();
     const lvl = LEVELS[currentLevelIndex];
+    const icyThemes = new Set(['ice', 'snow', 'crystal', 'black_ice', 'packed_snow', 'frozen_mud', 'crystal_dense', 'cliff_chalk']);
+    const grassThemes = new Set(['grass', 'mossy', 'mossy_ruin', 'fungus_glow']);
 
     if (lvl && lvl.waterZones) {
         for (const zone of lvl.waterZones) {
@@ -649,8 +753,8 @@ function drawSceneProps(ctx) {
     }
 
     // Auto terrain-edge details (every 3rd column)
-    const isIcy  = theme === 'ice' || theme === 'snow' || theme === 'crystal';
-    const isGrass = theme === 'grass';
+    const isIcy  = icyThemes.has(theme);
+    const isGrass = grassThemes.has(theme);
     for (let x = 1; x < GAME_WIDTH - 1; x += 3) {
         let passedTop = false;
         for (let y = 2; y < GAME_HEIGHT - 2; y++) {
@@ -669,7 +773,7 @@ function drawSceneProps(ctx) {
                         if (n > 0.55) ctx.fillRect(x - 1, y - 1, 1, 1);
                         if (n > 0.75) ctx.fillRect(x + 1, y - 1, 1, 1);
                     }
-                } else if (theme === 'snow') {
+                } else if (theme === 'snow' || theme === 'packed_snow') {
                     ctx.fillStyle = 'rgba(230, 245, 255, 0.72)';
                     ctx.fillRect(x, y - 1, 1, 1);
                     if (hashNoise2D(x + 5, y) > 0.52) ctx.fillRect(x, y - 2, 1, 1);
@@ -700,8 +804,15 @@ function drawThemeAtmosphere(ctx, layer) {
     const theme = getCurrentThemeName();
     const t = gameState.ticks;
     const isFront = layer === 'front';
+    const snowThemes = new Set(['snow', 'packed_snow', 'black_ice', 'frozen_mud', 'cliff_chalk']);
+    const lavaThemes = new Set(['lava', 'volcanic_ash', 'obsidian_floor', 'toxic_sludge']);
+    const crystalThemes = new Set(['crystal', 'crystal_dense', 'fungus_glow']);
+    const desertThemes = new Set(['desert', 'salt_flats']);
+    const iceThemes = new Set(['ice', 'black_ice', 'packed_snow', 'frozen_mud']);
+    const grassThemes = new Set(['grass', 'mossy', 'mossy_ruin']);
+    const rockThemes = new Set(['rock', 'slate_ledge', 'wet_cave_stone', 'rusty_metal', 'wood_planks', 'cave']);
 
-    if (theme === 'snow') {
+    if (snowThemes.has(theme)) {
         const count = isFront ? 22 : 12;
         for (let i = 0; i < count; i++) {
             const seed = i * 17 + (isFront ? 200 : 40);
@@ -714,7 +825,7 @@ function drawThemeAtmosphere(ctx, layer) {
         return;
     }
 
-    if (theme === 'lava') {
+    if (lavaThemes.has(theme)) {
         // Heat shimmer
         const shimmer = 0.025 + Math.sin(t * 0.03) * 0.01;
         ctx.fillStyle = `rgba(255, 140, 70, ${isFront ? shimmer * 1.4 : shimmer})`;
@@ -735,7 +846,7 @@ function drawThemeAtmosphere(ctx, layer) {
         return;
     }
 
-    if (theme === 'crystal') {
+    if (crystalThemes.has(theme)) {
         const count = isFront ? 14 : 10;
         for (let i = 0; i < count; i++) {
             const seed = i * 23 + (isFront ? 420 : 180);
@@ -755,7 +866,7 @@ function drawThemeAtmosphere(ctx, layer) {
         return;
     }
 
-    if (theme === 'desert') {
+    if (desertThemes.has(theme)) {
         const bandAlpha = isFront ? 0.08 : 0.05;
         for (let i = 0; i < 4; i++) {
             const y = 122 + i * 16;
@@ -766,7 +877,7 @@ function drawThemeAtmosphere(ctx, layer) {
         return;
     }
 
-    if (theme === 'ice') {
+    if (iceThemes.has(theme)) {
         const glints = isFront ? 12 : 8;
         for (let i = 0; i < glints; i++) {
             const seed = i * 29 + (isFront ? 140 : 70);
@@ -781,7 +892,7 @@ function drawThemeAtmosphere(ctx, layer) {
         return;
     }
 
-    if (theme === 'grass') {
+    if (grassThemes.has(theme)) {
         // Fireflies in front layer only
         if (!isFront) return;
         for (let i = 0; i < 10; i++) {
@@ -797,7 +908,7 @@ function drawThemeAtmosphere(ctx, layer) {
         return;
     }
 
-    if (theme === 'rock') {
+    if (rockThemes.has(theme)) {
         const count = isFront ? 10 : 7;
         for (let i = 0; i < count; i++) {
             const seed = i * 33 + (isFront ? 230 : 90);

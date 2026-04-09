@@ -1,6 +1,64 @@
 // Level Manager - Handles level data
 const LEVELS = [];
 const TOTAL_LEVELS = 22;
+const EXTERNAL_LEVEL_FILES = [
+    'levels/level_001.json'
+];
+let _externalLevelsLoaded = false;
+
+function decodeRLETerrain(rlePairs, size) {
+    const out = new Uint8Array(size);
+    if (!Array.isArray(rlePairs)) return out;
+    let idx = 0;
+    for (let i = 0; i < rlePairs.length; i++) {
+        const pair = rlePairs[i];
+        if (!Array.isArray(pair) || pair.length < 2) continue;
+        const val = Number(pair[0]) || 0;
+        const count = Number(pair[1]) || 0;
+        for (let j = 0; j < count && idx < size; j++) out[idx++] = val;
+        if (idx >= size) break;
+    }
+    return out;
+}
+
+function buildRuntimeLevelFromJson(data, fileName) {
+    const terrainRLE = Array.isArray(data.terrain) ? data.terrain : (Array.isArray(data.data) ? data.data : []);
+    const defaultSkills = { floater: 0, bomber: 0, blocker: 0, builder: 0, basher: 0, digger: 0, climber: 0, miner: 0, platformer: 0 };
+    const decoded = decodeRLETerrain(terrainRLE, GAME_WIDTH * GAME_HEIGHT);
+    return {
+        name: data.name || `[Imported] ${fileName}`,
+        total: Number(data.total) || 20,
+        required: Number(data.required) || 15,
+        spawnRate: Number(data.spawnRate) || FPS * 2,
+        time: Number(data.time) || 5 * 60 * FPS,
+        entrance: data.entrance || { x: 70, y: 20 },
+        exit: data.exit || { x: 340, y: 78, w: 20, h: 12 },
+        theme: data.theme || 'rock',
+        skills: Object.assign({}, defaultSkills, data.skills || {}),
+        importedFromFile: fileName,
+        buildTerrain: function(runtimeData, gw, gh) {
+            runtimeData.set(decoded);
+        }
+    };
+}
+
+async function loadExternalLevels() {
+    if (_externalLevelsLoaded) return;
+    _externalLevelsLoaded = true;
+
+    for (const file of EXTERNAL_LEVEL_FILES) {
+        try {
+            const response = await fetch(file);
+            if (!response.ok) continue;
+            const data = await response.json();
+            const fileName = file.split('/').pop() || file;
+            const already = LEVELS.some(l => l && l.importedFromFile === fileName);
+            if (!already) LEVELS.push(buildRuntimeLevelFromJson(data, fileName));
+        } catch (e) {
+            // Ignore missing/broken files so built-in maps still work.
+        }
+    }
+}
 
 // Get theme for a level
 function getLevelTheme(levelNum) {
@@ -12,6 +70,9 @@ function getLevelTheme(levelNum) {
     if (levelNum <= 12) return 'rock';
     if (levelNum <= 15) return 'ice';
     if (levelNum <= 18) return 'lava';
+    if (levelNum <= 21) return 'mud';
+    if (levelNum <= 24) return 'cave';
+    if (levelNum <= 27) return 'mossy';
     return 'crystal';
 }
 
@@ -41,7 +102,7 @@ LEVELS.push({
     total: 20, required: 15, spawnRate: FPS * 2, time: 5 * 60 * FPS,
     entrance: { x: 30, y: 40 },
     exit: { x: 360, y: 40, w: 20, h: 12 },
-    theme: 'grass',
+    theme: 'wood_planks',
     skills: { floater: 0, bomber: 0, blocker: 0, builder: 12, basher: 0, digger: 0, climber: 0, miner: 0, platformer: 0 },
     buildTerrain: (data, gw, gh) => {
         // Two cliffs with a deadly gap
@@ -62,7 +123,7 @@ LEVELS.push({
     total: 20, required: 15, spawnRate: FPS * 2, time: 5 * 60 * FPS,
     entrance: { x: 30, y: 180 },
     exit: { x: 360, y: 30, w: 20, h: 12 },
-    theme: 'grass',
+    theme: 'mossy_ruin',
     skills: { floater: 5, bomber: 0, blocker: 3, builder: 10, basher: 3, digger: 0, climber: 5, miner: 0, platformer: 0 },
     buildTerrain: (data, gw, gh) => {
         // Underground escape with platforms
@@ -102,13 +163,13 @@ LEVELS.push({
     }
 });
 
-// Level 5: Pyramid Scheme
+// Level 5: Salt Pyramid
 LEVELS.push({
-    name: "5: Pyramid Scheme",
+    name: "5: Salt Pyramid",
     total: 25, required: 20, spawnRate: FPS * 2, time: 6 * 60 * FPS,
     entrance: { x: 30, y: 20 },
     exit: { x: 200, y: 55, w: 20, h: 12 },
-    theme: 'desert',
+    theme: 'salt_flats',
     skills: { floater: 5, bomber: 3, blocker: 4, builder: 8, basher: 4, digger: 3, climber: 5, miner: 3, platformer: 3 },
     buildTerrain: (data, gw, gh) => {
         for (let y = 90; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
@@ -126,7 +187,11 @@ LEVELS.push({
         }
         // Clear exit area inside pyramid
         for (let y = 55; y < 90; y++) for (let x = 195; x < 215; x++) data[y * gw + x] = 0;
-    }
+    },
+    props: [
+        { type: 'sign', x: 104, y: 88, text: 'SALT', dir: 'right' },
+        { type: 'sign', x: 232, y: 58, text: 'PYRAMID', dir: 'left' }
+    ]
 });
 
 // Level 6: Oasis Trap
@@ -155,7 +220,7 @@ LEVELS.push({
     total: 20, required: 15, spawnRate: FPS * 2, time: 5 * 60 * FPS,
     entrance: { x: 30, y: 20 },
     exit: { x: 360, y: 78, w: 20, h: 12 },
-    theme: 'snow',
+    theme: 'packed_snow',
     skills: { floater: 5, bomber: 3, blocker: 4, builder: 7, basher: 3, digger: 3, climber: 4, miner: 3, platformer: 3 },
     buildTerrain: (data, gw, gh) => {
         for (let y = 90; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
@@ -189,7 +254,7 @@ LEVELS.push({
     total: 20, required: 15, spawnRate: FPS * 2, time: 5 * 60 * FPS,
     entrance: { x: 360, y: 78 },
     exit: { x: 30, y: 78, w: 20, h: 12 },
-    theme: 'snow',
+    theme: 'black_ice',
     skills: { floater: 4, bomber: 3, blocker: 3, builder: 6, basher: 3, digger: 4, climber: 6, miner: 3, platformer: 3 },
     buildTerrain: (data, gw, gh) => {
         for (let y = 90; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
@@ -206,7 +271,7 @@ LEVELS.push({
     total: 25, required: 20, spawnRate: FPS * 2, time: 6 * 60 * FPS,
     entrance: { x: 30, y: 78 },
     exit: { x: 200, y: 35, w: 20, h: 12 },
-    theme: 'snow',
+    theme: 'cliff_chalk',
     skills: { floater: 6, bomber: 4, blocker: 5, builder: 8, basher: 4, digger: 4, climber: 6, miner: 4, platformer: 4 },
     buildTerrain: (data, gw, gh) => {
         for (let y = 90; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
@@ -227,7 +292,7 @@ LEVELS.push({
     total: 20, required: 15, spawnRate: FPS * 2, time: 5 * 60 * FPS,
     entrance: { x: 30, y: 20 },
     exit: { x: 360, y: 78, w: 20, h: 12 },
-    theme: 'rock',
+    theme: 'slate_ledge',
     skills: { floater: 4, bomber: 4, blocker: 3, builder: 5, basher: 4, digger: 3, climber: 4, miner: 4, platformer: 3 },
     buildTerrain: (data, gw, gh) => {
         for (let y = 90; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
@@ -243,13 +308,13 @@ LEVELS.push({
     }
 });
 
-// Level 12: Quarry
+// Level 12: Rusted Quarry
 LEVELS.push({
-    name: "12: Quarry",
+    name: "12: Rusted Quarry",
     total: 25, required: 18, spawnRate: FPS * 2, time: 6 * 60 * FPS,
     entrance: { x: 30, y: 20 },
     exit: { x: 360, y: 78, w: 20, h: 12 },
-    theme: 'rock',
+    theme: 'rusty_metal',
     skills: { floater: 5, bomber: 6, blocker: 4, builder: 6, basher: 4, digger: 4, climber: 4, miner: 5, platformer: 3 },
     buildTerrain: (data, gw, gh) => {
         for (let y = 90; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
@@ -259,7 +324,11 @@ LEVELS.push({
         for (let y = 55; y < 75; y++) for (let x = 150; x < 280; x++) data[y * gw + x] = 1;
         // Thick wall needing bombers
         for (let y = 40; y < 90; y++) for (let x = 300; x < 315; x++) data[y * gw + x] = 1;
-    }
+    },
+    props: [
+        { type: 'sign', x: 108, y: 88, text: 'RUST', dir: 'right' },
+        { type: 'sign', x: 246, y: 62, text: 'BLAST', dir: 'right' }
+    ]
 });
 
 // Level 13: Crystal Caves
@@ -268,7 +337,7 @@ LEVELS.push({
     total: 20, required: 15, spawnRate: FPS * 2, time: 5 * 60 * FPS,
     entrance: { x: 30, y: 100 },
     exit: { x: 360, y: 100, w: 20, h: 12 },
-    theme: 'ice',
+    theme: 'crystal_dense',
     skills: { floater: 5, bomber: 3, blocker: 3, builder: 5, basher: 3, digger: 4, climber: 5, miner: 4, platformer: 4 },
     buildTerrain: (data, gw, gh) => {
         // Underground cave - open middle
@@ -287,7 +356,7 @@ LEVELS.push({
     total: 25, required: 20, spawnRate: FPS * 2, time: 5 * 60 * FPS,
     entrance: { x: 30, y: 40 },
     exit: { x: 360, y: 40, w: 20, h: 12 },
-    theme: 'ice',
+    theme: 'frozen_mud',
     skills: { floater: 6, bomber: 3, blocker: 4, builder: 6, basher: 2, digger: 2, climber: 4, miner: 2, platformer: 5 },
     buildTerrain: (data, gw, gh) => {
         for (let y = 50; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
@@ -328,7 +397,7 @@ LEVELS.push({
     total: 25, required: 18, spawnRate: FPS * 2, time: 5 * 60 * FPS,
     entrance: { x: 30, y: 20 },
     exit: { x: 360, y: 78, w: 20, h: 12 },
-    theme: 'lava',
+    theme: 'volcanic_ash',
     skills: { floater: 6, bomber: 5, blocker: 4, builder: 6, basher: 4, digger: 4, climber: 5, miner: 4, platformer: 4 },
     buildTerrain: (data, gw, gh) => {
         for (let y = 90; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
@@ -348,7 +417,7 @@ LEVELS.push({
     total: 25, required: 18, spawnRate: FPS * 2, time: 5 * 60 * FPS,
     entrance: { x: 30, y: 20 },
     exit: { x: 360, y: 78, w: 20, h: 12 },
-    theme: 'lava',
+    theme: 'obsidian_floor',
     skills: { floater: 5, bomber: 6, blocker: 4, builder: 6, basher: 4, digger: 4, climber: 5, miner: 4, platformer: 3 },
     buildTerrain: (data, gw, gh) => {
         for (let y = 90; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
@@ -376,7 +445,7 @@ LEVELS.push({
     total: 30, required: 22, spawnRate: FPS * 2, time: 6 * 60 * FPS,
     entrance: { x: 30, y: 100 },
     exit: { x: 360, y: 100, w: 20, h: 12 },
-    theme: 'lava',
+    theme: 'toxic_sludge',
     skills: { floater: 5, bomber: 6, blocker: 5, builder: 7, basher: 4, digger: 4, climber: 5, miner: 5, platformer: 4 },
     buildTerrain: (data, gw, gh) => {
         // Underground magma chamber
@@ -392,13 +461,13 @@ LEVELS.push({
     }
 });
 
-// Level 19: Crystal Kingdom
+// Level 19: Glowing Kingdom
 LEVELS.push({
-    name: "19: Crystal Kingdom",
+    name: "19: Glowing Kingdom",
     total: 30, required: 24, spawnRate: FPS * 2, time: 6 * 60 * FPS,
     entrance: { x: 30, y: 20 },
     exit: { x: 360, y: 78, w: 20, h: 12 },
-    theme: 'crystal',
+    theme: 'fungus_glow',
     skills: { floater: 6, bomber: 5, blocker: 5, builder: 8, basher: 4, digger: 4, climber: 5, miner: 5, platformer: 5 },
     buildTerrain: (data, gw, gh) => {
         for (let y = 90; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = 1;
@@ -416,7 +485,11 @@ LEVELS.push({
         }
         // Crystal wall with gap
         for (let y = 60; y < 90; y++) for (let x = 280; x < 285; x++) data[y * gw + x] = 1;
-    }
+    },
+    props: [
+        { type: 'sign', x: 86, y: 88, text: 'GLOW', dir: 'right' },
+        { type: 'sign', x: 320, y: 86, text: 'KINGDOM', dir: 'left' }
+    ]
 });
 
 // Level 21: The Ice Shard Ascent - Custom Level
@@ -428,7 +501,7 @@ LEVELS.push({
     time: 5 * 60 * FPS,
     entrance: { x: 40, y: 80 },
     exit: { x: 350, y: 188, w: 20, h: 12 },
-    theme: 'ice',
+    theme: 'black_ice',
     skills: { floater: 5, bomber: 2, blocker: 3, builder: 2, basher: 0, digger: 0, climber: 10, miner: 10, platformer: 0 },
     buildTerrain: function(data, gw, gh) {
         // Upper Ledge (y: 140 to 150, x: 0 to 130)
@@ -471,16 +544,16 @@ LEVELS.push({
     }
 });
 
-// Level 22: Tidal Lock
+// Level 22: Flooded Grotto
 LEVELS.push({
-    name: "22: Tidal Lock",
+    name: "22: Flooded Grotto",
     total: 25,
     required: 20,
     spawnRate: FPS * 2,
     time: 6 * 60 * FPS,
     entrance: { x: 36, y: 64 },
     exit: { x: 356, y: 98, w: 20, h: 12 },
-    theme: 'water',
+    theme: 'wet_cave_stone',
     skills: { floater: 0, bomber: 2, blocker: 2, builder: 5, basher: 2, digger: 2, climber: 0, miner: 6, platformer: 0 },
     waterZones: [
         { x: 118, y: 122, w: 168, h: 66 }
@@ -535,8 +608,8 @@ LEVELS.push({
     },
     props: [
         { type: 'water', x: 118, y: 122, w: 168, h: 66 },
-        { type: 'sign', x: 96, y: 74, text: 'MINE GATE', dir: 'right' },
-        { type: 'sign', x: 318, y: 130, text: 'BUILD', dir: 'right' }
+        { type: 'sign', x: 84, y: 76, text: 'GROTTO GATE', dir: 'right' },
+        { type: 'sign', x: 334, y: 128, text: 'SHORELINE', dir: 'right' }
     ]
 });
 
@@ -544,5 +617,6 @@ LEVELS.push({
 window.LevelManager = {
     TOTAL_LEVELS: TOTAL_LEVELS,
     getDifficulty: (n) => n <= 5 ? 'fun' : n <= 10 ? 'tribal' : n <= 15 ? 'desert' : n <= 20 ? 'snow' : 'hard',
-    getTheme: getLevelTheme
+    getTheme: getLevelTheme,
+    loadExternalLevels: loadExternalLevels
 };

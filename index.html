@@ -393,6 +393,12 @@
                 <button id="btn-sound" onclick="toggleSound()" class="control-btn">🔊</button>
                 <button id="btn-nuke" onclick="triggerNuke()" class="control-btn">💣 NUKE</button>
             </div>
+            <div class="control-row">
+                <button id="btn-texture-mode" onclick="toggleTextureMode()" class="control-btn">Textures: ON</button>
+                <span style="font-size:11px;color:#a9d3ef;">Blend</span>
+                <input type="range" id="texture-blend" min="0" max="100" value="92" oninput="updateTextureBlend(this.value)">
+                <span id="texture-blend-val" style="color:#7ad6ff;font-size:11px;min-width:34px;">92%</span>
+            </div>
         </div>
     </div>
 

@@ -123,7 +123,7 @@ def post_prompt(workflow):
         print(f"Error submitting prompt: {e}")
         return None
 
-def wait_for_result(prompt_id, timeout=300):
+def wait_for_result(prompt_id, timeout=600):
     """Poll ComfyUI for generation results."""
     url = f"{ENDPOINT}/history/{prompt_id}"
     start_time = time.time()
@@ -236,22 +236,24 @@ def main():
     # Find and copy the file
     if not args.no_copy:
         src_file = find_latest_generated_file()
+        raw_bytes = None
         if src_file and src_file.stat().st_mtime > time.time() - 60:
-            GAME_GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-            dest_file = GAME_GENERATED_DIR / f"{args.preset}_texture_{seed}.png"
-            shutil.copy2(src_file, dest_file)
-            print(f"✓ Saved: {dest_file.name}")
-            return 0
+            raw_bytes = src_file.read_bytes()
         else:
             # Fallback: download via API
-            image_data = download_image(image_meta)
-            if image_data:
-                GAME_GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-                dest_file = GAME_GENERATED_DIR / f"{args.preset}_texture_{seed}.png"
-                with open(dest_file, "wb") as f:
-                    f.write(image_data)
-                print(f"✓ Saved: {dest_file.name}")
-                return 0
+            raw_bytes = download_image(image_meta)
+
+        if raw_bytes:
+            GAME_GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+            # Seed-named copy for history
+            dest_file = GAME_GENERATED_DIR / f"{args.preset}_zturbo_{seed}.png"
+            dest_file.write_bytes(raw_bytes)
+            # Canonical copy used by the game engine
+            canonical = GAME_GENERATED_DIR / f"{args.preset}.png"
+            canonical.write_bytes(raw_bytes)
+            print(f"✓ Saved: {dest_file.name}")
+            print(f"✓ Canonical: {canonical.name}")
+            return 0
     
     print("✓ Texture generated (not copied to game folder)")
     return 0
