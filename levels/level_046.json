@@ -17,13 +17,13 @@
   },
   "theme": "iron_ore",
   "skills": {
-    "floater": 0,
+    "floater": 1,
     "bomber": 0,
     "blocker": 3,
-    "builder": 3,
+    "builder": 7,
     "basher": 7,
     "digger": 5,
-    "climber": 0,
+    "climber": 4,
     "miner": 5,
     "platformer": 0
   },

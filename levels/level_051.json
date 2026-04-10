@@ -20,10 +20,10 @@
     "floater": 3,
     "bomber": 0,
     "blocker": 4,
-    "builder": 5,
+    "builder": 9,
     "basher": 6,
     "digger": 3,
-    "climber": 0,
+    "climber": 4,
     "miner": 7,
     "platformer": 0
   },

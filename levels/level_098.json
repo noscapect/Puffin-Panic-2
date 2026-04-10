@@ -17,13 +17,13 @@
              },
     "theme":  "lava",
     "skills":  {
-                   "floater":  3,
+                   "floater":  4,
                    "bomber":  2,
                    "blocker":  3,
                    "builder":  4,
-                   "basher":  3,
+                   "basher":  5,
                    "digger":  3,
-                   "climber":  2,
+                   "climber":  6,
                    "miner":  3,
                    "platformer":  0
                },

@@ -17,13 +17,13 @@
              },
     "theme":  "rock",
     "skills":  {
-                   "floater":  8,
+                   "floater":  9,
                    "bomber":  0,
                    "blocker":  5,
                    "builder":  5,
-                   "basher":  4,
+                   "basher":  7,
                    "digger":  1,
-                   "climber":  6,
+                   "climber":  10,
                    "miner":  2,
                    "platformer":  0
                },

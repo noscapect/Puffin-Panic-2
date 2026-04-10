@@ -17,7 +17,7 @@
   },
   "theme": "sandstone",
   "skills": {
-    "floater": 0,
+    "floater": 1,
     "bomber": 3,
     "blocker": 3,
     "builder": 0,

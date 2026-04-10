@@ -21,9 +21,9 @@
     "bomber": 2,
     "blocker": 2,
     "builder": 5,
-    "basher": 3,
+    "basher": 4,
     "digger": 2,
-    "climber": 0,
+    "climber": 2,
     "miner": 6,
     "platformer": 0
   },

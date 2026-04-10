@@ -17,13 +17,13 @@
   },
   "theme": "amber",
   "skills": {
-    "floater": 0,
+    "floater": 1,
     "bomber": 4,
     "blocker": 3,
     "builder": 5,
     "basher": 4,
     "digger": 5,
-    "climber": 0,
+    "climber": 4,
     "miner": 4,
     "platformer": 0
   },
