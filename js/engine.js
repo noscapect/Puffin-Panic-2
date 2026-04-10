@@ -552,7 +552,7 @@ function loadLevel(index) {
     currentLevelIndex = index;
     const lvl = LEVELS[currentLevelIndex];
 
-    document.title = "Puffin Panic - " + lvl.name;
+    document.title = "Puffins Panic! - " + lvl.name;
     showGameUI();
 
     // Reset achievements stats

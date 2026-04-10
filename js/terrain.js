@@ -115,7 +115,6 @@ function preloadTerrainTextures(callback) {
                 const id = cx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
                 _terrainTexCache[theme] = { data: id.data, w: img.naturalWidth, h: img.naturalHeight };
                 _terrainTexState.loaded++;
-                console.log(`[Terrain] Loaded texture: ${theme} (${img.naturalWidth}x${img.naturalHeight})`);
             } catch (e) {
                 console.error(`[Terrain] getImageData failed for ${theme} — likely CORS/security block. Try serving via HTTP instead of file://.`, e);
             }

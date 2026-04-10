@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Build / QA artifacts (regenerate with npm run levels:qa)
+reports/
+*.log
+
+# Editor scratch files
+temp_*.js
+terminal_test.txt
+pterm_registry_search.txt

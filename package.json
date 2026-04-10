@@ -1,4 +1,5 @@
 {
+  "name": "puffins-panic",
   "scripts": {
     "texture:gen": "node scripts/generate-texture.mjs",
     "level:bake": "node scripts/bake-levels.mjs",

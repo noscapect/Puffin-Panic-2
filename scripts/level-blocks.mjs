@@ -1,7 +1,7 @@
 /**
  * level-blocks.mjs
  *
- * Reusable terrain building-block library for Puffin Panic 2 level design.
+ * Reusable terrain building-block library for Puffins Panic! level design.
  *
  * Coordinate system:
  *   x = 0..GAME_WIDTH-1  (left → right)
