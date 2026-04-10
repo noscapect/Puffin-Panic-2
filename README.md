@@ -16,6 +16,11 @@ Puffins emerge from an entrance and walk blindly through hazardous environments.
 - **99 Playable Campaign Levels** across a wide range of themes and difficulties
 - **8 Classic Lemmings-Style Skills** — Climber, Floater, Bomber, Blocker, Builder, Basher, Miner, Digger
 - **34 Terrain Themes** with AI-generated pixel textures (grass, snow, lava, crystal, deep sea, and more)
+- **Volumetric Liquid Simulation** — Water flows, pools, and floods cavities; ice levels melt into water on explosion
+- **Falling Sand Simulation** — Desert/mud terrain pours downward when dislodged by explosions
+- **Liquid Lava** — Lava flows slowly, reacts with water (creates stone + steam), kills puffins on contact
+- **Crumbling Bridges** — Unsupported terrain spans collapse under repeated puffin weight
+- **Theme Wind** — Floaters and airborne particles are drifted by the level's ambient wind direction
 - **Built-in Level Editor** — Create, tweak, export and import custom maps as JSON; share them with other players
 - **High-DPI Rendering** — Crisp pixel art on Retina / high-density displays
 - **Touch Controls** — Full touch support for mobile and tablet (tap, long-press for puffin info, cancel skill button)
@@ -25,6 +30,240 @@ Puffins emerge from an entrance and walk blindly through hazardous environments.
 - **Nuke Mode** — Emergency option to clear remaining puffins
 - **Achievements System** — Tracks in-game milestones
 - **Pause & Retry** — Full game state control at any time
+
+## 🌊 Physics & Environment Simulation
+
+### Volumetric Water
+Water is a full cellular automaton stored in a parallel pixel grid (`liquidData`). It falls under gravity, equalises sideways, and floods newly-dug cavities. Puffins swim at the live surface. Water zones are initialised from `waterZones` in the level JSON and immediately simulated from there.
+
+| Mechanic | Details |
+|----------|---------|
+| Flow rate | 4 units/cell/simulation step; runs every 2 game ticks |
+| Gravity | Bottom-to-top sweep — liquid cascades the full column in one pass |
+| Equalisation | Alternating-direction sideways pass prevents left/right bias |
+| Puffin swim | Buoyant at live surface; seeks exit; climbs shore automatically |
+| Explosion | Liquid in blast radius is displaced outward; water flows into the cavity on next tick |
+
+### Ice Melting
+Bombing an ice-theme level converts the blast crater into meltwater. Water yield depends on theme:
+
+| Theme | Water yield |
+|-------|------------|
+| `ice`, `black_ice` | Full (100%) |
+| `packed_snow` | ~65% |
+| `frozen_mud` | ~50% |
+| `snow` | ~35% |
+
+### Falling Sand
+`desert`, `sandstone`, `mud`, and `toxic_sludge` themes have loose material. An explosion dislodges cells above the blast; each grain falls straight down, or slides diagonally if blocked, and solidifies again when fully stuck.
+
+### Liquid Lava
+Levels may define `"lavaZones": [{x,y,w,h}]` (same format as `waterZones`). Lava flows like water but at 1/8th the speed. Cross-material reactions:
+- **Lava + water** → both consumed; lava cell becomes solid rock + steam particle burst
+- **Lava + puffin** → instant death + fire particles
+
+### Crumbling Bridges
+Every puffin walking or blocking on a terrain cell accumulates *bridge stress* on that cell. Once stress exceeds **600 puffin-frames** and the cell has no solid support below (genuine spans only — floors are immune), it crumbles with a debris burst.
+
+### Wind
+Each theme has a baseline wind speed. Floaters drift at 50% of wind strength; falling puffins at 15%; all airborne particles are nudged each frame.
+
+| Theme | Direction |
+|-------|-----------|
+| `desert`, `sandstone`, `black_ice` | Rightward |
+| `snow`, `packed_snow`, `ice` | Leftward |
+| All others | Calm |
+
+## 🛠️ Skills
+
+| Skill | Icon | Description |
+|-------|------|-------------|
+| **Climber** | 🧗 | Scales vertical walls instead of turning around |
+| **Floater** | ☂️ | Deploys an umbrella — survives any fall height |
+| **Bomber** | 💣 | Becomes a timed bomb; explodes after 5 seconds, destroying terrain |
+| **Blocker** | 🛑 | Stands still and turns other puffins around |
+| **Builder** | 🧱 | Lays a brick staircase that other puffins can walk up |
+| **Basher** | 🥊 | Punches horizontally through walls |
+| **Miner** | ⚒️ | Digs diagonally downward |
+| **Digger** | ⛏️ | Digs straight down |
+
+## 🎯 How to Play
+
+### Controls
+
+| Input | Action |
+|-------|--------|
+| **Left click / Tap** | Assign selected skill to a puffin |
+| **Right click / ✕ Cancel button** | Deselect the current skill |
+| **Long-press a puffin** | Show puffin state tooltip |
+| **Escape** | Deselect skill, or pause the game |
+| **N** | Activate nuke |
+| **[ − / ] +** | Decrease / increase release rate |
+
+### Gameplay Loop
+
+1. Select a skill from the skill panel
+2. Click or tap a puffin to assign the skill
+3. Watch the puffins react and adapt as needed
+4. Guide enough puffins through the exit before time runs out
+
+### Tips
+
+- Puffins splat after falling more than ~70 pixels — use **Floaters** on high-drops
+- **Blockers** redirect traffic; combine with a **Bomber** for a one-way door
+- **Builders** create ramps that every puffin behind them will use
+- **Climbers** can permanently scale walls — pair with Floater for full vertical freedom
+- **Miners** are ideal for diagonal shortcuts through thick terrain
+- In ice levels, explosion craters fill with meltwater — plan swim routes accordingly
+- Bombing in desert/mud levels causes sand to cascade into newly-opened gaps
+- **Floaters** are affected by wind — account for drift when aiming at the exit
+
+## 🗺️ Level Editor & Custom Maps
+
+Press **🛠️ Level Editor** on the start screen to enter the editor.
+
+- **Draw / Erase** terrain with mouse or touch
+- **Set** entrance, exit, theme, skill counts, puffin totals and time limit
+- **📋 Export** — copies the level as JSON to clipboard
+- **📥 Import** — paste any JSON to load a shared level
+- **💾 Save / 📂 Load** — stores levels in browser localStorage
+
+Share maps by copying the exported JSON text and sending it to another player. They paste it into Import to play your level.
+
+### Adding Water or Lava to Custom Levels
+
+Add a `waterZones` or `lavaZones` array to the exported JSON before importing:
+
+```json
+{
+  "waterZones": [{ "x": 120, "y": 180, "w": 80, "h": 20 }],
+  "lavaZones":  [{ "x": 300, "y": 160, "w": 60, "h": 30 }]
+}
+```
+
+Both systems simulate immediately on level load. `lavaZones` is optional and ignored on levels/themes that don't need it.
+
+## 🧱 Terrain Themes
+
+34 themes available, each with a generated texture and matching sky/atmosphere:
+
+`grass` · `desert` · `snow` · `rock` · `ice` · `lava` · `crystal` · `water` · `cliff_chalk` · `slate_ledge` · `frozen_mud` · `packed_snow` · `black_ice` · `volcanic_ash` · `obsidian_floor` · `salt_flats` · `wet_cave_stone` · `rusty_metal` · `wood_planks` · `mossy_ruin` · `crystal_dense` · `fungus_glow` · `toxic_sludge` · `sandstone` · `deep_sea` · `iron_ore` · `coral` · `amber` · `bone_white` · `cave` · `mud` · `mossy` · `desert` · `fungus_glow`
+
+Textures are loaded from `img/generated/` at runtime. New textures can be generated with the scripts below.
+
+## 🖼️ Texture Generation
+
+Texture prompts are managed in `scripts/texture-presets.json` and generated via ComfyUI:
+
+```bash
+python scripts/generate-textures.py --preset black_ice
+```
+
+This writes a canonical in-game texture to `img/generated/<theme>.png`.
+
+## 🧪 Level QA Tools
+
+```bash
+# Lint a level (validates RLE, spawn/exit clearance, fragments)
+npm run level:lint -- --file levels/level_001.json
+
+# Generate SVG preview + metrics JSON
+npm run level:preview -- --file levels/level_001.json
+
+# Heuristic route analysis (estimates required skills)
+npm run level:route -- --file levels/level_001.json
+
+# Run all three in one go
+npm run level:qa:full
+
+# Lint + preview all 99 campaign levels
+npm run levels:qa
+```
+
+Reports are written to `reports/` (gitignored — regenerate any time).
+
+## 📁 Project Structure
+
+```
+Puffin-Panic-2/
+├── index.html          # Game shell — canvas, UI, script tags
+├── img/
+│   ├── background.jpeg  # Start screen background
+│   ├── start-bg.png     # Start screen overlay
+│   └── generated/       # Terrain textures (one PNG per theme)
+├── js/
+│   ├── constants.js     # Game constants, sprites, skill defs, physics thresholds, wind table
+│   ├── engine.js        # Game loop, rendering, input, UI, bridge collapse, wind
+│   ├── levels.js        # Campaign level loader (fetches levels/ JSON files)
+│   ├── levelEditor.js   # Built-in level editor with export/import
+│   ├── particle.js      # Particle system (sparks, dust, shockwave, portals, steam)
+│   ├── puffin.js        # Puffin class — AI state machine, skills, swimming, drawing
+│   ├── sound.js         # Procedural audio (Web Audio API)
+│   └── terrain.js       # Terrain rendering, liquid/lava/sand simulation, ice melting
+├── levels/
+│   └── level_001.json … level_099.json   # 99 campaign levels
+├── scripts/
+│   ├── qa-all-levels.mjs       # Batch lint + preview all campaign levels
+│   ├── lint-level.mjs          # Level validator
+│   ├── preview-level.mjs       # SVG preview generator
+│   ├── route-analyze.mjs       # Heuristic path solver
+│   ├── bake-levels.mjs         # Terrain baking utility
+│   ├── generate-texture.mjs    # Single texture generator (Node)
+│   ├── generate-textures.py    # ComfyUI texture pipeline
+│   └── texture-presets.json    # Prompt presets per theme
+├── .gitignore
+├── package.json
+└── README.md
+```
+
+## 🚀 Running the Game
+
+**Quickest way — double-click `Puffins_Panic.bat`** (Windows). This runs `npx serve .` and opens a local server.
+
+Or start a server manually:
+
+```bash
+# Node.js
+npx serve .
+
+# Python
+python -m http.server 8000
+```
+
+Then open `http://localhost:8000` in a browser.
+
+> Serving via HTTP is required for terrain textures to load (browser security blocks `getImageData` on `file://`).
+
+## 🏗️ Technical Notes
+
+| Detail | Value |
+|--------|-------|
+| Internal resolution | 400 × 220 |
+| Canvas resolution | 1600 × 880 (4× scale) |
+| High-DPI | Canvas rescaled by `devicePixelRatio` (capped at 2×) |
+| Game loop | `requestAnimationFrame` with elapsed-time pacing at 30 FPS |
+| Rendering | `imageSmoothingEnabled = false` + CSS `image-rendering: pixelated` |
+| Terrain | Pixel-based destructible bitmap with RLE-compressed level storage |
+| Liquid/lava/sand | Parallel `Uint8Array` grids; rendered to a shared offscreen canvas, blit at 4× scale |
+| Puffin sprites | Pre-rendered to offscreen canvases per animation variant |
+| Atmosphere | Cached to offscreen canvas, refreshed every 2 ticks |
+| Bridge stress | `Uint16Array` — accumulated per cell, checked every 30 ticks |
+| Touch | `touchstart/move/end` with `passive: false`; 44px minimum tap targets |
+| Audio | Web Audio API, procedural — no external sound files |
+| Dependencies | None — pure vanilla JS |
+
+## 🤝 Contributing
+
+Fork the repository and submit pull requests. Custom levels built with the editor are especially welcome — export your JSON and open an issue or PR to have it considered for the campaign.
+
+## 📄 License
+
+MIT — free to use, modify, and distribute.
+
+## 🙏 Acknowledgments
+
+Inspired by **Lemmings** by DMA Design (1991). All code and assets are original implementations.
+
 
 ## 🛠️ Skills
 
