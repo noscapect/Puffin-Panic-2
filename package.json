@@ -1,6 +1,7 @@
 {
   "name": "puffins-panic",
   "scripts": {
+    "editor": "node scripts/level-editor-server.mjs",
     "texture:gen": "node scripts/generate-texture.mjs",
     "level:bake": "node scripts/bake-levels.mjs",
     "level:lint": "node scripts/lint-level.mjs",
