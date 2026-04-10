@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Puffins Panic!</title>
     <style>
         body {
@@ -41,10 +41,11 @@
         }
         canvas {
             display: block;
-            image-rendering: auto;
+            image-rendering: pixelated; /* crisp pixel art on all screens */
             cursor: crosshair;
             max-width: 100%;
             height: auto;
+            touch-action: none; /* hand touch events to JS */
         }
         #ui-panel {
             width: 100%;
@@ -117,7 +118,8 @@
             overflow-x: auto;
         }
         .skill-btn {
-            min-width: 55px;
+            min-width: 58px;
+            min-height: 56px;
             padding: 5px 7px;
             background: linear-gradient(
                 160deg,
@@ -162,7 +164,7 @@
             cursor: not-allowed;
         }
         .skill-icon {
-            font-size: 22px;
+            font-size: 24px;
             line-height: 1;
         }
         .skill-name {
@@ -262,12 +264,44 @@
             accent-color: #42d1ff;
         }
         .rate-step {
-            width: 20px;
-            height: 20px;
+            min-width: 44px;
+            min-height: 44px;
             padding: 0;
             line-height: 1;
+            font-size: 18px;
         }
         
+        /* Cancel-skill button: hidden until a skill is selected */
+        #btn-cancel-skill {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            min-width: 80px;
+            min-height: 44px;
+            background: linear-gradient(180deg, #6a2222 0%, #461818 100%);
+            border-color: #c44;
+            color: #fcc;
+            font-size: 13px;
+        }
+
+        /* Mobile portrait: stack skills below canvas */
+        @media (max-width: 640px) {
+            body { padding: 4px; }
+            h1 { font-size: 18px; margin-bottom: 8px; }
+            #ui-panel {
+                flex-direction: column;
+                gap: 6px;
+                padding: 8px;
+            }
+            #stats-panel { justify-content: center; }
+            #skills-panel { order: -1; gap: 5px; flex-wrap: wrap; justify-content: center; }
+            #controls-panel { width: 100%; align-items: stretch; }
+            .rate-control { justify-content: center; }
+            .control-row  { justify-content: center; flex-wrap: wrap; }
+            .skill-btn    { min-width: 56px; min-height: 60px; }
+            .skill-icon   { font-size: 26px; }
+            .skill-name   { font-size: 8px; }
+        }
         #message-overlay {
             position: absolute;
             top: 0;
@@ -353,7 +387,8 @@
             </div>
             
             <div style="margin-top: clamp(12px, 2vw, 20px); color: #fff; font-size: clamp(12px, 1.5vw, 16px); font-weight: bold; text-shadow: 2px 2px 4px #000;">
-                Mouse: Assign Skills | +/- or [ ]: Release Rate | N: Nuke | ESC: Pause
+                Mouse: Assign Skills | +/- Adjust Rate | N: Nuke | ESC: Pause<br>
+                <span style="font-size:0.85em;opacity:0.75;">Touch: Tap puffin • Long-press for info • ✕ Cancel deselects skill</span>
             </div>
             
             <div style="position: absolute; bottom: clamp(10px, 1.5vw, 20px); text-align: center; color: #000; font-size: clamp(11px, 1.5vw, 14px); font-weight: bold; text-shadow: 1px 1px 3px #fff;">
@@ -400,6 +435,7 @@
                 <button id="btn-speed" onclick="toggleSpeed()" class="control-btn">Speed: 1x</button>
                 <button id="btn-sound" onclick="toggleSound()" class="control-btn">🔊</button>
                 <button id="btn-nuke" onclick="triggerNuke()" class="control-btn">💣 NUKE</button>
+                <button id="btn-cancel-skill" onclick="cancelSkill()" class="control-btn">✕ Cancel</button>
             </div>
             <div class="control-row">
                 <button id="btn-texture-mode" onclick="toggleTextureMode()" class="control-btn">Textures: ON</button>

@@ -140,6 +140,40 @@ let nukeCountdown = -1;
 let screenShake = 0;
 let screenShakeIntensity = 0;
 
+// --- Atmosphere cache (updated every 2 ticks to save draw calls on mobile) ---
+let _atmCache = { behind: null, front: null, lastTick: -999, theme: '' };
+
+function _getOrUpdateAtmosphereCache(layer) {
+    const t = gameState.ticks;
+    const theme = getCurrentThemeName();
+    if (theme !== _atmCache.theme) {
+        // Theme changed — invalidate
+        _atmCache.behind = null;
+        _atmCache.front  = null;
+        _atmCache.lastTick = -999;
+        _atmCache.theme = theme;
+    }
+    if (t - _atmCache.lastTick >= 2) {
+        // Re-render both layers at game resolution
+        for (const lyr of ['behind', 'front']) {
+            if (!_atmCache[lyr]) {
+                const c = document.createElement('canvas');
+                c.width = GAME_WIDTH; c.height = GAME_HEIGHT;
+                _atmCache[lyr] = { c, cx: c.getContext('2d') };
+            }
+            _atmCache[lyr].cx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            drawThemeAtmosphere(_atmCache[lyr].cx, lyr);
+        }
+        _atmCache.lastTick = t;
+    }
+    return _atmCache[layer] ? _atmCache[layer].c : null;
+}
+
+// --- Touch long-press tooltip ---
+let _touchTooltip = null; // { sx, sy, label } in game coords
+let _touchLongPressTimer = null;
+let _touchStartGX = 0, _touchStartGY = 0;
+
 function getBestPuffinAt(x, y, skillId = activeSkill) {
     let best = null;
     let bestScore = Infinity;
@@ -151,9 +185,9 @@ function getBestPuffinAt(x, y, skillId = activeSkill) {
         const cy = p.y + PUFFIN_H / 2;
         const dist = Math.hypot(cx - x, cy - y);
         const inExpandedBox =
-            x >= p.x - 2 && x <= p.x + PUFFIN_W + 2 &&
-            y >= p.y - 2 && y <= p.y + PUFFIN_H + 2;
-        const maxDist = inExpandedBox ? 22 : 16;
+            x >= p.x - 4 && x <= p.x + PUFFIN_W + 4 &&
+            y >= p.y - 4 && y <= p.y + PUFFIN_H + 4;
+        const maxDist = inExpandedBox ? 28 : 20; // larger for comfortable touch taps
         if (dist > maxDist) continue;
 
         let score = dist;
@@ -252,74 +286,98 @@ function togglePause() {
 function setupInputs() {
     if (inputsSetup) return;
     inputsSetup = true;
-    
+
+    // Helper: convert client coords to game coords
+    function toGameCoords(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: Math.floor((clientX - rect.left) * (GAME_WIDTH  / rect.width)),
+            y: Math.floor((clientY - rect.top)  * (GAME_HEIGHT / rect.height))
+        };
+    }
+
     // Handle window resize for responsive scaling
     window.addEventListener('resize', updateCanvasScale);
     updateCanvasScale();
-    
+
+    // ── Mouse ──────────────────────────────────────────────────────────────
     canvas.addEventListener('mousemove', e => {
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = GAME_WIDTH / rect.width;
-        const scaleY = GAME_HEIGHT / rect.height;
-        mouseX = Math.floor((e.clientX - rect.left) * scaleX);
-        mouseY = Math.floor((e.clientY - rect.top) * scaleY);
+        const g = toGameCoords(e.clientX, e.clientY);
+        mouseX = g.x; mouseY = g.y;
     });
 
     canvas.addEventListener('mousedown', e => {
-        // Skip if in editor mode, game not active, or paused
-        if (editorMode || !gameState.active || gameState.paused) return;
-        const target = getBestPuffinAt(mouseX, mouseY, activeSkill);
-        
-        // Right-click to cancel active skill
-        if (e.button === 2) {
-            activeSkill = null;
-            updateUI();
-            return;
-        }
-        
-        // Left-click to assign skill or toggle blocker/builder
-        if (e.button === 0) {
-            // If no skill selected, try to toggle a blocker, builder, or miner
-            if (!activeSkill && target) {
-                if (target.toggleBlocker()) {
-                    playSound('click');
-                    return;
-                }
-                if (target.toggleBuilder()) {
-                    playSound('click');
-                    return;
-                }
-                if (target.toggleMiner()) {
-                    playSound('click');
-                    return;
-                }
-            }
-            
-            // Assign skill if one is selected
-            if (activeSkill) {
-                if (currentSkillCounts[activeSkill] <= 0) return;
-                if (target && target.canAcceptSkill(activeSkill)) {
-                    target.assignSkill(activeSkill);
-                    currentSkillCounts[activeSkill]--;
-                    // Track skill use for achievements
-                    if (typeof Achievements !== 'undefined') {
-                        Achievements.trackSkill(activeSkill);
-                    }
-                    updateUI();
-                    playSound('skillAssign');
-                }
-            }
-        }
+        if (e.button === 2) { cancelSkill(); return; }
+        if (e.button === 0) handleGamePointerDown(mouseX, mouseY);
     });
 
     // Prevent context menu on right-click
     canvas.addEventListener('contextmenu', e => e.preventDefault());
 
+    // ── Touch ──────────────────────────────────────────────────────────────
+    // State names for the long-press tooltip
+    const _stateNames = {
+        [ST_WALK]:       'Walking',
+        [ST_FALL]:       'Falling',
+        [ST_FLOAT]:      'Floating',
+        [ST_BLOCK]:      'Blocker',
+        [ST_BUILD]:      'Builder',
+        [ST_BASH]:       'Basher',
+        [ST_DIG]:        'Digger',
+        [ST_MINE]:       'Miner',
+        [ST_CLIMB]:      'Climber',
+        [ST_PANIC]:      'Panicking',
+        [ST_NUKE_PANIC]: 'Nuke!',
+        [ST_SPLAT]:      'Splat',
+    };
+
+    canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const g = toGameCoords(touch.clientX, touch.clientY);
+        mouseX = g.x; mouseY = g.y;
+        _touchStartGX = g.x; _touchStartGY = g.y;
+        _touchTooltip = null;
+
+        // Long-press: show puffin state after 320 ms
+        clearTimeout(_touchLongPressTimer);
+        _touchLongPressTimer = setTimeout(() => {
+            const p = getBestPuffinAt(_touchStartGX, _touchStartGY, null);
+            if (p) {
+                let label = _stateNames[p.state] || 'Puffin';
+                if (p.isFloater)  label += ' ☂';
+                if (p.isClimber)  label += ' 🧗';
+                if (p.isBasher)   label += ' 🥊';
+                if (p.bomberTicks > 0) label = `Bomb ${Math.ceil(p.bomberTicks / FPS)}s`;
+                _touchTooltip = { sx: _touchStartGX, sy: _touchStartGY, label };
+            }
+        }, 320);
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', e => {
+        e.preventDefault();
+        clearTimeout(_touchLongPressTimer);
+        const touch = e.touches[0];
+        const g = toGameCoords(touch.clientX, touch.clientY);
+        mouseX = g.x; mouseY = g.y;
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', e => {
+        e.preventDefault();
+        clearTimeout(_touchLongPressTimer);
+        // Short tap = game click (only if tooltip wasn't shown)
+        if (!_touchTooltip) {
+            handleGamePointerDown(_touchStartGX, _touchStartGY);
+        }
+        // Tooltip auto-hides after 1.5 s
+        setTimeout(() => { _touchTooltip = null; }, 1500);
+    }, { passive: false });
+
+    // ── Keyboard ────────────────────────────────────────────────────────────
     window.addEventListener('keydown', e => {
         if (e.key === 'Escape' && gameState.active) {
             if (activeSkill) {
-                activeSkill = null;
-                updateUI();
+                cancelSkill();
             } else {
                 togglePause();
             }
@@ -346,6 +404,35 @@ function selectSkill(skillId) {
         activeSkill = skillId;
         updateUI();
         playSound('click');
+    }
+}
+
+function cancelSkill() {
+    activeSkill = null;
+    updateUI();
+    playSound('click');
+}
+
+// Shared pointer-down logic used by both mouse and touch
+function handleGamePointerDown(gameX, gameY) {
+    if (editorMode || !gameState.active || gameState.paused) return;
+    const target = getBestPuffinAt(gameX, gameY, activeSkill);
+
+    if (!activeSkill && target) {
+        if (target.toggleBlocker()) { playSound('click'); return; }
+        if (target.toggleBuilder()) { playSound('click'); return; }
+        if (target.toggleMiner())   { playSound('click'); return; }
+    }
+
+    if (activeSkill) {
+        if (currentSkillCounts[activeSkill] <= 0) return;
+        if (target && target.canAcceptSkill(activeSkill)) {
+            target.assignSkill(activeSkill);
+            currentSkillCounts[activeSkill]--;
+            if (typeof Achievements !== 'undefined') Achievements.trackSkill(activeSkill);
+            updateUI();
+            playSound('skillAssign');
+        }
     }
 }
 
@@ -385,13 +472,29 @@ function populateLevelSelect() {
 window.onload = function() {
     canvas = document.getElementById('gameCanvas');
     ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingEnabled = false; // pixel art — no blurring
+
+    // High-DPI: double canvas if device pixel ratio ≥ 1.5, cap at 2x
+    const _dpr = Math.min(Math.round(window.devicePixelRatio || 1), 2);
+    if (_dpr > 1) {
+        canvas.width  = GAME_WIDTH  * SCALE * _dpr;
+        canvas.height = GAME_HEIGHT * SCALE * _dpr;
+        canvas.style.width  = (GAME_WIDTH  * SCALE) + 'px';
+        canvas.style.height = (GAME_HEIGHT * SCALE) + 'px';
+        ctx.scale(_dpr, _dpr);
+        window._canvasDPR = _dpr;
+    } else {
+        window._canvasDPR = 1;
+    }
     
     offscreenCanvas = document.createElement('canvas');
     offscreenCanvas.width = GAME_WIDTH;
     offscreenCanvas.height = GAME_HEIGHT;
     offCtx = offscreenCanvas.getContext('2d');
-    offCtx.imageSmoothingEnabled = true;
+    offCtx.imageSmoothingEnabled = true; // terrain texture blending uses smoothing
+
+    // Build puffin body sprite cache now that canvas APIs are available
+    buildPuffinBodyCache();
 
     setupInputs();
 
@@ -511,9 +614,10 @@ function loadLevel(index) {
     buildUI();
     
     if (loopId !== null) {
-        clearTimeout(loopId);
+        cancelAnimationFrame(loopId);
         loopId = null;
     }
+    _lastFrameTime = 0;
     gameLoop();
 }
 
@@ -568,6 +672,10 @@ function updateUI() {
         if (count <= 0) btn.classList.add('empty');
         if (activeSkill === skill.id && count > 0) btn.classList.add('selected');
     });
+
+    // Show/hide cancel-skill button for touch users
+    const cancelBtn = document.getElementById('btn-cancel-skill');
+    if (cancelBtn) cancelBtn.style.display = activeSkill ? 'inline-flex' : 'none';
 }
 
 function checkEndCondition() {
@@ -629,14 +737,22 @@ function checkEndCondition() {
     }
 }
 
-function gameLoop() {
-    for (let i = 0; i < gameSpeed; i++) {
-        if (gameState.active && !gameState.paused) update();
+// Pure requestAnimationFrame loop — no setTimeout latency
+let _lastFrameTime = 0;
+function gameLoop(timestamp = 0) {
+    if (!gameState.active) {
+        loopId = null;
+        return;
     }
-    draw();
-    if (gameState.active) {
-        loopId = setTimeout(() => requestAnimationFrame(gameLoop), FRAME_MS);
+    const elapsed = timestamp - _lastFrameTime;
+    if (elapsed >= FRAME_MS || _lastFrameTime === 0) {
+        _lastFrameTime = timestamp - (elapsed % FRAME_MS);
+        for (let i = 0; i < gameSpeed; i++) {
+            if (gameState.active && !gameState.paused) update();
+        }
+        draw();
     }
+    loopId = requestAnimationFrame(gameLoop);
 }
 
 function update() {
@@ -1285,15 +1401,20 @@ function drawThemeMist(ctx) {
 }
 
 function draw() {
+    // CSS-pixel dimensions for gradients (independent of DPR canvas scale)
+    const dpr  = window._canvasDPR || 1;
+    const drawW = canvas.width  / dpr; // = GAME_WIDTH  * SCALE
+    const drawH = canvas.height / dpr; // = GAME_HEIGHT * SCALE
+
     const sky = getThemeSkyColors();
-    let skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    let skyGrad = ctx.createLinearGradient(0, 0, 0, drawH);
     skyGrad.addColorStop(0, sky.top);
     skyGrad.addColorStop(0.55, sky.mid);
     skyGrad.addColorStop(1, sky.bot);
     ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, drawW, drawH);
     ctx.fillStyle = sky.veil;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, drawW, drawH);
 
     ctx.save();
 
@@ -1368,9 +1489,11 @@ function draw() {
 
     ctx.drawImage(offscreenCanvas, 0, 0);
     drawSceneProps(ctx);
-    drawThemeAtmosphere(ctx, 'behind');
+    const _atmBehind = _getOrUpdateAtmosphereCache('behind');
+    if (_atmBehind) ctx.drawImage(_atmBehind, 0, 0); else drawThemeAtmosphere(ctx, 'behind');
     drawThemeMist(ctx);
-    drawThemeAtmosphere(ctx, 'front');
+    const _atmFront = _getOrUpdateAtmosphereCache('front');
+    if (_atmFront) ctx.drawImage(_atmFront, 0, 0); else drawThemeAtmosphere(ctx, 'front');
 
     puffins.forEach(p => p.draw(ctx));
     particles.forEach(p => p.draw(ctx));
@@ -1407,21 +1530,41 @@ function draw() {
     };
     const [gradeR, gradeG, gradeB] = postProcessGrades[getCurrentThemeName()] || [120, 170, 230];
     ctx.fillStyle = `rgba(${gradeR}, ${gradeG}, ${gradeB}, 0.05)`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, drawW, drawH);
 
     let vignette = ctx.createRadialGradient(
-        canvas.width * 0.5,
-        canvas.height * 0.48,
-        canvas.height * 0.25,
-        canvas.width * 0.5,
-        canvas.height * 0.5,
-        canvas.width * 0.62
+        drawW * 0.5,
+        drawH * 0.48,
+        drawH * 0.25,
+        drawW * 0.5,
+        drawH * 0.5,
+        drawW * 0.62
     );
     vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
     vignette.addColorStop(0.72, 'rgba(6, 12, 24, 0.10)');
     vignette.addColorStop(1, 'rgba(4, 8, 18, 0.30)');
     ctx.fillStyle = vignette;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, drawW, drawH);
+
+    // Long-press tooltip overlay
+    if (_touchTooltip) {
+        const tx = _touchTooltip.sx * SCALE;
+        const ty = Math.max(20, _touchTooltip.sy * SCALE - 18);
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.78)';
+        ctx.strokeStyle = '#7ec4ff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(tx - 28, ty - 12, 56, 16, 3);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#d3ebff';
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(_touchTooltip.label, tx, ty);
+        ctx.textAlign = 'left';
+        ctx.restore();
+    }
 
     if (typeof Achievements !== 'undefined') {
         Achievements.draw(ctx);

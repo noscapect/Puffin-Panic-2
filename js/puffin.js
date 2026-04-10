@@ -1,3 +1,37 @@
+// --- Puffin Body Sprite Cache ---
+// Pre-renders each body variant to a tiny offscreen canvas so draw calls
+// replace 25+ ellipse/arc ops with a single drawImage per puffin per frame.
+const _puffinBodyCache = {};
+const _BODY_CACHE_W = 12; // PUFFIN_W + room for beak overhang
+const _BODY_CACHE_H = 14; // PUFFIN_H + room for shadow
+
+function _buildBodyCacheEntry(state, animFrameVal) {
+    const c = document.createElement('canvas');
+    c.width  = _BODY_CACHE_W;
+    c.height = _BODY_CACHE_H;
+    const cctx = c.getContext('2d');
+    // Create a minimal proxy object that satisfies drawIllustratedBody
+    const proxy = {
+        state,
+        animFrame: animFrameVal,
+        actionTicks: 0,
+    };
+    proxy.drawIllustratedBody = Puffin.prototype.drawIllustratedBody.bind(proxy);
+    proxy.drawIllustratedBody(cctx);
+    return c;
+}
+
+function buildPuffinBodyCache() {
+    // Normal body – two walk strides (feet / bob vary by animFrame % 10)
+    _puffinBodyCache['normal_0'] = _buildBodyCacheEntry(ST_WALK, 0);  // stride A
+    _puffinBodyCache['normal_1'] = _buildBodyCacheEntry(ST_WALK, 5);  // stride B
+    // Static normal body for all non-walking, non-panic states
+    _puffinBodyCache['static']   = _buildBodyCacheEntry(ST_FALL, 0);
+    // Panic body – eye-beam blink on/off (period 12 frames)
+    _puffinBodyCache['panic_0']  = _buildBodyCacheEntry(ST_PANIC, 0); // beam on
+    _puffinBodyCache['panic_1']  = _buildBodyCacheEntry(ST_PANIC, 6); // beam off
+}
+
 // --- Puffin Class ---
 class Puffin {
     constructor(x, y) {
@@ -771,6 +805,7 @@ class Puffin {
             p.vx = Math.cos(angle) * (2 + Math.random() * 5);
             p.vy = Math.sin(angle) * (2 + Math.random() * 5) - 2;
             p.life = 20 + Math.random() * 30;
+            p.size = 2;
             particles.push(p);
         }
         
@@ -1010,6 +1045,34 @@ class Puffin {
         ctx.restore();
     }
 
+    // Returns the cache key for the current body variant
+    _getBodyCacheKey() {
+        const af = this.animFrame;
+        const isPanic = this.state === ST_PANIC || this.state === ST_NUKE_PANIC;
+        if (isPanic) {
+            return Math.floor(af / 6) % 2 === 0 ? 'panic_0' : 'panic_1';
+        }
+        // Walk and bash share the stride animation
+        if (this.state === ST_WALK || this.state === ST_BASH) {
+            return af % 10 < 5 ? 'normal_0' : 'normal_1';
+        }
+        return 'static';
+    }
+
+    // Draws body from cache (falls back to direct draw for splat)
+    _drawBodyFromCache(ctx) {
+        if (this.state === ST_SPLAT) {
+            this.drawIllustratedBody(ctx);
+            return;
+        }
+        const cached = _puffinBodyCache[this._getBodyCacheKey()];
+        if (cached) {
+            ctx.drawImage(cached, 0, 0);
+        } else {
+            this.drawIllustratedBody(ctx);
+        }
+    }
+
     draw(ctx) {
         if (this.state === ST_DEAD || this.state === ST_EXITED) return;
 
@@ -1028,7 +1091,7 @@ class Puffin {
             ctx.translate(-PUFFIN_W, 0); // adjust for flip
         }
 
-        this.drawIllustratedBody(ctx);
+        this._drawBodyFromCache(ctx);
         
         // Floater umbrella
         if (this.state === ST_FLOAT) {

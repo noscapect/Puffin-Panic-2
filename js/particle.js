@@ -15,6 +15,7 @@ class Particle {
         this.gravityScale = 1;
         this.collisionEnabled = true;
         this.fadeRate = 1;
+        this.size = 1; // pixel draw size (2 for sparks/explosions)
     }
     update() {
         if (this.settled) return;
@@ -74,7 +75,7 @@ class Particle {
         if (this.life > 0 || this.isPermanent) {
             let alpha = this.isPermanent ? 1 : Math.max(0, this.life / 40);
             ctx.fillStyle = `rgba(${this.color[0]},${this.color[1]},${this.color[2]},${alpha})`;
-            ctx.fillRect(Math.floor(this.x), Math.floor(this.y), 1, 1);
+            ctx.fillRect(Math.floor(this.x), Math.floor(this.y), this.size, this.size);
         }
     }
 }
@@ -103,6 +104,7 @@ function createSparkParticles(x, y) {
         p.vx = (Math.random() - 0.5) * 6;
         p.vy = (Math.random() - 0.5) * 6;
         p.life = 5 + Math.random() * 10;
+        p.size = 2;
         particles.push(p);
     }
 }
@@ -134,6 +136,7 @@ function createShockwave(x, y) {
         p.vx = Math.cos(angle) * 4;
         p.vy = Math.sin(angle) * 4;
         p.life = 10 + Math.random() * 5;
+        p.size = 2;
         particles.push(p);
     }
 }
