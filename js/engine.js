@@ -119,6 +119,18 @@ function updateTextureBlend(value) {
 let canvas, ctx, offscreenCanvas, offCtx;
 let terrainData = new Uint8Array(GAME_WIDTH * GAME_HEIGHT);
 let terrainImgData;
+// --- Volumetric liquid state (parallel to terrainData) ---
+let liquidData    = new Uint8Array(GAME_WIDTH * GAME_HEIGHT);
+let liquidCanvas, liquidCtx, liquidImgData;
+let _liquidDirty  = false; // set true whenever liquid changes
+// --- Falling sand state (filled by digHole in sand-theme levels) ---
+let sandData      = new Uint8Array(GAME_WIDTH * GAME_HEIGHT);
+// --- Liquid lava state (filled from level lavaZones; deadly to puffins) ---
+let lavaData      = new Uint8Array(GAME_WIDTH * GAME_HEIGHT);
+// --- Bridge stress (puffin-frames accumulated on each unsupported cell) ---
+let bridgeStress  = new Uint16Array(GAME_WIDTH * GAME_HEIGHT);
+// --- Horizontal wind force (theme-driven; affects floaters + particles) ---
+let _windX = 0;
 let puffins = [];
 let particles = [];
 let activeSkill = null;
@@ -493,6 +505,13 @@ window.onload = function() {
     offCtx = offscreenCanvas.getContext('2d');
     offCtx.imageSmoothingEnabled = true; // terrain texture blending uses smoothing
 
+    // Liquid layer canvas — same resolution as terrain, drawn on top
+    liquidCanvas = document.createElement('canvas');
+    liquidCanvas.width  = GAME_WIDTH;
+    liquidCanvas.height = GAME_HEIGHT;
+    liquidCtx = liquidCanvas.getContext('2d');
+    liquidImgData = new ImageData(GAME_WIDTH, GAME_HEIGHT);
+
     // Build puffin body sprite cache now that canvas APIs are available
     buildPuffinBodyCache();
 
@@ -610,6 +629,25 @@ function loadLevel(index) {
     terrainData.fill(0);
     lvl.buildTerrain(terrainData, GAME_WIDTH, GAME_HEIGHT);
     renderTerrainToOffscreen();
+
+    // ── Volumetric liquid: reset then fill from level waterZones ──
+    liquidData.fill(0);
+    _liquidDirty = false;
+    if (liquidCtx) liquidCtx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    if (Array.isArray(lvl.waterZones) && lvl.waterZones.length) {
+        initLiquidFromZones(lvl.waterZones);
+        renderLiquidLayer();
+    }
+
+    // ── Sand, lava, bridge stress reset ───────────────────────────
+    sandData.fill(0);
+    lavaData.fill(0);
+    bridgeStress.fill(0);
+    _windX = 0; // will be recomputed every tick in update()
+    if (Array.isArray(lvl.lavaZones) && lvl.lavaZones.length) {
+        initLavaFromZones(lvl.lavaZones);
+        renderLiquidLayer(); // lava is rendered on the same layer
+    }
     
     buildUI();
     
@@ -782,14 +820,41 @@ function update() {
     hoveredPuffin = getBestPuffinAt(mouseX, mouseY, activeSkill);
     
     // Update entities
+    // ── Wind (gentle oscillation around theme base value) ──────────
+    _windX = (THEME_WIND[getCurrentThemeName()] || 0) * (0.9 + 0.2 * Math.sin(gameState.ticks * 0.009));
+
+    // Apply wind drag to airborne, non-settled particles before they update.
+    if (_windX !== 0) {
+        particles.forEach(p => {
+            if (!p.settled && p.collisionEnabled) p.vx += _windX * 0.1;
+        });
+    }
+
     puffins.forEach(p => p.update());
     particles.forEach(p => p.update());
-    
+
+    // Accumulate bridge stress: walking/blocking puffins stress the terrain cell
+    // under their feet. Only cells with no solid support below can crumble.
+    puffins.forEach(p => {
+        if (p.state !== ST_WALK && p.state !== ST_BLOCK) return;
+        const footX = Math.floor(p.x + PUFFIN_W / 2);
+        const footY = Math.floor(p.y + PUFFIN_H);
+        if (footX < 0 || footX >= GAME_WIDTH || footY < 0 || footY >= GAME_HEIGHT) return;
+        const idx = footY * GAME_WIDTH + footX;
+        if (bridgeStress[idx] < 65535) bridgeStress[idx]++;
+    });
+
     // Cleanup particles
     particles = particles.filter(p => p.life > 0 || p.isPermanent);
-    
+
     // UI
     if (gameState.ticks % 10 === 0) updateUI();
+
+    // Simulation subsystems (staggered across ticks to spread CPU cost)
+    if (gameState.ticks % 2  === 0) updateLiquid();
+    if (gameState.ticks % 3  === 0) updateSand();
+    updateLava();   // internally throttled by LAVA_FLOW_INTERVAL
+    if (gameState.ticks % 30 === 0) checkBridgeCollapse();
     
     // Update achievement display timer
     if (typeof Achievements !== 'undefined') {
@@ -797,6 +862,37 @@ function update() {
     }
     
     checkEndCondition();
+}
+
+// ─── Bridge Collapse ──────────────────────────────────────────────────────────
+// Scans for heavily-stressed terrain cells that have no solid support below.
+// When stress exceeds threshold the cell crumbles — only spans/overhangs, never
+// floor cells (those cells always have terrain beneath them).
+function checkBridgeCollapse() {
+    const W = GAME_WIDTH, H = GAME_HEIGHT;
+    for (let y = 1; y < H - 1; y++) {
+        for (let x = 0; x < W; x++) {
+            const i = y * W + x;
+            if (bridgeStress[i] < BRIDGE_COLLAPSE_THRESHOLD) continue;
+            if (terrainData[i] === 0 || terrainData[i] === 10) continue; // air or steel
+            // Only collapse if the cell immediately below is open air —
+            // that means this cell is a span, not a supported floor.
+            if (terrainData[i + W] !== 0) continue;
+
+            bridgeStress[i] = 0;
+            setTerrain(x, y, 0);
+            updateTerrainPixels(x - 1, y - 1, 3, 3); // redraw neighbourhood
+            // Debris particle burst
+            const debrisColor = getThemeColors().terrain;
+            for (let d = 0; d < 5; d++) {
+                const p = new Particle(x + Math.random(), y + Math.random(), debrisColor, false);
+                p.vx = (Math.random() - 0.5) * 4;
+                p.vy = 0.5 + Math.random() * 3;
+                p.life = 14 + Math.random() * 10;
+                particles.push(p);
+            }
+        }
+    }
 }
 
 // ─── Scene Props ──────────────────────────────────────────────────────────────
@@ -928,18 +1024,15 @@ function drawSceneProps(ctx) {
     const icyThemes = new Set(['ice', 'snow', 'crystal', 'black_ice', 'packed_snow', 'frozen_mud', 'crystal_dense', 'cliff_chalk']);
     const grassThemes = new Set(['grass', 'mossy', 'mossy_ruin', 'fungus_glow', 'concept_999']);
 
-    if (lvl && lvl.waterZones) {
-        for (const zone of lvl.waterZones) {
-            drawWaterZone(ctx, zone, gameState.ticks);
-        }
-    }
+    // Water zones are now handled by the volumetric liquid simulation.
+    // drawWaterZone() calls are intentionally removed here.
 
-    // Level-specific declared props
+    // Level-specific declared props (ropes, signs; water props now rendered via liquid layer)
     if (lvl && lvl.props) {
         for (const prop of lvl.props) {
             if (prop.type === 'rope')      drawRopeBridge(ctx, prop);
             else if (prop.type === 'sign') drawSignPost(ctx, prop);
-            else if (prop.type === 'water') drawWaterZone(ctx, prop, gameState.ticks);
+            // 'water' props are handled by liquid simulation — skip them here
         }
     }
 
@@ -1488,6 +1581,10 @@ function draw() {
     ctx.restore();
 
     ctx.drawImage(offscreenCanvas, 0, 0);
+
+    // Draw volumetric liquid layer (rendered at game resolution, scaled up with terrain)
+    if (liquidCanvas) ctx.drawImage(liquidCanvas, 0, 0);
+
     drawSceneProps(ctx);
     const _atmBehind = _getOrUpdateAtmosphereCache('behind');
     if (_atmBehind) ctx.drawImage(_atmBehind, 0, 0); else drawThemeAtmosphere(ctx, 'behind');

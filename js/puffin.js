@@ -212,6 +212,28 @@ class Puffin {
             }
         }
         
+        // Lava contact: puffins touching liquid lava cells die instantly.
+        // (Lava-theme terrain is walkable; only lavaData cells are deadly.)
+        if (typeof isLavaAt === 'function' &&
+            this.state !== ST_DEAD && this.state !== ST_EXITED && this.state !== ST_SPLAT) {
+            const lcx = Math.floor(this.x + PUFFIN_W / 2);
+            const lcy = Math.floor(this.y + PUFFIN_H * 0.75);
+            if (isLavaAt(lcx, lcy) || isLavaAt(lcx, lcy + 1)) {
+                this.state = ST_DEAD;
+                gameState.dead++;
+                // Small fire/ember burst
+                const fireColors = [[255,100,0],[255,180,0],[255,60,0]];
+                for (let fi = 0; fi < 8; fi++) {
+                    const fc = fireColors[fi % 3];
+                    const fp = new Particle(this.x + PUFFIN_W/2, this.y + PUFFIN_H/2, fc, false);
+                    fp.vx = (Math.random() - 0.5) * 5;
+                    fp.vy = -Math.random() * 4;
+                    fp.life = 15 + Math.random() * 10;
+                    particles.push(fp);
+                }
+            }
+        }
+
         // Bounds check
         if (this.y > GAME_HEIGHT) {
             this.state = ST_DEAD;
@@ -220,15 +242,40 @@ class Puffin {
     }
 
     getWaterZoneAt(px, py) {
+        // ── Volumetric liquid simulation (primary) ───────────────────
+        // Check whether the puffin's body intersects any cell containing liquid.
+        // We probe three points: the feet, the centre, and 4px above feet.
+        const probePoints = [
+            { x: Math.floor(px + PUFFIN_W / 2), y: Math.floor(py + PUFFIN_H)     },
+            { x: Math.floor(px + PUFFIN_W / 2), y: Math.floor(py + PUFFIN_H * 0.7) },
+            { x: Math.floor(px + PUFFIN_W / 2), y: Math.floor(py + PUFFIN_H - 4)  },
+        ];
+
+        for (const pt of probePoints) {
+            if (pt.x < 0 || pt.x >= GAME_WIDTH || pt.y < 0 || pt.y >= GAME_HEIGHT) continue;
+            if ((typeof liquidData !== 'undefined') && liquidData[pt.y * GAME_WIDTH + pt.x] > 0) {
+                // Build a synthetic zone from the live liquid topology at this column.
+                const colX = Math.floor(px + PUFFIN_W / 2);
+                const surfY = (typeof getLiquidSurfaceY === 'function') ? getLiquidSurfaceY(colX) : pt.y;
+                const botY  = (typeof getLiquidBottomY  === 'function') ? getLiquidBottomY(colX, surfY) : pt.y + 10;
+                return {
+                    x: 0,               // full-width so boundary checks below don't falsely exit
+                    y: surfY,
+                    w: GAME_WIDTH,
+                    h: botY - surfY + 1,
+                    _fromLiquidSim: true,
+                };
+            }
+        }
+
+        // ── Fallback: static waterZone rectangles (levels without liquid) ──
         const lvl = LEVELS[currentLevelIndex];
         if (!lvl || !lvl.waterZones) return null;
         for (const zone of lvl.waterZones) {
             const inX = px >= zone.x && px <= zone.x + zone.w;
             const bodyTouchesWater = (this.y + PUFFIN_H) >= zone.y && this.y <= (zone.y + zone.h + 2);
             const pointInWater = py >= zone.y && py <= zone.y + zone.h;
-            if (inX && (bodyTouchesWater || pointInWater)) {
-                return zone;
-            }
+            if (inX && (bodyTouchesWater || pointInWater)) return zone;
         }
         return null;
     }
@@ -236,11 +283,15 @@ class Puffin {
     doSwim(zone) {
         // Keep puffins buoyant at the surface with a tiny bob.
         const bob = Math.sin(this.animFrame * 0.18) * 0.35;
-        const targetY = zone.y - Math.floor(PUFFIN_H * 0.55) + bob;
+        // For liquid-sim zones the surface Y updates each tick, so we re-query it.
+        const surfaceY = zone._fromLiquidSim
+            ? (typeof getLiquidSurfaceY === 'function' ? getLiquidSurfaceY(Math.floor(this.x + PUFFIN_W / 2)) : zone.y)
+            : zone.y;
+        const targetY = surfaceY - Math.floor(PUFFIN_H * 0.55) + bob;
         const dy = targetY - this.y;
         this.y += Math.max(-1.2, Math.min(1.2, dy));
 
-        // Safety clamp so they cannot sink to the bottom of the water zone.
+        // Safety clamp so they cannot sink below the liquid body.
         const maxDepthY = zone.y + zone.h - PUFFIN_H + 1;
         if (this.y > maxDepthY) this.y = maxDepthY;
 
@@ -286,9 +337,12 @@ class Puffin {
                 return false;
             };
 
-            const outOfPool = nextX < zone.x + 1 || nextX > (zone.x + zone.w - PUFFIN_W - 1);
-            const nearRightEdge = this.vx > 0 && (this.x + PUFFIN_W) >= (zone.x + zone.w - 3);
-            const nearLeftEdge = this.vx < 0 && this.x <= (zone.x + 3);
+            const outOfPool = zone._fromLiquidSim
+                // Liquid-sim zone: check if the cell ahead has no liquid (reached dry shore)
+                ? getLiquidAt(Math.floor(nextX + (this.vx > 0 ? PUFFIN_W : 0)), Math.floor(this.y + PUFFIN_H)) === 0
+                : nextX < zone.x + 1 || nextX > (zone.x + zone.w - PUFFIN_W - 1);
+            const nearRightEdge = !zone._fromLiquidSim && this.vx > 0 && (this.x + PUFFIN_W) >= (zone.x + zone.w - 3);
+            const nearLeftEdge  = !zone._fromLiquidSim && this.vx < 0 && this.x <= (zone.x + 3);
 
             if (outOfPool || nearRightEdge || nearLeftEdge) {
                 if (tryShoreExit()) return;
@@ -306,7 +360,7 @@ class Puffin {
             if (typeof createSwimSplashParticles === 'function' && this.animFrame % 6 === 0) {
                 createSwimSplashParticles(
                     this.x + PUFFIN_W / 2,
-                    zone.y + 1,
+                    surfaceY + 1,
                     this.vx
                 );
             }
@@ -317,6 +371,12 @@ class Puffin {
         this.vy += 0.2; // gravity
         if (this.state === ST_FLOAT && this.vy > 1.0) this.vy = 1.0;
         if (this.state === ST_FALL && this.vy > 3.0) this.vy = 3.0; // max fall speed
+
+        // Wind drifts floating puffins horizontally (falling puffins feel it less).
+        if (typeof _windX !== 'undefined' && _windX !== 0) {
+            const windFactor = this.state === ST_FLOAT ? 0.5 : 0.15;
+            this.x = Math.max(0, Math.min(GAME_WIDTH - PUFFIN_W, this.x + _windX * windFactor));
+        }
         
         let steps = Math.ceil(this.vy);
         let landed = false;
@@ -793,6 +853,12 @@ class Puffin {
         
         // Larger explosion radius with more debris
         digHole(Math.floor(this.x), Math.floor(this.y + PUFFIN_H/2), 20);
+
+        // Ice-theme levels: melt dug-out terrain cells into liquid water.
+        // meltIceInRadius runs after digHole so it only fills now-empty cells.
+        if (typeof meltIceInRadius === 'function') {
+            meltIceInRadius(Math.floor(this.x), Math.floor(this.y + PUFFIN_H/2), 20);
+        }
         
         // Add extra debris particles
         for (let i = 0; i < 15; i++) {
@@ -897,126 +963,141 @@ class Puffin {
         ctx.translate(0, bob);
 
         // Soft body shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
         ctx.beginPath();
-        ctx.ellipse(4.0, 10.7, 3.0, 1.0, 0, 0, Math.PI * 2);
+        ctx.ellipse(4.0, 10.8, 3.1, 0.95, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Body gradient (deeper charcoal so face markings pop like a puffin)
-        const bodyGrad = ctx.createLinearGradient(1.2, 2.0, 7.0, 11.2);
-        bodyGrad.addColorStop(0, '#2d3746');
-        bodyGrad.addColorStop(0.55, '#161f2d');
-        bodyGrad.addColorStop(1, '#0d141f');
+        // ── DARK BODY (back and sides) ──────────────────────────────
+        // Slightly more compact height (ry 5.15→4.6) so the bird reads as
+        // the round barrel-shaped puffin rather than a tall penguin.
+        const bodyGrad = ctx.createLinearGradient(1.2, 2.0, 7.2, 11.5);
+        bodyGrad.addColorStop(0, '#2b3546');
+        bodyGrad.addColorStop(0.55, '#16202e');
+        bodyGrad.addColorStop(1, '#0e161f');
         ctx.fillStyle = bodyGrad;
         ctx.beginPath();
-        ctx.ellipse(3.9, 6.35, 3.25, 5.15, 0, 0, Math.PI * 2);
+        ctx.ellipse(3.7, 6.5, 3.25, 4.6, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Belly
-        const bellyGrad = ctx.createLinearGradient(2.0, 4.0, 5.8, 10.2);
-        bellyGrad.addColorStop(0, '#fdfdfd');
-        bellyGrad.addColorStop(1, '#ced6df');
-        ctx.fillStyle = bellyGrad;
+        // ── UNIFIED WHITE FRONT (chest + belly) ─────────────────────
+        // Key visual difference from a penguin: instead of an isolated central
+        // "tuxedo" belly patch, puffins have a broad white front that stretches
+        // from the throat all the way to the lower belly as one continuous area.
+        const frontGrad = ctx.createLinearGradient(2.8, 4.0, 6.6, 11.2);
+        frontGrad.addColorStop(0, '#ffffff');
+        frontGrad.addColorStop(0.5, '#f3f6fa');
+        frontGrad.addColorStop(1, '#d4dce7');
+        ctx.fillStyle = frontGrad;
         ctx.beginPath();
-        ctx.ellipse(4.0, 7.55, 1.95, 3.15, 0, 0, Math.PI * 2);
+        ctx.ellipse(4.5, 7.8, 2.2, 3.6, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Wing
-        ctx.fillStyle = '#0f141d';
+        // ── WING ─────────────────────────────────────────────────────
+        ctx.fillStyle = '#0d1320';
         ctx.beginPath();
-        ctx.ellipse(2.45, 7.15, 1.2, 2.45, 0.22, 0, Math.PI * 2);
+        ctx.ellipse(2.25, 7.0, 1.1, 2.65, 0.2, 0, Math.PI * 2);
         ctx.fill();
 
-        // Head cap (puffin crown)
+        // ── HEAD CAP (black crown and back of head) ──────────────────
+        // Larger head circle (2.15→2.4) — puffins have a big round head.
         ctx.fillStyle = '#101722';
         ctx.beginPath();
-        ctx.arc(3.9, 3.1, 2.15, 0, Math.PI * 2);
+        ctx.arc(3.8, 2.85, 2.4, 0, Math.PI * 2);
         ctx.fill();
 
-        // White cheek mask to break the penguin-like look and read as puffin
-        ctx.fillStyle = '#f7f9fc';
+        // ── LARGE WHITE FACE MASK ────────────────────────────────────
+        // Puffins have a very prominent white face patch covering almost the
+        // entire front of the head — much larger than a penguin's. This is the
+        // single biggest visual cue that distinguishes a puffin.
+        const faceGrad = ctx.createLinearGradient(3.0, 1.3, 6.8, 4.8);
+        faceGrad.addColorStop(0, '#ffffff');
+        faceGrad.addColorStop(1, '#eef2f8');
+        ctx.fillStyle = faceGrad;
         ctx.beginPath();
-        ctx.ellipse(4.95, 3.45, 1.7, 1.35, -0.08, 0, Math.PI * 2);
+        ctx.ellipse(4.9, 3.05, 1.95, 1.8, -0.05, 0, Math.PI * 2);
         ctx.fill();
 
-        // Dark collar line between head and chest
-        ctx.strokeStyle = 'rgba(12, 18, 28, 0.75)';
-        ctx.lineWidth = 0.35;
+        // Dark collar arc separating head cap from chest
+        ctx.strokeStyle = 'rgba(10, 16, 26, 0.65)';
+        ctx.lineWidth = 0.42;
         ctx.beginPath();
-        ctx.arc(3.9, 4.7, 1.75, Math.PI * 0.18, Math.PI * 0.95);
+        ctx.arc(3.8, 4.8, 1.82, Math.PI * 0.18, Math.PI * 0.92);
         ctx.stroke();
 
-        // Beak — larger, triangular, striped puffin beak
+        // ── BEAK — enormous, triangular, multi-colour ────────────────
+        // The puffin beak is their signature feature: large, wedge-shaped, and
+        // banded with orange, yellow, powder-blue and red sections.
         const isPanic = this.state === ST_PANIC || this.state === ST_NUKE_PANIC;
         if (isPanic) {
-            // Open beak shape
-            ctx.fillStyle = '#ea8a20';
+            // Open beak (wider gap between mandibles)
+            ctx.fillStyle = '#e07a18';
             ctx.beginPath();
-            ctx.moveTo(5.0, 2.95);
-            ctx.lineTo(9.05, 3.75);
-            ctx.lineTo(8.45, 5.35);
-            ctx.lineTo(5.25, 5.75);
+            ctx.moveTo(5.15, 2.55);
+            ctx.lineTo(10.20, 3.65);
+            ctx.lineTo(9.50, 5.65);
+            ctx.lineTo(5.35, 6.10);
             ctx.closePath();
             ctx.fill();
 
-            // Lower mandible tint
-            ctx.fillStyle = '#f7a43b';
+            // Lower mandible highlight
+            ctx.fillStyle = '#f29d35';
             ctx.beginPath();
-            ctx.moveTo(5.25, 4.35);
-            ctx.lineTo(8.65, 5.05);
-            ctx.lineTo(5.45, 5.65);
+            ctx.moveTo(5.35, 4.45);
+            ctx.lineTo(9.35, 5.25);
+            ctx.lineTo(5.50, 5.98);
             ctx.closePath();
             ctx.fill();
 
-            // Mouth interior
-            ctx.fillStyle = '#cc2200';
+            // Open mouth interior
+            ctx.fillStyle = '#c01e00';
             ctx.beginPath();
-            ctx.ellipse(7.25, 4.45, 0.78, 0.48, 0.06, 0, Math.PI * 2);
+            ctx.ellipse(7.45, 4.75, 0.82, 0.44, 0.05, 0, Math.PI * 2);
             ctx.fill();
 
-            // Puffin beak color bars
-            ctx.fillStyle = '#ffd24f';
-            ctx.fillRect(6.2, 3.35, 0.55, 1.9);
-            ctx.fillStyle = '#7fc0ff';
-            ctx.fillRect(5.6, 3.15, 0.42, 1.95);
+            // Beak colour bands (puffin trademark)
+            ctx.fillStyle = '#ffd050'; ctx.fillRect(6.65, 3.05, 0.72, 2.2);
+            ctx.fillStyle = '#88c2ff'; ctx.fillRect(5.90, 2.75, 0.58, 2.4);
+            ctx.fillStyle = '#ce3618'; ctx.fillRect(9.05, 3.90, 0.90, 1.0);
         } else {
-            ctx.fillStyle = '#ea8a20';
+            // Closed beak — larger and more prominent than before
+            ctx.fillStyle = '#e07a18';
             ctx.beginPath();
-            ctx.moveTo(5.05, 3.05);
-            ctx.lineTo(8.85, 4.05);
-            ctx.lineTo(5.25, 5.55);
+            ctx.moveTo(5.15, 2.62);
+            ctx.lineTo(10.10, 3.92);
+            ctx.lineTo(5.35, 5.98);
             ctx.closePath();
             ctx.fill();
 
-            ctx.fillStyle = '#f5a036';
+            // Lower mandible lighter tone
+            ctx.fillStyle = '#f29d35';
             ctx.beginPath();
-            ctx.moveTo(5.25, 4.25);
-            ctx.lineTo(8.45, 5.0);
-            ctx.lineTo(5.4, 5.55);
+            ctx.moveTo(5.35, 4.35);
+            ctx.lineTo(9.55, 5.05);
+            ctx.lineTo(5.50, 5.92);
             ctx.closePath();
             ctx.fill();
 
-            // Signature puffin beak stripes
-            ctx.fillStyle = '#ffd24f';
-            ctx.fillRect(6.1, 3.45, 0.55, 1.7);
-            ctx.fillStyle = '#6fb4ff';
-            ctx.fillRect(5.5, 3.2, 0.42, 1.8);
-            ctx.fillStyle = '#f55d3a';
-            ctx.fillRect(7.75, 4.0, 0.65, 0.82);
+            // Multi-colour beak bands
+            ctx.fillStyle = '#ffd050'; ctx.fillRect(6.60, 3.12, 0.72, 2.55);
+            ctx.fillStyle = '#88c2ff'; ctx.fillRect(5.85, 2.84, 0.58, 2.65);
+            ctx.fillStyle = '#ce3618'; ctx.fillRect(8.90, 4.12, 0.88, 0.96);
         }
 
-        // Eye + pupil + glint — anchored on the white face mask
+        // ── EYE (with orange-red orbital ring) ───────────────────────
+        // Atlantic puffins have a distinctive orange-red eye ring. Adding this
+        // is the clearest close-up identifier that this isn't a penguin.
         if (isPanic) {
             ctx.fillStyle = '#fff';
             ctx.beginPath();
-            ctx.arc(4.55, 3.0, 0.9, 0, Math.PI * 2);
+            ctx.arc(4.58, 2.90, 0.90, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = '#111';
             ctx.beginPath();
-            ctx.arc(4.4, 3.15, 0.28, 0, Math.PI * 2);
+            ctx.arc(4.46, 3.04, 0.28, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.90)';
-            ctx.fillRect(4.2, 2.65, 0.22, 0.22);
+            ctx.fillRect(4.28, 2.62, 0.22, 0.22);
             if (Math.floor(this.animFrame / 6) % 2 === 0) {
                 ctx.fillStyle = 'rgba(100, 185, 255, 0.75)';
                 ctx.beginPath();
@@ -1024,23 +1105,28 @@ class Puffin {
                 ctx.fill();
             }
         } else {
+            // Orange-red orbital ring — the puffin's eye ornament
+            ctx.fillStyle = '#bf4a0e';
+            ctx.beginPath();
+            ctx.arc(4.60, 2.88, 0.90, 0, Math.PI * 2);
+            ctx.fill();
             ctx.fillStyle = '#fff';
             ctx.beginPath();
-            ctx.arc(4.58, 3.18, 0.72, 0, Math.PI * 2);
+            ctx.arc(4.60, 2.88, 0.68, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = '#111';
             ctx.beginPath();
-            ctx.arc(4.73, 3.24, 0.32, 0, Math.PI * 2);
+            ctx.arc(4.72, 2.93, 0.32, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-            ctx.fillRect(4.82, 2.88, 0.22, 0.22);
+            ctx.fillRect(4.80, 2.57, 0.22, 0.22);
         }
 
-        // Feet
-        const step = (this.state === ST_WALK || this.state === ST_BASH) ? ((this.animFrame % 10 < 5) ? 0.35 : -0.35) : 0;
-        ctx.fillStyle = '#e18c2a';
-        ctx.fillRect(2.35, 10.9 + step * 0.25, 1.55, 0.9);
-        ctx.fillRect(4.85, 10.9 - step * 0.25, 1.55, 0.9);
+        // ── FEET: stubby and bright orange (puffin's vivid feet) ─────
+        const step = (this.state === ST_WALK || this.state === ST_BASH) ? ((this.animFrame % 10 < 5) ? 0.38 : -0.38) : 0;
+        ctx.fillStyle = '#df7e1a';
+        ctx.fillRect(2.25, 10.90 + step * 0.26, 1.65, 0.95);
+        ctx.fillRect(4.70, 10.90 - step * 0.26, 1.65, 0.95);
 
         ctx.restore();
     }

@@ -4,7 +4,31 @@ const GAME_HEIGHT = 220;
 const SCALE = 4; // Canvas is 1600x880
 const FPS = 30;
 const FRAME_MS = 1000 / FPS;
-const FALL_DEATH_DIST = 70; 
+const FALL_DEATH_DIST = 70;
+
+// --- Volumetric liquid constants ---
+const LIQUID_MAX   = 8;   // full cell (0 = dry, 1-8 = water units)
+const LIQUID_FLOW  = 4;   // max units transferred per simulation step
+
+// --- Falling sand themes (loose material that pours when dislodged) ---
+const SAND_THEMES = new Set(['desert', 'sandstone', 'mud', 'toxic_sludge']);
+
+// --- Bridge crumble threshold (puffin-frames of stress on an unsupported cell) ---
+// 600 ≈ 10 puffins each spending ~2 seconds stationary on the same span.
+const BRIDGE_COLLAPSE_THRESHOLD = 600;
+
+// --- Per-theme wind (positive = rightward, negative = leftward) ---
+// Floaters and airborne particles are nudged by this each frame.
+const THEME_WIND = {
+    desert:      0.13,
+    sandstone:   0.10,
+    salt_flats:  0.08,
+    snow:       -0.07,
+    packed_snow:-0.06,
+    ice:        -0.10,
+    black_ice:   0.11,
+};
+
 
 
 // Puffin States
