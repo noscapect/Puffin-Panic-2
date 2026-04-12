@@ -6,10 +6,14 @@ const _BODY_CACHE_W = 12; // PUFFIN_W + room for beak overhang
 const _BODY_CACHE_H = 14; // PUFFIN_H + room for shadow
 
 function _buildBodyCacheEntry(state, animFrameVal) {
+    // Pre-render at full screen resolution (SCALE × DPR) so the sprite is sharp
+    // when blitted 1:1 onto the canvas — no upscaling blur from smooth arc drawing.
+    const s = (window._canvasDPR || 1) * SCALE;
     const c = document.createElement('canvas');
-    c.width  = _BODY_CACHE_W;
-    c.height = _BODY_CACHE_H;
+    c.width  = _BODY_CACHE_W * s;
+    c.height = _BODY_CACHE_H * s;
     const cctx = c.getContext('2d');
+    cctx.scale(s, s); // draw body in game-coord space; canvas stores at screen resolution
     // Create a minimal proxy object that satisfies drawIllustratedBody
     const proxy = {
         state,
@@ -31,6 +35,15 @@ function buildPuffinBodyCache() {
     _puffinBodyCache['panic_0']  = _buildBodyCacheEntry(ST_PANIC, 0); // beam on
     _puffinBodyCache['panic_1']  = _buildBodyCacheEntry(ST_PANIC, 6); // beam off
 }
+
+window.PuffinRender = {
+    getBodyCacheCanvasByKey(key) {
+        return _puffinBodyCache[key] || null;
+    },
+    getBodyCacheSize() {
+        return { w: _BODY_CACHE_W, h: _BODY_CACHE_H };
+    }
+};
 
 // --- Puffin Class ---
 class Puffin {
@@ -1153,14 +1166,16 @@ class Puffin {
         }
         const cached = _puffinBodyCache[this._getBodyCacheKey()];
         if (cached) {
-            ctx.drawImage(cached, 0, 0);
+            // Specify dest size in game coords — the high-res sprite maps 1:1 to screen pixels.
+            ctx.drawImage(cached, 0, 0, _BODY_CACHE_W, _BODY_CACHE_H);
         } else {
             this.drawIllustratedBody(ctx);
         }
     }
 
-    draw(ctx) {
+    draw(ctx, options = null) {
         if (this.state === ST_DEAD || this.state === ST_EXITED) return;
+        const skipBodyOnly = !!(options && options.skipBody);
 
         // Ground shadow (skipped when airborne)
         if (this.state !== ST_FALL && this.state !== ST_FLOAT && this.state !== ST_SPLAT) {
@@ -1177,7 +1192,9 @@ class Puffin {
             ctx.translate(-PUFFIN_W, 0); // adjust for flip
         }
 
-        this._drawBodyFromCache(ctx);
+        if (!skipBodyOnly) {
+            this._drawBodyFromCache(ctx);
+        }
         
         // Floater umbrella
         if (this.state === ST_FLOAT) {

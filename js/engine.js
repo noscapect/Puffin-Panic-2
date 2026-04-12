@@ -117,6 +117,7 @@ function updateTextureBlend(value) {
 
 // --- Game Engine Variables ---
 let canvas, ctx, offscreenCanvas, offCtx;
+let renderer = null;
 let terrainData = new Uint8Array(GAME_WIDTH * GAME_HEIGHT);
 let terrainImgData;
 // --- Volumetric liquid state (parallel to terrainData) ---
@@ -151,6 +152,9 @@ let nukeActivated = false;
 let nukeCountdown = -1;
 let screenShake = 0;
 let screenShakeIntensity = 0;
+let _phase3Layers = { scene: null, mist: null, atmBehind: null, atmFront: null, weatherAtmos: null, entities: null };
+let _weatherSeeds = null;
+const WEATHER_PARTICLE_CAP = 180;
 
 // --- Atmosphere cache (updated every 2 ticks to save draw calls on mobile) ---
 let _atmCache = { behind: null, front: null, lastTick: -999, theme: '' };
@@ -179,6 +183,172 @@ function _getOrUpdateAtmosphereCache(layer) {
         _atmCache.lastTick = t;
     }
     return _atmCache[layer] ? _atmCache[layer].c : null;
+}
+
+function _getPhase3Layer(name) {
+    if (!_phase3Layers[name]) {
+        const c = document.createElement('canvas');
+        c.width = GAME_WIDTH;
+        c.height = GAME_HEIGHT;
+        _phase3Layers[name] = { c, cx: c.getContext('2d') };
+    }
+    return _phase3Layers[name];
+}
+
+function _initWeatherSeeds() {
+    if (_weatherSeeds) return;
+    _weatherSeeds = new Array(WEATHER_PARTICLE_CAP);
+    for (let i = 0; i < WEATHER_PARTICLE_CAP; i++) {
+        _weatherSeeds[i] = {
+            a: Math.random(),
+            b: Math.random(),
+            c: Math.random(),
+            d: Math.random()
+        };
+    }
+}
+
+function _getWeatherTypeForTheme(theme) {
+    if (['snow', 'packed_snow', 'black_ice', 'frozen_mud', 'ice'].includes(theme)) return 'snow';
+    if (['desert', 'sandstone', 'salt_flats'].includes(theme)) return 'sandstorm';
+    if (['lava', 'volcanic_ash', 'obsidian_floor'].includes(theme)) return 'ash';
+    if (['water', 'deep_sea', 'coral', 'wet_cave_stone'].includes(theme)) return 'bubbles';
+    if (['grass', 'cliff_chalk', 'slate_ledge', 'wood_planks', 'rusty_metal', 'mossy_ruin'].includes(theme)) return 'rain';
+    return null;
+}
+
+function _getWeatherFlash(theme, ticks) {
+    return 0;
+}
+
+function _buildWeatherParticleCloud(theme, ticks, width, height, windX) {
+    _initWeatherSeeds();
+    const type = _getWeatherTypeForTheme(theme);
+    if (!type) return [];
+
+    let count = 120;
+    if (type === 'rain') count = 170;
+    else if (type === 'snow') count = 145;
+    else if (type === 'sandstorm') count = 130;
+    else if (type === 'ash') count = 115;
+
+    const points = [];
+    const t = ticks;
+    const wrap = (v, m) => ((v % m) + m) % m;
+
+    for (let i = 0; i < count && i < _weatherSeeds.length; i++) {
+        const s = _weatherSeeds[i];
+        let x = 0, y = 0, size = 1, alpha = 0.3, color = [220, 230, 240];
+
+        if (type === 'snow') {
+            const fall = 0.18 + s.b * 0.34;
+            const drift = (s.c - 0.5) * 0.5 + windX * 0.7;
+            x = wrap(s.a * width + t * drift + Math.sin(t * 0.01 + s.d * 6.28) * 5, width);
+            y = wrap(s.d * height + t * fall, height);
+            size = s.b > 0.66 ? 2 : 1;
+            alpha = 0.35 + s.c * 0.35;
+            color = [220 + Math.floor(s.a * 30), 235 + Math.floor(s.b * 20), 245 + Math.floor(s.c * 10)];
+        } else if (type === 'sandstorm') {
+            const dir = windX >= 0 ? 1 : -1;
+            const speed = (1.2 + s.b * 2.2 + Math.abs(windX) * 1.1) * dir;
+            x = wrap(s.a * width + t * speed, width);
+            y = wrap(s.d * height + Math.sin(t * 0.02 + s.c * 9) * 8, height);
+            size = s.a > 0.72 ? 2 : 1;
+            alpha = 0.20 + s.b * 0.22;
+            color = [205 + Math.floor(s.a * 35), 170 + Math.floor(s.c * 35), 90 + Math.floor(s.d * 35)];
+        } else if (type === 'ash') {
+            const fall = 0.16 + s.b * 0.36;
+            const swirl = (s.c - 0.5) * 0.7 + Math.sin(t * 0.01 + s.a * 5) * 0.4;
+            x = wrap(s.a * width + t * swirl, width);
+            y = wrap(s.d * height + t * fall, height);
+            size = s.d > 0.75 ? 2 : 1;
+            alpha = 0.24 + s.c * 0.25;
+            color = [130 + Math.floor(s.a * 50), 90 + Math.floor(s.b * 40), 80 + Math.floor(s.c * 35)];
+        } else if (type === 'rain') {
+            const fall = 2.0 + s.b * 3.2;
+            const slant = windX * 2.2 + (s.c - 0.5) * 1.2;
+            x = wrap(s.a * width + t * slant, width);
+            y = wrap(s.d * height + t * fall, height);
+            size = s.a > 0.5 ? 2 : 1;
+            alpha = 0.22 + s.c * 0.20;
+            color = [130 + Math.floor(s.a * 35), 185 + Math.floor(s.b * 45), 245 + Math.floor(s.d * 10)];
+        } else if (type === 'bubbles') {
+            const rise = 0.30 + s.b * 0.72;
+            const drift = Math.sin(t * 0.018 + s.c * 6.28) * 0.8 + windX * 0.2;
+            x = wrap(s.a * width + drift * 6, width);
+            y = height - wrap(s.d * height + t * rise, height);
+            size = 1 + Math.floor(s.b * 2);
+            alpha = 0.16 + s.c * 0.28;
+            color = [120 + Math.floor(s.a * 45), 210 + Math.floor(s.b * 40), 255];
+        }
+
+        points.push({ x, y, size, alpha, color });
+    }
+
+    return points;
+}
+
+function _drawWeatherParticleFallback(ctx, points) {
+    for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        if (!p) continue;
+        ctx.fillStyle = `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, ${p.alpha})`;
+        ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
+    }
+}
+
+function _drawWeatherAtmosphereOverlay(ctx, theme, ticks, windX) {
+    const type = _getWeatherTypeForTheme(theme);
+    if (!type) return;
+
+    if (type === 'snow') {
+        const drift = Math.sin(ticks * 0.01) * 4 + windX * 6;
+        const fog = ctx.createLinearGradient(0, 80, 0, GAME_HEIGHT);
+        fog.addColorStop(0, 'rgba(195, 225, 245, 0.04)');
+        fog.addColorStop(1, 'rgba(210, 235, 255, 0.12)');
+        ctx.fillStyle = fog;
+        ctx.fillRect(0, 72, GAME_WIDTH, GAME_HEIGHT - 72);
+        ctx.fillStyle = 'rgba(220, 240, 255, 0.05)';
+        ctx.fillRect(-18 + drift, 124, 170, 14);
+        ctx.fillRect(162 - drift * 0.7, 138, 180, 12);
+    } else if (type === 'sandstorm') {
+        const drift = (ticks * (0.8 + Math.abs(windX) * 2.6)) % (GAME_WIDTH + 120);
+        ctx.fillStyle = 'rgba(210, 170, 96, 0.09)';
+        ctx.fillRect(0, 90, GAME_WIDTH, 40);
+        ctx.fillStyle = 'rgba(190, 140, 78, 0.08)';
+        ctx.fillRect(-120 + drift, 92, 130, 10);
+        ctx.fillRect(-40 + drift * 0.85, 108, 145, 12);
+        ctx.fillRect(40 + drift * 0.72, 120, 140, 10);
+        ctx.fillRect(170 + drift * 0.63, 100, 150, 13);
+    } else if (type === 'ash') {
+        const wave = Math.sin(ticks * 0.012) * 5;
+        const haze = ctx.createLinearGradient(0, 84, 0, GAME_HEIGHT);
+        haze.addColorStop(0, 'rgba(120, 78, 62, 0.04)');
+        haze.addColorStop(1, 'rgba(85, 55, 48, 0.14)');
+        ctx.fillStyle = haze;
+        ctx.fillRect(0, 84, GAME_WIDTH, GAME_HEIGHT - 84);
+        ctx.fillStyle = 'rgba(170, 110, 82, 0.07)';
+        ctx.fillRect(8 + wave, 118, GAME_WIDTH - 16, 11);
+        ctx.fillStyle = 'rgba(145, 96, 70, 0.06)';
+        ctx.fillRect(22 - wave * 0.8, 136, GAME_WIDTH - 44, 13);
+    } else if (type === 'rain') {
+        const cloud = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT * 0.6);
+        cloud.addColorStop(0, 'rgba(28, 50, 78, 0.16)');
+        cloud.addColorStop(1, 'rgba(18, 30, 56, 0.03)');
+        ctx.fillStyle = cloud;
+        ctx.fillRect(0, 0, GAME_WIDTH, Math.floor(GAME_HEIGHT * 0.62));
+    } else if (type === 'bubbles') {
+        const drift = Math.sin(ticks * 0.02) * 6;
+        const caustic = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+        caustic.addColorStop(0, 'rgba(90, 205, 255, 0.05)');
+        caustic.addColorStop(1, 'rgba(42, 138, 202, 0.07)');
+        ctx.fillStyle = caustic;
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        ctx.fillStyle = 'rgba(140, 240, 255, 0.04)';
+        ctx.fillRect(12 + drift, 30, 140, 7);
+        ctx.fillRect(175 - drift * 0.7, 54, 150, 8);
+        ctx.fillRect(70 + drift * 0.35, 84, 165, 7);
+    }
 }
 
 // --- Touch long-press tooltip ---
@@ -481,22 +651,66 @@ function populateLevelSelect() {
 
 // --- Main Game Logic ---
 
+function getRequestedRenderBackend() {
+    try {
+        const params = new URLSearchParams(window.location.search || '');
+        const fromQuery = (params.get('renderer') || '').toLowerCase();
+        if (fromQuery === 'webgl' || fromQuery === 'canvas2d') return fromQuery;
+    } catch (err) {
+        // Ignore malformed URLs and continue with default.
+    }
+    const fromStorage = (window.localStorage && window.localStorage.getItem('pp2_renderer') || '').toLowerCase();
+    if (fromStorage === 'webgl' || fromStorage === 'canvas2d') return fromStorage;
+    return 'canvas2d';
+}
+
 window.onload = function() {
     canvas = document.getElementById('gameCanvas');
-    ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false; // pixel art — no blurring
+    const requestedBackend = getRequestedRenderBackend();
+    try {
+        if (window.RendererFactory && typeof window.RendererFactory.createRenderer === 'function') {
+            renderer = window.RendererFactory.createRenderer(canvas, {
+                backend: requestedBackend,
+                gameWidth: GAME_WIDTH,
+                gameHeight: GAME_HEIGHT,
+                scale: SCALE,
+                maxDpr: 2
+            });
+        }
+    } catch (err) {
+        console.error('[Renderer] Failed to initialize renderer backend, falling back to Canvas2D.', err);
+        renderer = null;
+    }
 
-    // High-DPI: double canvas if device pixel ratio ≥ 1.5, cap at 2x
-    const _dpr = Math.min(Math.round(window.devicePixelRatio || 1), 2);
-    if (_dpr > 1) {
-        canvas.width  = GAME_WIDTH  * SCALE * _dpr;
-        canvas.height = GAME_HEIGHT * SCALE * _dpr;
-        canvas.style.width  = (GAME_WIDTH  * SCALE) + 'px';
-        canvas.style.height = (GAME_HEIGHT * SCALE) + 'px';
-        ctx.scale(_dpr, _dpr);
-        window._canvasDPR = _dpr;
+    if (!renderer) {
+        ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        const _dpr = Math.min(Math.round(window.devicePixelRatio || 1), 2);
+        if (_dpr > 1) {
+            canvas.width  = GAME_WIDTH  * SCALE * _dpr;
+            canvas.height = GAME_HEIGHT * SCALE * _dpr;
+            canvas.style.width  = (GAME_WIDTH  * SCALE) + 'px';
+            canvas.style.height = (GAME_HEIGHT * SCALE) + 'px';
+            ctx.scale(_dpr, _dpr);
+            window._canvasDPR = _dpr;
+        } else {
+            window._canvasDPR = 1;
+        }
     } else {
-        window._canvasDPR = 1;
+        ctx = renderer.getContext2D();
+        if (!ctx) {
+            // WebGL path is scaffolded but draw pipeline still uses a 2D context in phase 1.
+            console.warn('[Renderer] Active backend does not provide a 2D context yet; falling back to Canvas2D pipeline.');
+            renderer = window.RendererFactory.createRenderer(canvas, {
+                backend: 'canvas2d',
+                gameWidth: GAME_WIDTH,
+                gameHeight: GAME_HEIGHT,
+                scale: SCALE,
+                maxDpr: 2
+            });
+            ctx = renderer.getContext2D();
+        }
+        window._canvasDPR = renderer.getDpr();
     }
     
     offscreenCanvas = document.createElement('canvas');
@@ -1499,15 +1713,24 @@ function draw() {
     const drawW = canvas.width  / dpr; // = GAME_WIDTH  * SCALE
     const drawH = canvas.height / dpr; // = GAME_HEIGHT * SCALE
 
+    const currentTheme = getCurrentThemeName();
+    const weatherFlash = _getWeatherFlash(currentTheme, gameState.ticks);
     const sky = getThemeSkyColors();
-    let skyGrad = ctx.createLinearGradient(0, 0, 0, drawH);
-    skyGrad.addColorStop(0, sky.top);
-    skyGrad.addColorStop(0.55, sky.mid);
-    skyGrad.addColorStop(1, sky.bot);
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, drawW, drawH);
-    ctx.fillStyle = sky.veil;
-    ctx.fillRect(0, 0, drawW, drawH);
+    const useHybridWebGLBase = !!(renderer && typeof renderer.supportsHybridBasePass === 'function' && renderer.supportsHybridBasePass());
+    let skyHandledByWebGL = false;
+    if (useHybridWebGLBase && typeof renderer.renderSkyLayer === 'function') {
+        skyHandledByWebGL = renderer.renderSkyLayer(ctx, sky, drawW, drawH);
+    }
+    if (!skyHandledByWebGL) {
+        let skyGrad = ctx.createLinearGradient(0, 0, 0, drawH);
+        skyGrad.addColorStop(0, sky.top);
+        skyGrad.addColorStop(0.55, sky.mid);
+        skyGrad.addColorStop(1, sky.bot);
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, drawW, drawH);
+        ctx.fillStyle = sky.veil;
+        ctx.fillRect(0, 0, drawW, drawH);
+    }
 
     ctx.save();
 
@@ -1580,20 +1803,128 @@ function draw() {
     ctx.fill();
     ctx.restore();
 
-    ctx.drawImage(offscreenCanvas, 0, 0);
+    let terrainHandledByWebGL = false;
+    if (useHybridWebGLBase && typeof renderer.renderTerrainLiquidLayer === 'function') {
+        terrainHandledByWebGL = renderer.renderTerrainLiquidLayer(ctx, offscreenCanvas, liquidCanvas, GAME_WIDTH, GAME_HEIGHT);
+    }
+    if (!terrainHandledByWebGL) {
+        ctx.drawImage(offscreenCanvas, 0, 0);
+        // Draw volumetric liquid layer (rendered at game resolution, scaled up with terrain)
+        if (liquidCanvas) ctx.drawImage(liquidCanvas, 0, 0);
+    }
 
-    // Draw volumetric liquid layer (rendered at game resolution, scaled up with terrain)
-    if (liquidCanvas) ctx.drawImage(liquidCanvas, 0, 0);
+    const useHybridWebGLLayers = !!(useHybridWebGLBase && typeof renderer.renderGameLayerStack === 'function');
+    let layerStackHandledByWebGL = false;
+    if (useHybridWebGLLayers) {
+        const sceneLayer = _getPhase3Layer('scene');
+        const mistLayer = _getPhase3Layer('mist');
+        const atmBehindLayer = _getPhase3Layer('atmBehind');
+        const atmFrontLayer = _getPhase3Layer('atmFront');
+        const weatherAtmosLayer = _getPhase3Layer('weatherAtmos');
 
-    drawSceneProps(ctx);
-    const _atmBehind = _getOrUpdateAtmosphereCache('behind');
-    if (_atmBehind) ctx.drawImage(_atmBehind, 0, 0); else drawThemeAtmosphere(ctx, 'behind');
-    drawThemeMist(ctx);
-    const _atmFront = _getOrUpdateAtmosphereCache('front');
-    if (_atmFront) ctx.drawImage(_atmFront, 0, 0); else drawThemeAtmosphere(ctx, 'front');
+        sceneLayer.cx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        drawSceneProps(sceneLayer.cx);
 
-    puffins.forEach(p => p.draw(ctx));
-    particles.forEach(p => p.draw(ctx));
+        mistLayer.cx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        drawThemeMist(mistLayer.cx);
+
+        weatherAtmosLayer.cx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        _drawWeatherAtmosphereOverlay(weatherAtmosLayer.cx, currentTheme, gameState.ticks, _windX);
+
+        atmBehindLayer.cx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        const _atmBehind = _getOrUpdateAtmosphereCache('behind');
+        if (_atmBehind) atmBehindLayer.cx.drawImage(_atmBehind, 0, 0);
+        else drawThemeAtmosphere(atmBehindLayer.cx, 'behind');
+
+        atmFrontLayer.cx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        const _atmFront = _getOrUpdateAtmosphereCache('front');
+        if (_atmFront) atmFrontLayer.cx.drawImage(_atmFront, 0, 0);
+        else drawThemeAtmosphere(atmFrontLayer.cx, 'front');
+
+        layerStackHandledByWebGL = renderer.renderGameLayerStack(ctx, [
+            sceneLayer.c,
+            atmBehindLayer.c,
+            mistLayer.c,
+            weatherAtmosLayer.c,
+            atmFrontLayer.c
+        ], GAME_WIDTH, GAME_HEIGHT);
+    }
+    if (!layerStackHandledByWebGL) {
+        drawSceneProps(ctx);
+        const _atmBehind = _getOrUpdateAtmosphereCache('behind');
+        if (_atmBehind) ctx.drawImage(_atmBehind, 0, 0); else drawThemeAtmosphere(ctx, 'behind');
+        drawThemeMist(ctx);
+        _drawWeatherAtmosphereOverlay(ctx, currentTheme, gameState.ticks, _windX);
+        const _atmFront = _getOrUpdateAtmosphereCache('front');
+        if (_atmFront) ctx.drawImage(_atmFront, 0, 0); else drawThemeAtmosphere(ctx, 'front');
+    }
+
+    let puffinBodiesHandledByWebGL = false;
+    const puffinsWithWebGLBody = new Set();
+    if (useHybridWebGLBase && typeof renderer.renderPuffinBodies === 'function' && window.PuffinRender) {
+        const bodySize = (typeof window.PuffinRender.getBodyCacheSize === 'function')
+            ? window.PuffinRender.getBodyCacheSize()
+            : { w: 12, h: 14 };
+
+        const instances = [];
+        for (let i = 0; i < puffins.length; i++) {
+            const p = puffins[i];
+            if (!p || p.state === ST_DEAD || p.state === ST_EXITED || p.state === ST_SPLAT) continue;
+            if (typeof p._getBodyCacheKey !== 'function') continue;
+            const key = p._getBodyCacheKey();
+            if (!key) continue;
+
+            instances.push({
+                key,
+                x: Math.floor(p.x),
+                y: Math.floor(p.y),
+                flipX: p.vx < 0,
+                ref: p
+            });
+        }
+
+        puffinBodiesHandledByWebGL = renderer.renderPuffinBodies(
+            ctx,
+            instances,
+            (cacheKey) => window.PuffinRender.getBodyCacheCanvasByKey(cacheKey),
+            GAME_WIDTH,
+            GAME_HEIGHT,
+            bodySize
+        );
+
+        if (puffinBodiesHandledByWebGL) {
+            for (let i = 0; i < instances.length; i++) {
+                if (instances[i] && instances[i].ref) puffinsWithWebGLBody.add(instances[i].ref);
+            }
+        }
+    }
+
+    for (let i = 0; i < puffins.length; i++) {
+        const p = puffins[i];
+        if (!p) continue;
+        if (puffinBodiesHandledByWebGL && puffinsWithWebGLBody.has(p)) {
+            p.draw(ctx, { skipBody: true });
+        } else {
+            p.draw(ctx);
+        }
+    }
+
+    let particlesHandledByWebGL = false;
+    if (useHybridWebGLBase && typeof renderer.renderParticles === 'function') {
+        particlesHandledByWebGL = renderer.renderParticles(ctx, particles, GAME_WIDTH, GAME_HEIGHT);
+    }
+    if (!particlesHandledByWebGL) {
+        particles.forEach(p => p.draw(ctx));
+    }
+
+    const weatherPoints = _buildWeatherParticleCloud(currentTheme, gameState.ticks, GAME_WIDTH, GAME_HEIGHT, _windX);
+    let weatherHandledByWebGL = false;
+    if (useHybridWebGLBase && typeof renderer.renderParticleCloud === 'function') {
+        weatherHandledByWebGL = renderer.renderParticleCloud(ctx, weatherPoints, GAME_WIDTH, GAME_HEIGHT);
+    }
+    if (!weatherHandledByWebGL && weatherPoints.length > 0) {
+        _drawWeatherParticleFallback(ctx, weatherPoints);
+    }
 
     if (activeSkill && currentSkillCounts[activeSkill] > 0) {
         ctx.strokeStyle = hoveredPuffin ? '#0f0' : '#fff';
@@ -1626,22 +1957,175 @@ function draw() {
         fungus_glow: [60, 180, 100], toxic_sludge: [100, 160, 30]
     };
     const [gradeR, gradeG, gradeB] = postProcessGrades[getCurrentThemeName()] || [120, 170, 230];
-    ctx.fillStyle = `rgba(${gradeR}, ${gradeG}, ${gradeB}, 0.05)`;
-    ctx.fillRect(0, 0, drawW, drawH);
+    let postProcessHandledByWebGL = false;
+    if (useHybridWebGLBase && typeof renderer.renderPostProcessOverlay === 'function') {
+        postProcessHandledByWebGL = renderer.renderPostProcessOverlay(ctx, drawW, drawH, {
+            gradeRgb: [gradeR, gradeG, gradeB],
+            gradeAlpha: 0.05
+        });
+    }
+    if (!postProcessHandledByWebGL) {
+        ctx.fillStyle = `rgba(${gradeR}, ${gradeG}, ${gradeB}, 0.05)`;
+        ctx.fillRect(0, 0, drawW, drawH);
 
-    let vignette = ctx.createRadialGradient(
-        drawW * 0.5,
-        drawH * 0.48,
-        drawH * 0.25,
-        drawW * 0.5,
-        drawH * 0.5,
-        drawW * 0.62
-    );
-    vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    vignette.addColorStop(0.72, 'rgba(6, 12, 24, 0.10)');
-    vignette.addColorStop(1, 'rgba(4, 8, 18, 0.30)');
-    ctx.fillStyle = vignette;
-    ctx.fillRect(0, 0, drawW, drawH);
+        let vignette = ctx.createRadialGradient(
+            drawW * 0.5,
+            drawH * 0.48,
+            drawH * 0.25,
+            drawW * 0.5,
+            drawH * 0.5,
+            drawW * 0.62
+        );
+        vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        vignette.addColorStop(0.72, 'rgba(6, 12, 24, 0.10)');
+        vignette.addColorStop(1, 'rgba(4, 8, 18, 0.30)');
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, drawW, drawH);
+    }
+
+    // Dynamic lighting (feature pass #1)
+    const dynamicLights = [];
+    dynamicLights.push({
+        x: (EXIT.x + EXIT.w / 2) * SCALE,
+        y: (EXIT.y + EXIT.h / 2) * SCALE,
+        radius: 46,
+        intensity: 0.32 + Math.sin(gameState.ticks * 0.08) * 0.08,
+        color: [80, 255, 170]
+    });
+
+    const maxPuffinLights = 10;
+    const puffinStep = Math.max(1, Math.floor(puffins.length / maxPuffinLights));
+    for (let i = 0; i < puffins.length; i += puffinStep) {
+        const p = puffins[i];
+        if (!p || p.state === ST_DEAD || p.state === ST_EXITED) continue;
+
+        let radius = 0;
+        let intensity = 0;
+        let color = [255, 220, 120];
+
+        if (p.bomberTicks > 0) {
+            radius = 22;
+            intensity = 0.18 + (1 - Math.min(1, p.bomberTicks / (FPS * 5))) * 0.32;
+            color = [255, 120, 70];
+        } else if (p.state === ST_MINE || p.state === ST_DIG) {
+            radius = 16;
+            intensity = 0.12;
+            color = [255, 236, 160];
+        } else if (p.state === ST_FLOAT) {
+            radius = 14;
+            intensity = 0.08;
+            color = [255, 215, 90];
+        }
+
+        if (radius > 0 && intensity > 0) {
+            dynamicLights.push({
+                x: (p.x + PUFFIN_W / 2) * SCALE,
+                y: (p.y + PUFFIN_H / 2) * SCALE,
+                radius,
+                intensity,
+                color
+            });
+        }
+    }
+
+    let lightsHandledByWebGL = false;
+    if (useHybridWebGLBase && typeof renderer.renderDynamicLights === 'function') {
+        lightsHandledByWebGL = renderer.renderDynamicLights(ctx, drawW, drawH, dynamicLights);
+    }
+    if (!lightsHandledByWebGL && dynamicLights.length > 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < dynamicLights.length; i++) {
+            const l = dynamicLights[i];
+            const grad = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.radius);
+            grad.addColorStop(0, `rgba(${l.color[0]}, ${l.color[1]}, ${l.color[2]}, ${Math.min(1, l.intensity)})`);
+            grad.addColorStop(1, `rgba(${l.color[0]}, ${l.color[1]}, ${l.color[2]}, 0)`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(l.x - l.radius, l.y - l.radius, l.radius * 2, l.radius * 2);
+        }
+        ctx.restore();
+    }
+
+    const bomberRingwaves = [];
+    for (let i = 0; i < puffins.length; i++) {
+        const p = puffins[i];
+        if (!p || p.state === ST_DEAD || p.state === ST_EXITED) continue;
+        if (!(p.bomberTicks > 0 && p.bomberTicks <= FPS * 2)) continue;
+
+        const urgency = 1 - Math.max(0, Math.min(1, p.bomberTicks / (FPS * 2)));
+        const cycle = 20 - Math.floor(urgency * 7);
+        const phase = ((gameState.ticks + i * 9) % Math.max(6, cycle)) / Math.max(6, cycle);
+        const radius = 5 + phase * (26 + urgency * 20);
+        const width = 2.5 + urgency * 2.8;
+        const intensity = 0.08 + urgency * 0.25;
+
+        bomberRingwaves.push({
+            x: (p.x + PUFFIN_W / 2) * SCALE,
+            y: (p.y + PUFFIN_H / 2) * SCALE,
+            radius,
+            width,
+            intensity,
+            color: [255, 120, 55]
+        });
+    }
+
+    let ringwavesHandledByWebGL = false;
+    if (useHybridWebGLBase && typeof renderer.renderRingwaves === 'function') {
+        ringwavesHandledByWebGL = renderer.renderRingwaves(ctx, drawW, drawH, bomberRingwaves);
+    }
+    if (!ringwavesHandledByWebGL && bomberRingwaves.length > 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < bomberRingwaves.length; i++) {
+            const w = bomberRingwaves[i];
+            ctx.strokeStyle = `rgba(${w.color[0]}, ${w.color[1]}, ${w.color[2]}, ${Math.min(1, w.intensity)})`;
+            ctx.lineWidth = Math.max(1, w.width * 0.6);
+            ctx.beginPath();
+            ctx.arc(w.x, w.y, w.radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    const portalCharge = Math.max(0, Math.min(1, gameState.saved / Math.max(1, REQUIRED_PUFFINS)));
+    const portalEffect = {
+        x: (EXIT.x + EXIT.w / 2) * SCALE,
+        y: (EXIT.y + EXIT.h / 2) * SCALE,
+        radius: (18 + portalCharge * 8) * SCALE,
+        pulse: 0.45 + portalCharge * 0.55 + Math.sin(gameState.ticks * 0.08) * 0.18,
+        intensity: 0.65 + portalCharge * 0.45,
+        time: gameState.ticks / FPS,
+        colorA: [80, 255, 170],
+        colorB: [40, 220, 255]
+    };
+
+    let portalFxHandledByWebGL = false;
+    if (useHybridWebGLBase && typeof renderer.renderPortalEffect === 'function') {
+        portalFxHandledByWebGL = renderer.renderPortalEffect(ctx, drawW, drawH, portalEffect);
+    }
+    if (!portalFxHandledByWebGL) {
+        const px = portalEffect.x;
+        const py = portalEffect.y;
+        const pr = portalEffect.radius;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+
+        const swirl = ctx.createRadialGradient(px, py, pr * 0.16, px, py, pr);
+        swirl.addColorStop(0, `rgba(100, 255, 200, ${0.06 + portalEffect.pulse * 0.12})`);
+        swirl.addColorStop(0.6, `rgba(60, 220, 255, ${0.05 + portalEffect.pulse * 0.10})`);
+        swirl.addColorStop(1, 'rgba(20, 120, 170, 0)');
+        ctx.fillStyle = swirl;
+        ctx.fillRect(px - pr, py - pr, pr * 2, pr * 2);
+
+        const ringAlpha = 0.18 + portalCharge * 0.18 + Math.sin(gameState.ticks * 0.15) * 0.06;
+        ctx.strokeStyle = `rgba(90, 250, 210, ${Math.max(0.04, ringAlpha)})`;
+        ctx.lineWidth = Math.max(1, pr * 0.12);
+        ctx.beginPath();
+        ctx.arc(px, py, pr * (0.62 + Math.sin(gameState.ticks * 0.07) * 0.08), 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.restore();
+    }
 
     // Long-press tooltip overlay
     if (_touchTooltip) {
