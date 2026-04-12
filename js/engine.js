@@ -1002,7 +1002,9 @@ function gameLoop(timestamp = 0) {
         for (let i = 0; i < gameSpeed; i++) {
             if (gameState.active && !gameState.paused) update();
         }
+        PerfMonitor.frameStart();
         draw();
+        PerfMonitor.frameEnd();
     }
     loopId = requestAnimationFrame(gameLoop);
 }
@@ -1717,6 +1719,7 @@ function draw() {
     const weatherFlash = _getWeatherFlash(currentTheme, gameState.ticks);
     const sky = getThemeSkyColors();
     const useHybridWebGLBase = !!(renderer && typeof renderer.supportsHybridBasePass === 'function' && renderer.supportsHybridBasePass());
+    PerfMonitor.passStart('sky');
     let skyHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderSkyLayer === 'function') {
         skyHandledByWebGL = renderer.renderSkyLayer(ctx, sky, drawW, drawH);
@@ -1731,6 +1734,7 @@ function draw() {
         ctx.fillStyle = sky.veil;
         ctx.fillRect(0, 0, drawW, drawH);
     }
+    PerfMonitor.passEnd('sky');
 
     ctx.save();
 
@@ -1745,7 +1749,9 @@ function draw() {
 
     ctx.scale(SCALE, SCALE);
 
+    PerfMonitor.passStart('background');
     drawThemeBackground(ctx);
+    PerfMonitor.passEnd('background');
 
     let ex = ENTRANCE.x, ey = ENTRANCE.y;
     ctx.fillStyle = '#5a3010';
@@ -1803,6 +1809,7 @@ function draw() {
     ctx.fill();
     ctx.restore();
 
+    PerfMonitor.passStart('terrain');
     let terrainHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderTerrainLiquidLayer === 'function') {
         terrainHandledByWebGL = renderer.renderTerrainLiquidLayer(ctx, offscreenCanvas, liquidCanvas, GAME_WIDTH, GAME_HEIGHT);
@@ -1812,7 +1819,9 @@ function draw() {
         // Draw volumetric liquid layer (rendered at game resolution, scaled up with terrain)
         if (liquidCanvas) ctx.drawImage(liquidCanvas, 0, 0);
     }
+    PerfMonitor.passEnd('terrain');
 
+    PerfMonitor.passStart('layerStack');
     const useHybridWebGLLayers = !!(useHybridWebGLBase && typeof renderer.renderGameLayerStack === 'function');
     let layerStackHandledByWebGL = false;
     if (useHybridWebGLLayers) {
@@ -1858,7 +1867,9 @@ function draw() {
         const _atmFront = _getOrUpdateAtmosphereCache('front');
         if (_atmFront) ctx.drawImage(_atmFront, 0, 0); else drawThemeAtmosphere(ctx, 'front');
     }
+    PerfMonitor.passEnd('layerStack');
 
+    PerfMonitor.passStart('entities');
     let puffinBodiesHandledByWebGL = false;
     const puffinsWithWebGLBody = new Set();
     if (useHybridWebGLBase && typeof renderer.renderPuffinBodies === 'function' && window.PuffinRender) {
@@ -1908,7 +1919,9 @@ function draw() {
             p.draw(ctx);
         }
     }
+    PerfMonitor.passEnd('entities');
 
+    PerfMonitor.passStart('particles');
     let particlesHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderParticles === 'function') {
         particlesHandledByWebGL = renderer.renderParticles(ctx, particles, GAME_WIDTH, GAME_HEIGHT);
@@ -1916,7 +1929,9 @@ function draw() {
     if (!particlesHandledByWebGL) {
         particles.forEach(p => p.draw(ctx));
     }
+    PerfMonitor.passEnd('particles');
 
+    PerfMonitor.passStart('weather');
     const weatherPoints = _buildWeatherParticleCloud(currentTheme, gameState.ticks, GAME_WIDTH, GAME_HEIGHT, _windX);
     let weatherHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderParticleCloud === 'function') {
@@ -1925,6 +1940,7 @@ function draw() {
     if (!weatherHandledByWebGL && weatherPoints.length > 0) {
         _drawWeatherParticleFallback(ctx, weatherPoints);
     }
+    PerfMonitor.passEnd('weather');
 
     if (activeSkill && currentSkillCounts[activeSkill] > 0) {
         ctx.strokeStyle = hoveredPuffin ? '#0f0' : '#fff';
@@ -1948,6 +1964,7 @@ function draw() {
 
     ctx.restore();
 
+    PerfMonitor.passStart('postProcess');
     const postProcessGrades = {
         lava: [200, 70, 20], volcanic_ash: [180, 80, 30], obsidian_floor: [160, 60, 40],
         desert: [210, 150, 55], salt_flats: [200, 175, 100], sandstone: [215, 165, 70],
@@ -1983,7 +2000,10 @@ function draw() {
         ctx.fillRect(0, 0, drawW, drawH);
     }
 
+    PerfMonitor.passEnd('postProcess');
+
     // Dynamic lighting (feature pass #1)
+    PerfMonitor.passStart('lights');
     const dynamicLights = [];
     dynamicLights.push({
         x: (EXIT.x + EXIT.w / 2) * SCALE,
@@ -2046,6 +2066,9 @@ function draw() {
         ctx.restore();
     }
 
+    PerfMonitor.passEnd('lights');
+
+    PerfMonitor.passStart('ringwaves');
     const bomberRingwaves = [];
     for (let i = 0; i < puffins.length; i++) {
         const p = puffins[i];
@@ -2087,6 +2110,9 @@ function draw() {
         ctx.restore();
     }
 
+    PerfMonitor.passEnd('ringwaves');
+
+    PerfMonitor.passStart('portal');
     const portalCharge = Math.max(0, Math.min(1, gameState.saved / Math.max(1, REQUIRED_PUFFINS)));
     const portalEffect = {
         x: (EXIT.x + EXIT.w / 2) * SCALE,
@@ -2126,6 +2152,8 @@ function draw() {
 
         ctx.restore();
     }
+
+    PerfMonitor.passEnd('portal');
 
     // Long-press tooltip overlay
     if (_touchTooltip) {
