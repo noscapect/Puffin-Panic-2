@@ -17,7 +17,7 @@
   },
   "theme": "grass",
   "skills": {
-    "floater": 0,
+    "floater": 3,
     "bomber": 0,
     "blocker": 2,
     "builder": 0,

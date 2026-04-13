@@ -158,6 +158,76 @@ const WEATHER_PARTICLE_CAP = 180;
 
 // --- Atmosphere cache (updated every 2 ticks to save draw calls on mobile) ---
 let _atmCache = { behind: null, front: null, lastTick: -999, theme: '' };
+let _terrainFxCache = { theme: '', lastTick: -999, points: [] };
+
+// Optional WebGL effect switches.
+// Keep baseline hybrid features enabled by default and future additions disabled.
+const WEBGL_EFFECT_DEFAULTS = {
+    skyLayer: true,
+    terrainComposite: true,
+    layerStack: true,
+    puffinBodies: true,
+    particles: true,
+    weatherParticles: true,
+    postProcess: true,
+    dynamicLights: true,
+    ringwaves: true,
+    portalEffect: true,
+    portalSparkles: true,
+    bomberTrailWisps: true,
+    caveAmbientMotes: true,
+    exitRefractionRing: true,
+
+    // Add-on effects (enabled by default).
+    weatherField: true,
+    terrainEdgeFx: true,
+    spriteFx: true,
+    shadows: true,
+    distortion: true,
+    postAtmosphere: true
+};
+
+let _webglEffectState = null;
+
+function _initWebGLEffectState() {
+    if (_webglEffectState) return;
+    _webglEffectState = Object.assign({}, WEBGL_EFFECT_DEFAULTS);
+}
+
+function _isWebGLEffectEnabled(effectId) {
+    _initWebGLEffectState();
+    return !!_webglEffectState[effectId];
+}
+
+function _setWebGLEffectEnabled(effectId, enabled) {
+    _initWebGLEffectState();
+    if (!Object.prototype.hasOwnProperty.call(_webglEffectState, effectId)) return;
+    _webglEffectState[effectId] = !!enabled;
+}
+
+function _runWebGLEffect(effectId, renderFn) {
+    if (!_isWebGLEffectEnabled(effectId)) return false;
+    try {
+        return !!renderFn();
+    } catch (err) {
+        _setWebGLEffectEnabled(effectId, false);
+        console.warn(`[Renderer] Disabled WebGL effect "${effectId}" after runtime error.`, err);
+        return false;
+    }
+}
+
+window.WebGLEffects = {
+    list() {
+        _initWebGLEffectState();
+        return Object.assign({}, _webglEffectState);
+    },
+    enable(effectId, enabled = true) {
+        _setWebGLEffectEnabled(effectId, enabled);
+    },
+    reset() {
+        _webglEffectState = Object.assign({}, WEBGL_EFFECT_DEFAULTS);
+    }
+};
 
 function _getOrUpdateAtmosphereCache(layer) {
     const t = gameState.ticks;
@@ -295,6 +365,345 @@ function _drawWeatherParticleFallback(ctx, points) {
         ctx.fillStyle = `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, ${p.alpha})`;
         ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
     }
+}
+
+function _buildPortalSparkleCloud(ticks, portalCharge) {
+    const points = [];
+    const cx = EXIT.x + EXIT.w * 0.5;
+    const cy = EXIT.y + EXIT.h * 0.5;
+    const count = 18 + Math.floor(portalCharge * 10);
+    const rBase = 5 + portalCharge * 4;
+
+    for (let i = 0; i < count; i++) {
+        const a = ((i / count) * Math.PI * 2) + ticks * 0.03 + i * 0.27;
+        const orbit = rBase + Math.sin(ticks * 0.05 + i * 1.4) * 2;
+        const x = cx + Math.cos(a) * orbit;
+        const y = cy + Math.sin(a * 1.2) * (orbit * 0.55);
+        const pulse = 0.55 + 0.45 * Math.sin(ticks * 0.11 + i * 0.9);
+        const cyanBlend = ((i * 13 + ticks) % 29) / 28;
+        points.push({
+            x,
+            y,
+            size: (i % 3 === 0) ? 2 : 1,
+            alpha: (0.08 + portalCharge * 0.12) * pulse,
+            color: [
+                Math.round(90 - cyanBlend * 20),
+                Math.round(230 + cyanBlend * 25),
+                Math.round(200 + cyanBlend * 55)
+            ]
+        });
+    }
+
+    return points;
+}
+
+function _buildExitRefractionEffects(portalEffect, portalCharge, ticks) {
+    if (!portalEffect) return [];
+
+    const wobble = 0.9 + Math.sin(ticks * 0.09) * 0.08;
+    return [{
+        x: portalEffect.x,
+        y: portalEffect.y,
+        radius: Math.max(22, portalEffect.radius * 0.72 * wobble),
+        strength: 0.075 + portalCharge * 0.06,
+        kind: 'shockwave'
+    }];
+}
+
+function _buildSceneDistortionEffects(theme, ticks, portalEffect) {
+    const effects = [];
+
+    if (nukeActivated && nukeCountdown > 0) {
+        const life = Math.max(0, Math.min(1, nukeCountdown / (FPS * 5)));
+        const pulse = 0.5 + 0.5 * Math.sin(ticks * 0.18);
+        effects.push({
+            x: GAME_WIDTH * SCALE * 0.5,
+            y: GAME_HEIGHT * SCALE * 0.45,
+            radius: (40 + (1 - life) * 100) * SCALE * 0.45,
+            strength: 0.024 + pulse * 0.024,
+            kind: 'pulse'
+        });
+    }
+
+    for (let i = 0; i < puffins.length && effects.length < 6; i++) {
+        const p = puffins[i];
+        if (!p || p.state === ST_DEAD || p.state === ST_EXITED || p.state === ST_SPLAT) continue;
+        if (!(p.bomberTicks > 0 && p.bomberTicks <= FPS * 2)) continue;
+        const urgency = 1 - Math.max(0, Math.min(1, p.bomberTicks / (FPS * 2)));
+        effects.push({
+            x: (p.x + PUFFIN_W * 0.5) * SCALE,
+            y: (p.y + PUFFIN_H * 0.4) * SCALE,
+            radius: (8 + urgency * 16) * SCALE * 0.55,
+            strength: 0.010 + urgency * 0.026,
+            kind: 'swirl'
+        });
+    }
+
+    if (portalEffect) {
+        effects.push({
+            x: portalEffect.x,
+            y: portalEffect.y,
+            radius: portalEffect.radius * 0.84,
+            strength: 0.011,
+            kind: 'swirl'
+        });
+    }
+
+    if (['water', 'deep_sea', 'coral', 'wet_cave_stone'].includes(theme)) {
+        effects.push({
+            x: GAME_WIDTH * SCALE * 0.30,
+            y: GAME_HEIGHT * SCALE * 0.28,
+            radius: 36,
+            strength: 0.010,
+            kind: 'shockwave'
+        });
+        effects.push({
+            x: GAME_WIDTH * SCALE * 0.72,
+            y: GAME_HEIGHT * SCALE * 0.32,
+            radius: 32,
+            strength: 0.009,
+            kind: 'shockwave'
+        });
+    }
+
+    return effects;
+}
+
+function _buildBomberTrailCloud(ticks) {
+    const points = [];
+    for (let i = 0; i < puffins.length; i++) {
+        const p = puffins[i];
+        if (!p || p.state === ST_DEAD || p.state === ST_EXITED || p.state === ST_SPLAT) continue;
+        if (!(p.bomberTicks > 0)) continue;
+
+        const urgency = 1 - Math.max(0, Math.min(1, p.bomberTicks / (FPS * 5)));
+        const baseX = p.x + PUFFIN_W * 0.5;
+        const baseY = p.y + PUFFIN_H * 0.45;
+        const count = 2 + Math.floor(urgency * 2);
+
+        for (let j = 0; j < count; j++) {
+            const swirl = Math.sin(ticks * 0.10 + i * 0.9 + j * 1.7);
+            const x = baseX + (Math.random() - 0.5) * 2.8 + swirl * 0.9;
+            const y = baseY - j * 1.2 - (Math.random() * 1.8);
+            const hot = j === 0 && urgency > 0.45;
+            points.push({
+                x,
+                y,
+                size: hot ? 2 : 1,
+                alpha: (0.12 + urgency * 0.20) * (0.8 - j * 0.16),
+                color: hot ? [255, 130, 70] : [180, 190, 205]
+            });
+        }
+    }
+    return points;
+}
+
+function _buildCaveAmbientMotes(theme, ticks) {
+    if (!['cave', 'wet_cave_stone', 'iron_ore', 'mud', 'mossy_ruin'].includes(theme)) return [];
+
+    const points = [];
+    const count = 46;
+    for (let i = 0; i < count; i++) {
+        const phase = ticks * (0.012 + (i % 5) * 0.002);
+        const x = ((i * 37.3 + Math.sin(phase + i * 0.3) * 12) % GAME_WIDTH + GAME_WIDTH) % GAME_WIDTH;
+        const y = ((i * 19.7 + phase * 15 + Math.cos(phase * 0.8 + i * 0.4) * 9) % GAME_HEIGHT + GAME_HEIGHT) % GAME_HEIGHT;
+        const glow = 0.5 + 0.5 * Math.sin(phase * 2.4 + i * 0.8);
+        points.push({
+            x,
+            y,
+            size: (i % 7 === 0) ? 2 : 1,
+            alpha: 0.035 + glow * 0.045,
+            color: [130 + Math.floor(glow * 20), 150 + Math.floor(glow * 25), 170 + Math.floor(glow * 30)]
+        });
+    }
+    return points;
+}
+
+function _getThemeFxColors(theme) {
+    if (['snow', 'packed_snow', 'black_ice', 'ice', 'frozen_mud'].includes(theme)) {
+        return { a: [186, 225, 255], b: [236, 247, 255] };
+    }
+    if (['desert', 'sandstone', 'salt_flats'].includes(theme)) {
+        return { a: [226, 184, 108], b: [255, 216, 148] };
+    }
+    if (['lava', 'volcanic_ash', 'obsidian_floor'].includes(theme)) {
+        return { a: [255, 116, 52], b: [255, 188, 80] };
+    }
+    if (['water', 'deep_sea', 'coral', 'wet_cave_stone'].includes(theme)) {
+        return { a: [72, 196, 255], b: [142, 244, 255] };
+    }
+    if (['crystal', 'crystal_dense', 'amber', 'fungus_glow', 'toxic_sludge'].includes(theme)) {
+        return { a: [126, 238, 184], b: [148, 164, 255] };
+    }
+    return { a: [136, 186, 232], b: [205, 236, 255] };
+}
+
+function _getTerrainEdgeGlowProfile(theme) {
+    if (['lava', 'volcanic_ash', 'obsidian_floor'].includes(theme)) {
+        return { alpha: 0.26, size: 2, density: 0.24, step: 2, maxPoints: 900, lightIntensity: 0.15 };
+    }
+    if (['water', 'deep_sea', 'coral', 'wet_cave_stone'].includes(theme)) {
+        return { alpha: 0.16, size: 2, density: 0.20, step: 2, maxPoints: 720, lightIntensity: 0.10 };
+    }
+    if (['crystal', 'crystal_dense', 'amber', 'fungus_glow', 'toxic_sludge'].includes(theme)) {
+        return { alpha: 0.18, size: 2, density: 0.22, step: 2, maxPoints: 760, lightIntensity: 0.12 };
+    }
+    if (['snow', 'packed_snow', 'black_ice', 'ice', 'frozen_mud'].includes(theme)) {
+        return { alpha: 0.11, size: 2, density: 0.17, step: 3, maxPoints: 480, lightIntensity: 0.07 };
+    }
+    return { alpha: 0.07, size: 1, density: 0.12, step: 3, maxPoints: 360, lightIntensity: 0.05 };
+}
+
+function _getTerrainEdgeGlowPoints(theme, ticks) {
+    if (_terrainFxCache.theme === theme && ticks - _terrainFxCache.lastTick < 4) {
+        return _terrainFxCache.points;
+    }
+
+    const profile = _getTerrainEdgeGlowProfile(theme);
+    const colors = _getThemeFxColors(theme);
+    const points = [];
+
+    for (let y = 1; y < GAME_HEIGHT - 1; y += profile.step) {
+        for (let x = 1; x < GAME_WIDTH - 1; x += profile.step) {
+            const val = getTerrain(x, y);
+            if (val === 0) continue;
+
+            const airAbove = getTerrain(x, y - 1) === 0;
+            const airLeft = getTerrain(x - 1, y) === 0;
+            const airRight = getTerrain(x + 1, y) === 0;
+            if (!airAbove && !airLeft && !airRight) continue;
+
+            const hash = (((x * 17 + y * 31 + ticks * 3) % 101) + 101) % 101 / 100;
+            if (hash > profile.density) continue;
+
+            const pulse = 0.7 + 0.3 * Math.sin(ticks * 0.05 + x * 0.13 + y * 0.09);
+            const blend = (((x * 11 + y * 7) % 19) + 19) % 19 / 18;
+            const edgeBoost = airAbove ? 1 : 0.68;
+            points.push({
+                x: x + 0.5,
+                y: y + 0.5,
+                size: profile.size + (airAbove && hash > 0.65 ? 1 : 0),
+                alpha: profile.alpha * edgeBoost * pulse,
+                color: [
+                    Math.round(colors.a[0] + (colors.b[0] - colors.a[0]) * blend),
+                    Math.round(colors.a[1] + (colors.b[1] - colors.a[1]) * blend),
+                    Math.round(colors.a[2] + (colors.b[2] - colors.a[2]) * blend)
+                ]
+            });
+
+            if (points.length >= profile.maxPoints) {
+                _terrainFxCache = { theme, lastTick: ticks, points };
+                return points;
+            }
+        }
+    }
+
+    _terrainFxCache = { theme, lastTick: ticks, points };
+    return points;
+}
+
+function _buildTerrainContactLights(edgePoints, theme) {
+    const lights = [];
+    if (!edgePoints || edgePoints.length === 0) return lights;
+
+    const profile = _getTerrainEdgeGlowProfile(theme);
+    const stride = Math.max(1, Math.floor(edgePoints.length / 4));
+    for (let i = 0; i < edgePoints.length && lights.length < 4; i += stride) {
+        const p = edgePoints[i];
+        if (!p || p.alpha < profile.alpha * 0.7) continue;
+        lights.push({
+            x: p.x * SCALE,
+            y: p.y * SCALE,
+            radius: (10 + p.size * 4) * SCALE * 0.25,
+            intensity: profile.lightIntensity + p.alpha * 0.18,
+            color: p.color
+        });
+    }
+
+    return lights;
+}
+
+function _getPuffinWebGLEffect(p, theme) {
+    const colors = _getThemeFxColors(theme);
+    const effect = {
+        tint: [255, 255, 255],
+        tintStrength: 0,
+        rimColor: colors.a.slice(),
+        rimStrength: 0.08,
+        glow: 0.04
+    };
+
+    if (p.bomberTicks > 0) {
+        const urgency = 1 - Math.max(0, Math.min(1, p.bomberTicks / (FPS * 5)));
+        effect.tint = [255, 126, 94];
+        effect.tintStrength = 0.16 + urgency * 0.34;
+        effect.rimColor = [255, 118, 70];
+        effect.rimStrength = 0.20 + urgency * 0.55;
+        effect.glow = 0.12 + urgency * 0.55 + (p.bomberPulseTicks > 0 ? 0.18 : 0) + (p.bomberFinalCueTicks > 0 ? 0.24 : 0);
+        return effect;
+    }
+
+    if (p.state === ST_PANIC || p.state === ST_NUKE_PANIC) {
+        effect.tint = [255, 150, 150];
+        effect.tintStrength = 0.15;
+        effect.rimColor = [255, 92, 92];
+        effect.rimStrength = 0.28;
+        effect.glow = 0.12;
+        return effect;
+    }
+
+    if (p.state === ST_FLOAT || p.isFloater) {
+        effect.rimColor = [255, 222, 96];
+        effect.rimStrength = 0.18;
+        effect.glow = 0.10;
+    } else if (p.state === ST_MINE || p.state === ST_DIG || p.state === ST_BUILD) {
+        effect.rimColor = [255, 236, 168];
+        effect.rimStrength = 0.20;
+        effect.glow = 0.08;
+    } else if (['lava', 'volcanic_ash', 'obsidian_floor'].includes(theme)) {
+        effect.rimColor = [255, 150, 86];
+        effect.rimStrength = 0.14;
+        effect.glow = 0.08;
+    } else if (['water', 'deep_sea', 'coral', 'wet_cave_stone'].includes(theme)) {
+        effect.rimColor = [132, 228, 255];
+        effect.rimStrength = 0.14;
+        effect.glow = 0.06;
+    } else if (['crystal', 'crystal_dense', 'amber', 'fungus_glow', 'toxic_sludge'].includes(theme)) {
+        effect.rimColor = colors.b.slice();
+        effect.rimStrength = 0.16;
+        effect.glow = 0.07;
+    }
+
+    return effect;
+}
+
+function _buildShadowBlobs() {
+    const blobs = [];
+    const maxShadowPuffins = 18;
+    const puffinStep = Math.max(1, Math.floor(puffins.length / maxShadowPuffins));
+
+    for (let i = 0; i < puffins.length; i += puffinStep) {
+        const p = puffins[i];
+        if (!p || p.state === ST_DEAD || p.state === ST_EXITED || p.state === ST_SPLAT) continue;
+        if (p.state === ST_FALL || p.state === ST_FLOAT || p.state === ST_CLIMB) continue;
+
+        const stateBoost = (p.state === ST_BLOCK ? 5 : 0) + (p.state === ST_BUILD ? 2 : 0);
+        blobs.push({
+            x: (p.x + PUFFIN_W / 2) * SCALE,
+            y: (p.y + PUFFIN_H + 1) * SCALE,
+            radius: (12 + stateBoost) * SCALE * 0.34,
+            intensity: 0.06 + (p.bomberTicks > 0 ? 0.04 : 0)
+        });
+    }
+
+    blobs.push({
+        x: (EXIT.x + EXIT.w / 2) * SCALE,
+        y: (EXIT.y + EXIT.h + 2) * SCALE,
+        radius: 22,
+        intensity: 0.08
+    });
+
+    return blobs;
 }
 
 function _drawWeatherAtmosphereOverlay(ctx, theme, ticks, windX) {
@@ -1046,6 +1455,9 @@ function update() {
         });
     }
 
+    // ── Exit portal gravity: falls when unsupported ──────────
+    updateExitGravity();
+
     puffins.forEach(p => p.update());
     particles.forEach(p => p.update());
 
@@ -1078,6 +1490,52 @@ function update() {
     }
     
     checkEndCondition();
+}
+
+// ─── Exit Portal Gravity ──────────────────────────────────────────────────────
+// The portal needs at least 40% of its width supported by solid terrain to stay
+// put.  When partially supported it tips toward the heavier side and slides off.
+function updateExitGravity() {
+    const bottomY = Math.floor(EXIT.y + EXIT.h);
+    if (bottomY >= GAME_HEIGHT - 1) return; // already at the world floor
+
+    const x0 = Math.floor(EXIT.x);
+    const x1 = Math.floor(EXIT.x + EXIT.w);
+    const portalW = x1 - x0;
+
+    // Count solid pixels under the portal and track their weighted position.
+    let solidCount = 0;
+    let solidSumX = 0;
+    for (let x = x0; x < x1; x++) {
+        if (x < 0 || x >= GAME_WIDTH) continue;
+        if (isSolidAt(x, bottomY)) {
+            solidCount++;
+            solidSumX += x;
+        }
+    }
+
+    const supportRatio = solidCount / portalW;
+    const MIN_SUPPORT = 0.4; // need 40 % of width supported
+
+    if (supportRatio >= MIN_SUPPORT) return; // stable
+
+    if (solidCount === 0) {
+        // No support at all — fall straight down.
+        EXIT.y += 1;
+        return;
+    }
+
+    // Partially supported — tip toward the unsupported side.
+    const supportCenterX = solidSumX / solidCount;
+    const portalCenterX  = (x0 + x1) / 2;
+
+    // Support is left of center → portal tips right, and vice-versa.
+    if (supportCenterX < portalCenterX - 0.5) {
+        EXIT.x += 1;
+    } else if (supportCenterX > portalCenterX + 0.5) {
+        EXIT.x -= 1;
+    }
+    EXIT.y += 1;
 }
 
 // ─── Bridge Collapse ──────────────────────────────────────────────────────────
@@ -1716,13 +2174,13 @@ function draw() {
     const drawH = canvas.height / dpr; // = GAME_HEIGHT * SCALE
 
     const currentTheme = getCurrentThemeName();
-    const weatherFlash = _getWeatherFlash(currentTheme, gameState.ticks);
+    const frameTime = gameState.ticks / FPS;
     const sky = getThemeSkyColors();
     const useHybridWebGLBase = !!(renderer && typeof renderer.supportsHybridBasePass === 'function' && renderer.supportsHybridBasePass());
     PerfMonitor.passStart('sky');
     let skyHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderSkyLayer === 'function') {
-        skyHandledByWebGL = renderer.renderSkyLayer(ctx, sky, drawW, drawH);
+        skyHandledByWebGL = _runWebGLEffect('skyLayer', () => renderer.renderSkyLayer(ctx, sky, drawW, drawH));
     }
     if (!skyHandledByWebGL) {
         let skyGrad = ctx.createLinearGradient(0, 0, 0, drawH);
@@ -1812,7 +2270,9 @@ function draw() {
     PerfMonitor.passStart('terrain');
     let terrainHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderTerrainLiquidLayer === 'function') {
-        terrainHandledByWebGL = renderer.renderTerrainLiquidLayer(ctx, offscreenCanvas, liquidCanvas, GAME_WIDTH, GAME_HEIGHT);
+        terrainHandledByWebGL = _runWebGLEffect('terrainComposite', () =>
+            renderer.renderTerrainLiquidLayer(ctx, offscreenCanvas, liquidCanvas, GAME_WIDTH, GAME_HEIGHT)
+        );
     }
     if (!terrainHandledByWebGL) {
         ctx.drawImage(offscreenCanvas, 0, 0);
@@ -1822,7 +2282,11 @@ function draw() {
     PerfMonitor.passEnd('terrain');
 
     PerfMonitor.passStart('layerStack');
-    const useHybridWebGLLayers = !!(useHybridWebGLBase && typeof renderer.renderGameLayerStack === 'function');
+    const useHybridWebGLLayers = !!(
+        useHybridWebGLBase &&
+        _isWebGLEffectEnabled('layerStack') &&
+        typeof renderer.renderGameLayerStack === 'function'
+    );
     let layerStackHandledByWebGL = false;
     if (useHybridWebGLLayers) {
         const sceneLayer = _getPhase3Layer('scene');
@@ -1850,13 +2314,15 @@ function draw() {
         if (_atmFront) atmFrontLayer.cx.drawImage(_atmFront, 0, 0);
         else drawThemeAtmosphere(atmFrontLayer.cx, 'front');
 
-        layerStackHandledByWebGL = renderer.renderGameLayerStack(ctx, [
-            sceneLayer.c,
-            atmBehindLayer.c,
-            mistLayer.c,
-            weatherAtmosLayer.c,
-            atmFrontLayer.c
-        ], GAME_WIDTH, GAME_HEIGHT);
+        layerStackHandledByWebGL = _runWebGLEffect('layerStack', () =>
+            renderer.renderGameLayerStack(ctx, [
+                sceneLayer.c,
+                atmBehindLayer.c,
+                mistLayer.c,
+                weatherAtmosLayer.c,
+                atmFrontLayer.c
+            ], GAME_WIDTH, GAME_HEIGHT)
+        );
     }
     if (!layerStackHandledByWebGL) {
         drawSceneProps(ctx);
@@ -1869,10 +2335,49 @@ function draw() {
     }
     PerfMonitor.passEnd('layerStack');
 
+    PerfMonitor.passStart('terrainEdgeFx');
+    const terrainEdgePoints = _isWebGLEffectEnabled('terrainEdgeFx')
+        ? _getTerrainEdgeGlowPoints(currentTheme, gameState.ticks)
+        : [];
+    let terrainEdgeHandledByWebGL = false;
+    if (terrainEdgePoints.length > 0 && useHybridWebGLBase && typeof renderer.renderParticleCloud === 'function') {
+        terrainEdgeHandledByWebGL = _runWebGLEffect('terrainEdgeFx', () =>
+            renderer.renderParticleCloud(ctx, terrainEdgePoints, GAME_WIDTH, GAME_HEIGHT)
+        );
+    }
+    if (!terrainEdgeHandledByWebGL && terrainEdgePoints.length > 0) {
+        _drawWeatherParticleFallback(ctx, terrainEdgePoints);
+    }
+    PerfMonitor.passEnd('terrainEdgeFx');
+
+    PerfMonitor.passStart('shadows');
+    const shadowBlobs = _isWebGLEffectEnabled('shadows')
+        ? _buildShadowBlobs()
+        : [];
+    let shadowsHandledByWebGL = false;
+    if (shadowBlobs.length > 0 && useHybridWebGLBase && typeof renderer.renderShadowBlobs === 'function') {
+        shadowsHandledByWebGL = _runWebGLEffect('shadows', () =>
+            renderer.renderShadowBlobs(ctx, drawW, drawH, shadowBlobs)
+        );
+    }
+    if (!shadowsHandledByWebGL && shadowBlobs.length > 0) {
+        ctx.save();
+        for (let i = 0; i < shadowBlobs.length; i++) {
+            const b = shadowBlobs[i];
+            const grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.radius);
+            grad.addColorStop(0, `rgba(0, 0, 0, ${Math.min(0.24, b.intensity * 2.0)})`);
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(b.x - b.radius, b.y - b.radius, b.radius * 2, b.radius * 2);
+        }
+        ctx.restore();
+    }
+    PerfMonitor.passEnd('shadows');
+
     PerfMonitor.passStart('entities');
     let puffinBodiesHandledByWebGL = false;
     const puffinsWithWebGLBody = new Set();
-    if (useHybridWebGLBase && typeof renderer.renderPuffinBodies === 'function' && window.PuffinRender) {
+    if (useHybridWebGLBase && _isWebGLEffectEnabled('puffinBodies') && typeof renderer.renderPuffinBodies === 'function' && window.PuffinRender) {
         const bodySize = (typeof window.PuffinRender.getBodyCacheSize === 'function')
             ? window.PuffinRender.getBodyCacheSize()
             : { w: 12, h: 14 };
@@ -1884,23 +2389,32 @@ function draw() {
             if (typeof p._getBodyCacheKey !== 'function') continue;
             const key = p._getBodyCacheKey();
             if (!key) continue;
-
+            const spriteEffect = _isWebGLEffectEnabled('spriteFx')
+                ? _getPuffinWebGLEffect(p, currentTheme)
+                : null;
             instances.push({
                 key,
                 x: Math.floor(p.x),
                 y: Math.floor(p.y),
                 flipX: p.vx < 0,
+                tint: spriteEffect ? spriteEffect.tint : [255, 255, 255],
+                tintStrength: spriteEffect ? spriteEffect.tintStrength : 0,
+                rimColor: spriteEffect ? spriteEffect.rimColor : [255, 255, 255],
+                rimStrength: spriteEffect ? spriteEffect.rimStrength : 0,
+                glow: spriteEffect ? spriteEffect.glow : 0,
                 ref: p
             });
         }
 
-        puffinBodiesHandledByWebGL = renderer.renderPuffinBodies(
-            ctx,
-            instances,
-            (cacheKey) => window.PuffinRender.getBodyCacheCanvasByKey(cacheKey),
-            GAME_WIDTH,
-            GAME_HEIGHT,
-            bodySize
+        puffinBodiesHandledByWebGL = _runWebGLEffect('puffinBodies', () =>
+            renderer.renderPuffinBodies(
+                ctx,
+                instances,
+                (cacheKey) => window.PuffinRender.getBodyCacheCanvasByKey(cacheKey),
+                GAME_WIDTH,
+                GAME_HEIGHT,
+                bodySize
+            )
         );
 
         if (puffinBodiesHandledByWebGL) {
@@ -1924,23 +2438,74 @@ function draw() {
     PerfMonitor.passStart('particles');
     let particlesHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderParticles === 'function') {
-        particlesHandledByWebGL = renderer.renderParticles(ctx, particles, GAME_WIDTH, GAME_HEIGHT);
+        particlesHandledByWebGL = _runWebGLEffect('particles', () =>
+            renderer.renderParticles(ctx, particles, GAME_WIDTH, GAME_HEIGHT)
+        );
     }
     if (!particlesHandledByWebGL) {
         particles.forEach(p => p.draw(ctx));
     }
     PerfMonitor.passEnd('particles');
 
+    PerfMonitor.passStart('bomberTrails');
+    const bomberTrailPoints = _isWebGLEffectEnabled('bomberTrailWisps')
+        ? _buildBomberTrailCloud(gameState.ticks)
+        : [];
+    let bomberTrailsHandledByWebGL = false;
+    if (bomberTrailPoints.length > 0 && useHybridWebGLBase && typeof renderer.renderParticleCloud === 'function') {
+        bomberTrailsHandledByWebGL = _runWebGLEffect('bomberTrailWisps', () =>
+            renderer.renderParticleCloud(ctx, bomberTrailPoints, GAME_WIDTH, GAME_HEIGHT)
+        );
+    }
+    if (!bomberTrailsHandledByWebGL && bomberTrailPoints.length > 0) {
+        _drawWeatherParticleFallback(ctx, bomberTrailPoints);
+    }
+    PerfMonitor.passEnd('bomberTrails');
+
     PerfMonitor.passStart('weather');
-    const weatherPoints = _buildWeatherParticleCloud(currentTheme, gameState.ticks, GAME_WIDTH, GAME_HEIGHT, _windX);
+    const weatherType = _getWeatherTypeForTheme(currentTheme);
+    const weatherPoints = weatherType
+        ? _buildWeatherParticleCloud(currentTheme, gameState.ticks, GAME_WIDTH, GAME_HEIGHT, _windX)
+        : [];
     let weatherHandledByWebGL = false;
-    if (useHybridWebGLBase && typeof renderer.renderParticleCloud === 'function') {
-        weatherHandledByWebGL = renderer.renderParticleCloud(ctx, weatherPoints, GAME_WIDTH, GAME_HEIGHT);
+    if (!weatherHandledByWebGL && useHybridWebGLBase && typeof renderer.renderParticleCloud === 'function') {
+        weatherHandledByWebGL = _runWebGLEffect('weatherParticles', () =>
+            renderer.renderParticleCloud(ctx, weatherPoints, GAME_WIDTH, GAME_HEIGHT)
+        );
     }
     if (!weatherHandledByWebGL && weatherPoints.length > 0) {
         _drawWeatherParticleFallback(ctx, weatherPoints);
     }
     PerfMonitor.passEnd('weather');
+
+    PerfMonitor.passStart('weatherField');
+    let weatherFieldHandledByWebGL = false;
+    if (_isWebGLEffectEnabled('weatherField') && useHybridWebGLBase && typeof renderer.renderWeatherField === 'function') {
+        weatherFieldHandledByWebGL = _runWebGLEffect('weatherField', () =>
+            renderer.renderWeatherField(ctx, drawW, drawH, {
+                theme: currentTheme,
+                time: frameTime,
+                wind: _windX,
+                intensity: weatherType ? 0.34 : 0.14
+            })
+        );
+    }
+    PerfMonitor.passEnd('weatherField');
+
+    PerfMonitor.passStart('caveMotes');
+    const caveMotePoints = _isWebGLEffectEnabled('caveAmbientMotes')
+        ? _buildCaveAmbientMotes(currentTheme, gameState.ticks)
+        : [];
+    let caveMotesHandledByWebGL = false;
+    if (caveMotePoints.length > 0 && useHybridWebGLBase && typeof renderer.renderParticleCloud === 'function') {
+        caveMotesHandledByWebGL = _runWebGLEffect('caveAmbientMotes', () =>
+            renderer.renderParticleCloud(ctx, caveMotePoints, GAME_WIDTH, GAME_HEIGHT)
+        );
+    }
+    if (!caveMotesHandledByWebGL && caveMotePoints.length > 0) {
+        _drawWeatherParticleFallback(ctx, caveMotePoints);
+    }
+    PerfMonitor.passEnd('caveMotes');
 
     if (activeSkill && currentSkillCounts[activeSkill] > 0) {
         ctx.strokeStyle = hoveredPuffin ? '#0f0' : '#fff';
@@ -1974,12 +2539,19 @@ function draw() {
         fungus_glow: [60, 180, 100], toxic_sludge: [100, 160, 30]
     };
     const [gradeR, gradeG, gradeB] = postProcessGrades[getCurrentThemeName()] || [120, 170, 230];
+    const postAtmosphereStrength = _isWebGLEffectEnabled('postAtmosphere') ? 0.55 : 0;
     let postProcessHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderPostProcessOverlay === 'function') {
-        postProcessHandledByWebGL = renderer.renderPostProcessOverlay(ctx, drawW, drawH, {
-            gradeRgb: [gradeR, gradeG, gradeB],
-            gradeAlpha: 0.05
-        });
+        postProcessHandledByWebGL = _runWebGLEffect('postProcess', () =>
+            renderer.renderPostProcessOverlay(ctx, drawW, drawH, {
+                gradeRgb: [gradeR, gradeG, gradeB],
+                gradeAlpha: 0.05,
+                theme: currentTheme,
+                time: frameTime,
+                wind: _windX,
+                atmosphereIntensity: postAtmosphereStrength
+            })
+        );
     }
     if (!postProcessHandledByWebGL) {
         ctx.fillStyle = `rgba(${gradeR}, ${gradeG}, ${gradeB}, 0.05)`;
@@ -1998,6 +2570,14 @@ function draw() {
         vignette.addColorStop(1, 'rgba(4, 8, 18, 0.30)');
         ctx.fillStyle = vignette;
         ctx.fillRect(0, 0, drawW, drawH);
+
+        if (postAtmosphereStrength > 0) {
+            const haze = ctx.createLinearGradient(0, drawH * 0.18, 0, drawH);
+            haze.addColorStop(0, `rgba(${gradeR}, ${gradeG}, ${gradeB}, ${0.03 * postAtmosphereStrength})`);
+            haze.addColorStop(1, `rgba(${gradeR}, ${gradeG}, ${gradeB}, ${0.08 * postAtmosphereStrength})`);
+            ctx.fillStyle = haze;
+            ctx.fillRect(0, 0, drawW, drawH);
+        }
     }
 
     PerfMonitor.passEnd('postProcess');
@@ -2005,6 +2585,12 @@ function draw() {
     // Dynamic lighting (feature pass #1)
     PerfMonitor.passStart('lights');
     const dynamicLights = [];
+    const terrainContactLights = _isWebGLEffectEnabled('terrainEdgeFx')
+        ? _buildTerrainContactLights(terrainEdgePoints, currentTheme)
+        : [];
+    for (let i = 0; i < terrainContactLights.length; i++) {
+        dynamicLights.push(terrainContactLights[i]);
+    }
     dynamicLights.push({
         x: (EXIT.x + EXIT.w / 2) * SCALE,
         y: (EXIT.y + EXIT.h / 2) * SCALE,
@@ -2050,7 +2636,9 @@ function draw() {
 
     let lightsHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderDynamicLights === 'function') {
-        lightsHandledByWebGL = renderer.renderDynamicLights(ctx, drawW, drawH, dynamicLights);
+        lightsHandledByWebGL = _runWebGLEffect('dynamicLights', () =>
+            renderer.renderDynamicLights(ctx, drawW, drawH, dynamicLights)
+        );
     }
     if (!lightsHandledByWebGL && dynamicLights.length > 0) {
         ctx.save();
@@ -2094,7 +2682,9 @@ function draw() {
 
     let ringwavesHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderRingwaves === 'function') {
-        ringwavesHandledByWebGL = renderer.renderRingwaves(ctx, drawW, drawH, bomberRingwaves);
+        ringwavesHandledByWebGL = _runWebGLEffect('ringwaves', () =>
+            renderer.renderRingwaves(ctx, drawW, drawH, bomberRingwaves)
+        );
     }
     if (!ringwavesHandledByWebGL && bomberRingwaves.length > 0) {
         ctx.save();
@@ -2120,14 +2710,16 @@ function draw() {
         radius: (18 + portalCharge * 8) * SCALE,
         pulse: 0.45 + portalCharge * 0.55 + Math.sin(gameState.ticks * 0.08) * 0.18,
         intensity: 0.65 + portalCharge * 0.45,
-        time: gameState.ticks / FPS,
+        time: frameTime,
         colorA: [80, 255, 170],
         colorB: [40, 220, 255]
     };
 
     let portalFxHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderPortalEffect === 'function') {
-        portalFxHandledByWebGL = renderer.renderPortalEffect(ctx, drawW, drawH, portalEffect);
+        portalFxHandledByWebGL = _runWebGLEffect('portalEffect', () =>
+            renderer.renderPortalEffect(ctx, drawW, drawH, portalEffect)
+        );
     }
     if (!portalFxHandledByWebGL) {
         const px = portalEffect.x;
@@ -2154,6 +2746,54 @@ function draw() {
     }
 
     PerfMonitor.passEnd('portal');
+
+    PerfMonitor.passStart('exitRefraction');
+    const exitRefractionEffects = _isWebGLEffectEnabled('exitRefractionRing')
+        ? _buildExitRefractionEffects(portalEffect, portalCharge, gameState.ticks)
+        : [];
+    let exitRefractionHandledByWebGL = false;
+    if (exitRefractionEffects.length > 0 && useHybridWebGLBase && typeof renderer.renderScreenDistortion === 'function') {
+        exitRefractionHandledByWebGL = _runWebGLEffect('exitRefractionRing', () =>
+            renderer.renderScreenDistortion(ctx, drawW, drawH, {
+                theme: currentTheme,
+                time: frameTime,
+                globalStrength: 0,
+                effects: exitRefractionEffects
+            })
+        );
+    }
+    PerfMonitor.passEnd('exitRefraction');
+
+    PerfMonitor.passStart('portalSparkles');
+    const portalSparkles = _isWebGLEffectEnabled('portalSparkles')
+        ? _buildPortalSparkleCloud(gameState.ticks, portalCharge)
+        : [];
+    let portalSparklesHandledByWebGL = false;
+    if (portalSparkles.length > 0 && useHybridWebGLBase && typeof renderer.renderParticleCloud === 'function') {
+        portalSparklesHandledByWebGL = _runWebGLEffect('portalSparkles', () =>
+            renderer.renderParticleCloud(ctx, portalSparkles, GAME_WIDTH, GAME_HEIGHT)
+        );
+    }
+    if (!portalSparklesHandledByWebGL && portalSparkles.length > 0) {
+        _drawWeatherParticleFallback(ctx, portalSparkles);
+    }
+    PerfMonitor.passEnd('portalSparkles');
+
+    PerfMonitor.passStart('distortion');
+    const sceneDistortionEffects = _isWebGLEffectEnabled('distortion')
+        ? _buildSceneDistortionEffects(currentTheme, gameState.ticks, portalEffect)
+        : [];
+    if (sceneDistortionEffects.length > 0 && useHybridWebGLBase && typeof renderer.renderScreenDistortion === 'function') {
+        _runWebGLEffect('distortion', () =>
+            renderer.renderScreenDistortion(ctx, drawW, drawH, {
+                theme: currentTheme,
+                time: frameTime,
+                globalStrength: 0.004,
+                effects: sceneDistortionEffects
+            })
+        );
+    }
+    PerfMonitor.passEnd('distortion');
 
     // Long-press tooltip overlay
     if (_touchTooltip) {

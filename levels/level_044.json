@@ -17,7 +17,7 @@
   },
   "theme": "iron_ore",
   "skills": {
-    "floater": 0,
+    "floater": 6,
     "bomber": 0,
     "blocker": 3,
     "builder": 3,

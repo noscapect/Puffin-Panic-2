@@ -51,6 +51,68 @@
         return [r, g, b, a];
     }
 
+    function getThemeEffectMode(theme) {
+        switch (String(theme || '').toLowerCase()) {
+            case 'snow':
+            case 'packed_snow':
+            case 'black_ice':
+            case 'ice':
+            case 'frozen_mud':
+                return 1;
+            case 'desert':
+            case 'sandstone':
+            case 'salt_flats':
+                return 2;
+            case 'lava':
+            case 'volcanic_ash':
+            case 'obsidian_floor':
+                return 3;
+            case 'water':
+            case 'deep_sea':
+            case 'coral':
+            case 'wet_cave_stone':
+                return 4;
+            case 'crystal':
+            case 'crystal_dense':
+            case 'amber':
+            case 'fungus_glow':
+            case 'toxic_sludge':
+                return 5;
+            default:
+                return 6;
+        }
+    }
+
+    function getThemeAccentColors(theme) {
+        switch (getThemeEffectMode(theme)) {
+            case 1:
+                return { a: [185, 225, 255], b: [235, 248, 255] };
+            case 2:
+                return { a: [230, 188, 108], b: [255, 218, 150] };
+            case 3:
+                return { a: [255, 118, 56], b: [255, 186, 82] };
+            case 4:
+                return { a: [74, 198, 255], b: [138, 246, 255] };
+            case 5:
+                return { a: [126, 238, 184], b: [148, 164, 255] };
+            default:
+                return { a: [136, 186, 232], b: [205, 236, 255] };
+        }
+    }
+
+    function getDistortionKind(kind) {
+        switch (String(kind || '').toLowerCase()) {
+            case 'shockwave':
+                return 0;
+            case 'swirl':
+                return 1;
+            case 'pulse':
+                return 2;
+            default:
+                return 0;
+        }
+    }
+
     class Canvas2DRenderer {
         constructor(canvas, options) {
             this.canvas = canvas;
@@ -113,6 +175,18 @@
         renderPortalEffect() {
             return false;
         }
+
+        renderWeatherField() {
+            return false;
+        }
+
+        renderShadowBlobs() {
+            return false;
+        }
+
+        renderScreenDistortion() {
+            return false;
+        }
     }
 
     class WebGLRenderer {
@@ -134,6 +208,10 @@
             this._lightProgram = null;
             this._ringProgram = null;
             this._portalProgram = null;
+            this._atmosphereProgram = null;
+            this._weatherProgram = null;
+            this._shadowProgram = null;
+            this._distortionProgram = null;
             this._uploadTexture = null;
             this._particleBuffer = null;
             this._unitQuadBuffer = null;
@@ -146,7 +224,11 @@
                 sprite: null,
                 lights: null,
                 rings: null,
-                portal: null
+                portal: null,
+                atmosphere: null,
+                weather: null,
+                shadows: null,
+                distortion: null
             };
             this._particleCpuBuffer = new Float32Array(0);
             this._spriteTextureCache = {};
@@ -343,9 +425,24 @@
                 'precision mediump float;',
                 'varying vec2 vUv;',
                 'uniform sampler2D uTex;',
+                'uniform vec3 uTint;',
+                'uniform float uTintStrength;',
+                'uniform vec3 uRimColor;',
+                'uniform float uRimStrength;',
+                'uniform float uGlow;',
+                'uniform vec2 uTexelSize;',
                 'void main() {',
                 '  vec4 texel = texture2D(uTex, vUv);',
-                '  gl_FragColor = texel;',
+                '  if (texel.a <= 0.001) discard;',
+                '  float leftA = texture2D(uTex, vUv + vec2(-uTexelSize.x, 0.0)).a;',
+                '  float rightA = texture2D(uTex, vUv + vec2(uTexelSize.x, 0.0)).a;',
+                '  float upA = texture2D(uTex, vUv + vec2(0.0, -uTexelSize.y)).a;',
+                '  float downA = texture2D(uTex, vUv + vec2(0.0, uTexelSize.y)).a;',
+                '  float edge = clamp(texel.a * 4.0 - (leftA + rightA + upA + downA), 0.0, 1.0);',
+                '  vec3 tinted = mix(texel.rgb, mix(texel.rgb, uTint, 0.78), clamp(uTintStrength, 0.0, 1.0));',
+                '  vec3 color = tinted + uRimColor * edge * uRimStrength + uRimColor * uGlow * 0.35;',
+                '  float alpha = clamp(texel.a + edge * uRimStrength * 0.22, 0.0, 1.0);',
+                '  gl_FragColor = vec4(clamp(color, 0.0, 1.0), alpha);',
                 '}'
             ].join('\n');
 
@@ -431,6 +528,208 @@
                 '}'
             ].join('\n');
 
+            const fsAtmosphere = [
+                'precision mediump float;',
+                'varying vec2 vUv;',
+                'uniform float uTime;',
+                'uniform float uMode;',
+                'uniform float uWind;',
+                'uniform float uIntensity;',
+                'uniform vec3 uColorA;',
+                'uniform vec3 uColorB;',
+                'float hash(vec2 p) {',
+                '  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);',
+                '}',
+                'float noise(vec2 p) {',
+                '  vec2 i = floor(p);',
+                '  vec2 f = fract(p);',
+                '  float a = hash(i);',
+                '  float b = hash(i + vec2(1.0, 0.0));',
+                '  float c = hash(i + vec2(0.0, 1.0));',
+                '  float d = hash(i + vec2(1.0, 1.0));',
+                '  vec2 u = f * f * (3.0 - 2.0 * f);',
+                '  return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;',
+                '}',
+                'void main() {',
+                '  vec2 uv = vUv;',
+                '  vec3 sum = vec3(0.0);',
+                '  float alpha = 0.0;',
+                '  if (uMode < 0.5) {',
+                '    gl_FragColor = vec4(0.0);',
+                '    return;',
+                '  }',
+                '  if (uMode < 1.5) {',
+                '    float veil = smoothstep(0.22, 0.95, noise(vec2(uv.x * 3.1 + uWind * 0.7 + uTime * 0.02, uv.y * 4.9 - uTime * 0.015)));',
+                '    float shimmer = 0.5 + 0.5 * sin((uv.x + uv.y) * 10.0 - uTime * 0.7);',
+                '    alpha = veil * 0.15 * uIntensity * (0.45 + 0.55 * (1.0 - uv.y));',
+                '    sum = mix(uColorA, uColorB, shimmer) * alpha;',
+                '  } else if (uMode < 2.5) {',
+                '    float band = noise(vec2(uv.x * 8.0 + uTime * 0.12 + uWind * 1.1, uv.y * 18.0 - uTime * 0.02));',
+                '    alpha = smoothstep(0.48, 0.86, band) * 0.18 * uIntensity * (0.30 + 0.70 * (1.0 - uv.y));',
+                '    sum = mix(uColorB, uColorA, uv.y) * alpha;',
+                '  } else if (uMode < 3.5) {',
+                '    float swirl = noise(vec2(uv.x * 5.2 - uTime * 0.03, uv.y * 7.4 + uTime * 0.09));',
+                '    float ember = smoothstep(0.84, 0.98, noise(vec2(uv.x * 24.0 + uTime * 0.9, uv.y * 20.0 - uTime * 0.3)));',
+                '    alpha = (swirl * 0.08 + ember * 0.10 * (1.0 - uv.y)) * uIntensity;',
+                '    sum = mix(uColorA, uColorB, swirl) * alpha;',
+                '  } else if (uMode < 4.5) {',
+                '    float warp = sin((uv.x + sin(uTime * 0.22 + uv.y * 5.0) * 0.08) * 28.0 + uTime * 1.4);',
+                '    float caustic = pow(abs(warp), 8.0);',
+                '    alpha = caustic * 0.14 * uIntensity * smoothstep(1.1, 0.1, uv.y);',
+                '    sum = mix(uColorA, uColorB, uv.y) * alpha;',
+                '  } else if (uMode < 5.5) {',
+                '    float field = noise(vec2(uv.x * 6.0 - uTime * 0.04, uv.y * 6.0 + uTime * 0.05));',
+                '    float pulse = 0.5 + 0.5 * sin(uTime * 1.6 + uv.x * 12.0 + uv.y * 7.0);',
+                '    alpha = field * 0.13 * uIntensity;',
+                '    sum = mix(uColorA, uColorB, pulse) * alpha;',
+                '  } else {',
+                '    float fog = noise(vec2(uv.x * 4.0 + uWind * 0.5, uv.y * 8.0 - uTime * 0.025));',
+                '    alpha = fog * 0.08 * uIntensity * (1.0 - uv.y * 0.65);',
+                '    sum = mix(uColorA, uColorB, uv.y) * alpha;',
+                '  }',
+                '  gl_FragColor = vec4(clamp(sum, 0.0, 1.0), clamp(alpha, 0.0, 0.35));',
+                '}'
+            ].join('\n');
+
+            const fsWeather = [
+                'precision mediump float;',
+                'varying vec2 vUv;',
+                'uniform float uTime;',
+                'uniform float uMode;',
+                'uniform float uWind;',
+                'uniform float uIntensity;',
+                'uniform vec3 uColorA;',
+                'uniform vec3 uColorB;',
+                'float hash(vec2 p) {',
+                '  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);',
+                '}',
+                'float snowLayer(vec2 uv, float scale, float speed, float drift) {',
+                '  vec2 p = uv * scale;',
+                '  p.x += uTime * drift;',
+                '  p.y += uTime * speed;',
+                '  vec2 cell = floor(p);',
+                '  vec2 f = fract(p) - 0.5;',
+                '  vec2 jitter = vec2(hash(cell), hash(cell + 13.7)) - 0.5;',
+                '  float d = length(f - jitter * 0.35);',
+                '  return smoothstep(0.20, 0.0, d);',
+                '}',
+                'void main() {',
+                '  vec2 uv = vUv;',
+                '  vec3 color = vec3(0.0);',
+                '  float alpha = 0.0;',
+                '  if (uMode < 0.5) {',
+                '    gl_FragColor = vec4(0.0);',
+                '    return;',
+                '  }',
+                '  if (uMode < 1.5) {',
+                '    float s = snowLayer(uv, 18.0, 0.22, uWind * 0.45 + 0.02);',
+                '    s += snowLayer(uv + vec2(0.23, 0.11), 26.0, 0.33, uWind * 0.60 + 0.04) * 0.85;',
+                '    alpha = s * 0.34 * uIntensity;',
+                '    color = mix(uColorA, uColorB, 0.65);',
+                '  } else if (uMode < 2.5) {',
+                '    vec2 q = vec2(uv.x * 55.0 + uv.y * 9.0 + uTime * (4.0 + uWind * 5.0), uv.y * 32.0 - uTime * 1.4);',
+                '    float grit = smoothstep(0.94, 1.0, fract(q.x + sin(q.y) * 0.6));',
+                '    alpha = grit * 0.26 * uIntensity * (0.45 + 0.55 * (1.0 - uv.y));',
+                '    color = mix(uColorA, uColorB, fract(q.y * 0.11));',
+                '  } else if (uMode < 3.5) {',
+                '    vec2 q = vec2(uv.x * 28.0 + sin(uv.y * 12.0 + uTime * 0.8) * 2.2, uv.y * 24.0 + uTime * 1.6);',
+                '    float ash = smoothstep(0.88, 1.0, fract(q.x + q.y));',
+                '    alpha = ash * 0.25 * uIntensity * (0.35 + 0.65 * (1.0 - uv.y));',
+                '    color = mix(uColorA, uColorB, fract(q.x * 0.08));',
+                '  } else if (uMode < 4.5) {',
+                '    vec2 p = vec2(uv.x * 14.0 + sin(uTime * 0.7 + uv.y * 4.0), (1.0 - uv.y) * 18.0 + uTime * 0.9);',
+                '    vec2 cell = floor(p);',
+                '    vec2 f = fract(p) - 0.5;',
+                '    vec2 jitter = vec2(hash(cell), hash(cell + 3.1)) - 0.5;',
+                '    float bubble = smoothstep(0.26, 0.0, length(f - jitter * 0.25));',
+                '    alpha = bubble * 0.20 * uIntensity;',
+                '    color = mix(uColorA, uColorB, 0.55);',
+                '  } else if (uMode < 5.5) {',
+                '    vec2 q = uv * 22.0 + vec2(uTime * 0.4, -uTime * 0.6);',
+                '    float motes = smoothstep(0.93, 1.0, fract(sin(q.x * 1.3 + q.y * 2.1) * 12.0));',
+                '    alpha = motes * 0.22 * uIntensity;',
+                '    color = mix(uColorA, uColorB, fract(q.x * 0.1));',
+                '  } else {',
+                '    vec2 q = vec2(uv.x * 90.0 + uTime * (7.5 + uWind * 4.0), uv.y * 48.0 + uTime * 13.0);',
+                '    float streak = smoothstep(0.975, 1.0, fract(q.x - q.y * 0.36));',
+                '    alpha = streak * 0.22 * uIntensity;',
+                '    color = mix(uColorA, uColorB, 0.35);',
+                '  }',
+                '  gl_FragColor = vec4(clamp(color, 0.0, 1.0), clamp(alpha, 0.0, 0.48));',
+                '}'
+            ].join('\n');
+
+            const fsShadows = [
+                'precision mediump float;',
+                'uniform int uBlobCount;',
+                'uniform vec2 uCenter[16];',
+                'uniform float uRadius[16];',
+                'uniform float uIntensity[16];',
+                'void main() {',
+                '  vec2 p = gl_FragCoord.xy;',
+                '  float alpha = 0.0;',
+                '  for (int i = 0; i < 16; i++) {',
+                '    if (i >= uBlobCount) break;',
+                '    vec2 d = p - uCenter[i];',
+                '    d.x *= 0.78;',
+                '    d.y *= 1.35;',
+                '    float dist = length(d);',
+                '    float r = max(1.0, uRadius[i]);',
+                '    float t = clamp(1.0 - dist / r, 0.0, 1.0);',
+                '    alpha += t * t * uIntensity[i];',
+                '  }',
+                '  alpha = clamp(alpha, 0.0, 0.45);',
+                '  gl_FragColor = vec4(0.0, 0.0, 0.0, alpha);',
+                '}'
+            ].join('\n');
+
+            const fsDistortion = [
+                'precision mediump float;',
+                'varying vec2 vUv;',
+                'uniform sampler2D uTex;',
+                'uniform vec2 uResolution;',
+                'uniform float uTime;',
+                'uniform float uMode;',
+                'uniform float uGlobalStrength;',
+                'uniform int uDistortionCount;',
+                'uniform vec2 uCenter[12];',
+                'uniform float uRadius[12];',
+                'uniform float uStrength[12];',
+                'uniform float uKind[12];',
+                'void main() {',
+                '  vec2 p = gl_FragCoord.xy;',
+                '  vec2 offset = vec2(0.0);',
+                '  for (int i = 0; i < 12; i++) {',
+                '    if (i >= uDistortionCount) break;',
+                '    vec2 d = p - uCenter[i];',
+                '    float dist = length(d);',
+                '    float r = max(1.0, uRadius[i]);',
+                '    float n = dist / r;',
+                '    if (n < 1.15) {',
+                '      vec2 dir = d / max(dist, 0.001);',
+                '      float strength = uStrength[i];',
+                '      if (uKind[i] < 0.5) {',
+                '        float ring = exp(-abs(dist - r * 0.72) / max(1.0, r * 0.10));',
+                '        offset += dir * ring * strength * 12.0;',
+                '      } else if (uKind[i] < 1.5) {',
+                '        float swirl = (1.0 - n) * (0.7 + 0.3 * sin(uTime * 3.0 + n * 9.0));',
+                '        offset += vec2(-dir.y, dir.x) * swirl * strength * 10.0;',
+                '      } else {',
+                '        float pulse = sin(uTime * 16.0 + n * 18.0) * (1.0 - n);',
+                '        offset += dir * pulse * strength * 7.0;',
+                '      }',
+                '    }',
+                '  }',
+                '  if (uMode > 3.5 && uMode < 4.5) {',
+                '    offset += vec2(sin(p.y * 0.06 + uTime * 2.4), cos(p.x * 0.05 + uTime * 1.9)) * (1.6 * uGlobalStrength);',
+                '  } else if (uMode > 2.5 && uMode < 3.5) {',
+                '    offset += vec2(sin(p.y * 0.12 + uTime * 5.4), 0.0) * (1.9 * uGlobalStrength);',
+                '  }',
+                '  vec2 sampleUv = vUv + offset / uResolution;',
+                '  gl_FragColor = texture2D(uTex, sampleUv);',
+                '}'
+            ].join('\n');
+
             this._gradientProgram = this._createProgram(vsSource, fsGradient);
             this._textureProgram = this._createProgram(vsSource, fsTexture);
             this._solidProgram = this._createProgram(vsSource, fsSolid);
@@ -440,6 +739,10 @@
             this._lightProgram = this._createProgram(vsSource, fsLights);
             this._ringProgram = this._createProgram(vsSource, fsRings);
             this._portalProgram = this._createProgram(vsSource, fsPortal);
+            this._atmosphereProgram = this._createProgram(vsSource, fsAtmosphere);
+            this._weatherProgram = this._createProgram(vsSource, fsWeather);
+            this._shadowProgram = this._createProgram(vsSource, fsShadows);
+            this._distortionProgram = this._createProgram(vsSource, fsDistortion);
 
             this._loc.gradient = {
                 aPos: this.gl.getAttribLocation(this._gradientProgram, 'aPos'),
@@ -488,7 +791,13 @@
                 uPos: this.gl.getUniformLocation(this._spriteProgram, 'uPos'),
                 uSize: this.gl.getUniformLocation(this._spriteProgram, 'uSize'),
                 uFlipX: this.gl.getUniformLocation(this._spriteProgram, 'uFlipX'),
-                uTex: this.gl.getUniformLocation(this._spriteProgram, 'uTex')
+                uTex: this.gl.getUniformLocation(this._spriteProgram, 'uTex'),
+                uTint: this.gl.getUniformLocation(this._spriteProgram, 'uTint'),
+                uTintStrength: this.gl.getUniformLocation(this._spriteProgram, 'uTintStrength'),
+                uRimColor: this.gl.getUniformLocation(this._spriteProgram, 'uRimColor'),
+                uRimStrength: this.gl.getUniformLocation(this._spriteProgram, 'uRimStrength'),
+                uGlow: this.gl.getUniformLocation(this._spriteProgram, 'uGlow'),
+                uTexelSize: this.gl.getUniformLocation(this._spriteProgram, 'uTexelSize')
             };
 
             this._loc.lights = {
@@ -524,6 +833,52 @@
                 uIntensity: this.gl.getUniformLocation(this._portalProgram, 'uIntensity'),
                 uColorA: this.gl.getUniformLocation(this._portalProgram, 'uColorA'),
                 uColorB: this.gl.getUniformLocation(this._portalProgram, 'uColorB')
+            };
+
+            this._loc.atmosphere = {
+                aPos: this.gl.getAttribLocation(this._atmosphereProgram, 'aPos'),
+                aUv: this.gl.getAttribLocation(this._atmosphereProgram, 'aUv'),
+                uTime: this.gl.getUniformLocation(this._atmosphereProgram, 'uTime'),
+                uMode: this.gl.getUniformLocation(this._atmosphereProgram, 'uMode'),
+                uWind: this.gl.getUniformLocation(this._atmosphereProgram, 'uWind'),
+                uIntensity: this.gl.getUniformLocation(this._atmosphereProgram, 'uIntensity'),
+                uColorA: this.gl.getUniformLocation(this._atmosphereProgram, 'uColorA'),
+                uColorB: this.gl.getUniformLocation(this._atmosphereProgram, 'uColorB')
+            };
+
+            this._loc.weather = {
+                aPos: this.gl.getAttribLocation(this._weatherProgram, 'aPos'),
+                aUv: this.gl.getAttribLocation(this._weatherProgram, 'aUv'),
+                uTime: this.gl.getUniformLocation(this._weatherProgram, 'uTime'),
+                uMode: this.gl.getUniformLocation(this._weatherProgram, 'uMode'),
+                uWind: this.gl.getUniformLocation(this._weatherProgram, 'uWind'),
+                uIntensity: this.gl.getUniformLocation(this._weatherProgram, 'uIntensity'),
+                uColorA: this.gl.getUniformLocation(this._weatherProgram, 'uColorA'),
+                uColorB: this.gl.getUniformLocation(this._weatherProgram, 'uColorB')
+            };
+
+            this._loc.shadows = {
+                aPos: this.gl.getAttribLocation(this._shadowProgram, 'aPos'),
+                aUv: this.gl.getAttribLocation(this._shadowProgram, 'aUv'),
+                uBlobCount: this.gl.getUniformLocation(this._shadowProgram, 'uBlobCount'),
+                uCenter: this.gl.getUniformLocation(this._shadowProgram, 'uCenter'),
+                uRadius: this.gl.getUniformLocation(this._shadowProgram, 'uRadius'),
+                uIntensity: this.gl.getUniformLocation(this._shadowProgram, 'uIntensity')
+            };
+
+            this._loc.distortion = {
+                aPos: this.gl.getAttribLocation(this._distortionProgram, 'aPos'),
+                aUv: this.gl.getAttribLocation(this._distortionProgram, 'aUv'),
+                uTex: this.gl.getUniformLocation(this._distortionProgram, 'uTex'),
+                uResolution: this.gl.getUniformLocation(this._distortionProgram, 'uResolution'),
+                uTime: this.gl.getUniformLocation(this._distortionProgram, 'uTime'),
+                uMode: this.gl.getUniformLocation(this._distortionProgram, 'uMode'),
+                uGlobalStrength: this.gl.getUniformLocation(this._distortionProgram, 'uGlobalStrength'),
+                uDistortionCount: this.gl.getUniformLocation(this._distortionProgram, 'uDistortionCount'),
+                uCenter: this.gl.getUniformLocation(this._distortionProgram, 'uCenter'),
+                uRadius: this.gl.getUniformLocation(this._distortionProgram, 'uRadius'),
+                uStrength: this.gl.getUniformLocation(this._distortionProgram, 'uStrength'),
+                uKind: this.gl.getUniformLocation(this._distortionProgram, 'uKind')
             };
 
             const verts = new Float32Array([
@@ -680,6 +1035,14 @@
             const opts = options || {};
             const grade = Array.isArray(opts.gradeRgb) ? opts.gradeRgb : [120, 170, 230];
             const gradeAlpha = typeof opts.gradeAlpha === 'number' ? opts.gradeAlpha : 0.05;
+            const theme = String(opts.theme || 'grass');
+            const themeMode = getThemeEffectMode(theme);
+            const accent = getThemeAccentColors(theme);
+            const colorA = Array.isArray(opts.themeColorA) ? opts.themeColorA : accent.a;
+            const colorB = Array.isArray(opts.themeColorB) ? opts.themeColorB : accent.b;
+            const atmosphereIntensity = typeof opts.atmosphereIntensity === 'number' ? opts.atmosphereIntensity : 1;
+            const time = typeof opts.time === 'number' ? opts.time : 0;
+            const wind = typeof opts.wind === 'number' ? opts.wind : 0;
 
             this._ensureGLSize(drawW, drawH);
             this.gl.clearColor(0, 0, 0, 0);
@@ -696,6 +1059,16 @@
                 Math.max(0, Math.min(255, grade[2])) / 255,
                 Math.max(0, Math.min(1, gradeAlpha))
             );
+            this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+
+            this.gl.useProgram(this._atmosphereProgram);
+            this._bindQuad(this._loc.atmosphere);
+            this.gl.uniform1f(this._loc.atmosphere.uTime, time);
+            this.gl.uniform1f(this._loc.atmosphere.uMode, themeMode);
+            this.gl.uniform1f(this._loc.atmosphere.uWind, wind);
+            this.gl.uniform1f(this._loc.atmosphere.uIntensity, Math.max(0, atmosphereIntensity));
+            this.gl.uniform3f(this._loc.atmosphere.uColorA, colorA[0] / 255, colorA[1] / 255, colorA[2] / 255);
+            this.gl.uniform3f(this._loc.atmosphere.uColorB, colorB[0] / 255, colorB[1] / 255, colorB[2] / 255);
             this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
 
             this.gl.useProgram(this._vignetteProgram);
@@ -854,6 +1227,14 @@
                 this.gl.uniform2f(this._loc.sprite.uPos, inst.x, inst.y);
                 this.gl.uniform2f(this._loc.sprite.uSize, bodyW, bodyH);
                 this.gl.uniform1f(this._loc.sprite.uFlipX, inst.flipX ? 1 : 0);
+                const tint = Array.isArray(inst.tint) ? inst.tint : [255, 255, 255];
+                const rimColor = Array.isArray(inst.rimColor) ? inst.rimColor : [255, 255, 255];
+                this.gl.uniform3f(this._loc.sprite.uTint, tint[0] / 255, tint[1] / 255, tint[2] / 255);
+                this.gl.uniform1f(this._loc.sprite.uTintStrength, Math.max(0, Math.min(1, Number(inst.tintStrength) || 0)));
+                this.gl.uniform3f(this._loc.sprite.uRimColor, rimColor[0] / 255, rimColor[1] / 255, rimColor[2] / 255);
+                this.gl.uniform1f(this._loc.sprite.uRimStrength, Math.max(0, Math.min(1.5, Number(inst.rimStrength) || 0)));
+                this.gl.uniform1f(this._loc.sprite.uGlow, Math.max(0, Math.min(1.5, Number(inst.glow) || 0)));
+                this.gl.uniform2f(this._loc.sprite.uTexelSize, 1 / Math.max(1, sourceCanvas.width), 1 / Math.max(1, sourceCanvas.height));
                 this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
                 draws++;
             }
@@ -1032,6 +1413,150 @@
                 Math.max(0, Math.min(255, Number(cb[1]) || 255)) / 255,
                 Math.max(0, Math.min(255, Number(cb[2]) || 255)) / 255
             );
+            this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+
+            ctx.drawImage(this.glCanvas, 0, 0, drawW, drawH);
+            return true;
+        }
+
+        renderWeatherField(ctx, gameWidth, gameHeight, options) {
+            if (!this.supportsHybridBasePass()) return false;
+
+            const opts = options || {};
+            const theme = String(opts.theme || 'grass');
+            const mode = getThemeEffectMode(theme);
+            const intensity = typeof opts.intensity === 'number' ? opts.intensity : 1;
+            const accent = getThemeAccentColors(theme);
+            const colorA = Array.isArray(opts.colorA) ? opts.colorA : accent.a;
+            const colorB = Array.isArray(opts.colorB) ? opts.colorB : accent.b;
+            const time = typeof opts.time === 'number' ? opts.time : 0;
+            const wind = typeof opts.wind === 'number' ? opts.wind : 0;
+
+            this._ensureGLSize(gameWidth, gameHeight);
+            this.gl.clearColor(0, 0, 0, 0);
+            this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+            this.gl.enable(this.gl.BLEND);
+            this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+
+            this.gl.useProgram(this._weatherProgram);
+            this._bindQuad(this._loc.weather);
+            this.gl.uniform1f(this._loc.weather.uTime, time);
+            this.gl.uniform1f(this._loc.weather.uMode, mode);
+            this.gl.uniform1f(this._loc.weather.uWind, wind);
+            this.gl.uniform1f(this._loc.weather.uIntensity, Math.max(0, intensity));
+            this.gl.uniform3f(this._loc.weather.uColorA, colorA[0] / 255, colorA[1] / 255, colorA[2] / 255);
+            this.gl.uniform3f(this._loc.weather.uColorB, colorB[0] / 255, colorB[1] / 255, colorB[2] / 255);
+            this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+
+            ctx.drawImage(this.glCanvas, 0, 0, gameWidth, gameHeight);
+            return true;
+        }
+
+        renderShadowBlobs(ctx, drawW, drawH, blobs) {
+            if (!this.supportsHybridBasePass()) return false;
+            if (!Array.isArray(blobs) || blobs.length === 0) return false;
+
+            const active = [];
+            for (let i = 0; i < blobs.length && active.length < 16; i++) {
+                const blob = blobs[i];
+                if (!blob) continue;
+                const radius = Number(blob.radius) || 0;
+                const intensity = Number(blob.intensity) || 0;
+                if (radius <= 0 || intensity <= 0) continue;
+                active.push({
+                    x: Number(blob.x) || 0,
+                    y: Number(blob.y) || 0,
+                    radius,
+                    intensity
+                });
+            }
+            if (active.length === 0) return false;
+
+            const center = new Float32Array(16 * 2);
+            const radius = new Float32Array(16);
+            const intensity = new Float32Array(16);
+            for (let i = 0; i < active.length; i++) {
+                center[i * 2] = active[i].x;
+                center[i * 2 + 1] = active[i].y;
+                radius[i] = active[i].radius;
+                intensity[i] = active[i].intensity;
+            }
+
+            this._ensureGLSize(drawW, drawH);
+            this.gl.clearColor(0, 0, 0, 0);
+            this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+            this.gl.enable(this.gl.BLEND);
+            this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+
+            this.gl.useProgram(this._shadowProgram);
+            this._bindQuad(this._loc.shadows);
+            this.gl.uniform1i(this._loc.shadows.uBlobCount, active.length);
+            this.gl.uniform2fv(this._loc.shadows.uCenter, center);
+            this.gl.uniform1fv(this._loc.shadows.uRadius, radius);
+            this.gl.uniform1fv(this._loc.shadows.uIntensity, intensity);
+            this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+
+            ctx.drawImage(this.glCanvas, 0, 0, drawW, drawH);
+            return true;
+        }
+
+        renderScreenDistortion(ctx, drawW, drawH, options) {
+            if (!this.supportsHybridBasePass()) return false;
+
+            const opts = options || {};
+            const theme = String(opts.theme || 'grass');
+            const mode = getThemeEffectMode(theme);
+            const effects = Array.isArray(opts.effects) ? opts.effects : [];
+            const active = [];
+            for (let i = 0; i < effects.length && active.length < 12; i++) {
+                const effect = effects[i];
+                if (!effect) continue;
+                const radius = Number(effect.radius) || 0;
+                const strength = Number(effect.strength) || 0;
+                if (radius <= 0 || strength <= 0) continue;
+                active.push({
+                    x: Number(effect.x) || 0,
+                    y: Number(effect.y) || 0,
+                    radius,
+                    strength,
+                    kind: getDistortionKind(effect.kind)
+                });
+            }
+
+            const center = new Float32Array(12 * 2);
+            const radius = new Float32Array(12);
+            const strength = new Float32Array(12);
+            const kind = new Float32Array(12);
+            for (let i = 0; i < active.length; i++) {
+                center[i * 2] = active[i].x;
+                center[i * 2 + 1] = active[i].y;
+                radius[i] = active[i].radius;
+                strength[i] = active[i].strength;
+                kind[i] = active[i].kind;
+            }
+
+            this._ensureGLSize(drawW, drawH);
+            this.gl.clearColor(0, 0, 0, 0);
+            this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+            this.gl.disable(this.gl.BLEND);
+
+            this.gl.useProgram(this._distortionProgram);
+            this._bindQuad(this._loc.distortion);
+            this.gl.activeTexture(this.gl.TEXTURE0);
+            this.gl.bindTexture(this.gl.TEXTURE_2D, this._uploadTexture);
+            this.gl.pixelStorei(this.gl.UNPACK_FLIP_Y_WEBGL, 0);
+            this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.canvas);
+            this.gl.pixelStorei(this.gl.UNPACK_FLIP_Y_WEBGL, 1);
+            this.gl.uniform1i(this._loc.distortion.uTex, 0);
+            this.gl.uniform2f(this._loc.distortion.uResolution, drawW, drawH);
+            this.gl.uniform1f(this._loc.distortion.uTime, typeof opts.time === 'number' ? opts.time : 0);
+            this.gl.uniform1f(this._loc.distortion.uMode, mode);
+            this.gl.uniform1f(this._loc.distortion.uGlobalStrength, Math.max(0, Number(opts.globalStrength) || 0));
+            this.gl.uniform1i(this._loc.distortion.uDistortionCount, active.length);
+            this.gl.uniform2fv(this._loc.distortion.uCenter, center);
+            this.gl.uniform1fv(this._loc.distortion.uRadius, radius);
+            this.gl.uniform1fv(this._loc.distortion.uStrength, strength);
+            this.gl.uniform1fv(this._loc.distortion.uKind, kind);
             this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
 
             ctx.drawImage(this.glCanvas, 0, 0, drawW, drawH);

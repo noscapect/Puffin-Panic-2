@@ -178,9 +178,19 @@ npm run level:qa:full
 
 # Lint + preview all 99 campaign levels
 npm run levels:qa
+
+# Finalize campaign maps automatically (portal fixes + solvability QA + budget tuning)
+npm run levels:finalize
 ```
 
 Reports are written to `reports/` (gitignored — regenerate any time).
+
+`levels:finalize` is the recommended pre-release pass for campaign quality. It runs:
+1. Portal audit
+2. Automatic portal correction scripts
+3. Post-fix portal audit
+4. Full route/lint QA with optional budget auto-fix
+5. Final QA summary in `reports/qa-summary.json`
 
 ## 📁 Project Structure
 

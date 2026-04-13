@@ -551,7 +551,7 @@ class Puffin {
             let carved = false;
             let cx = Math.floor(this.x + (this.vx * 2));
             let cy = Math.floor(this.y + PUFFIN_H/2);
-            for (let y = -5; y <= 5; y++) {
+            for (let y = -5; y <= 6; y++) {
                 for (let x = -2; x <= 2; x++) {
                     if (canDigAt(cx+x, cy+y, this.vx)) {
                         setTerrain(cx+x, cy+y, 0);
@@ -560,7 +560,7 @@ class Puffin {
                 }
             }
             if (carved) {
-                updateTerrainPixels(cx - 2, cy - 5, 5, 11);
+                updateTerrainPixels(cx - 2, cy - 5, 5, 12);
                 createParticles(cx, cy, 3, [150,150,150]);
                 if (typeof createSparkParticles === 'function') createSparkParticles(cx, cy);
                 if (typeof playSound === 'function') playSound('bash');

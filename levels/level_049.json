@@ -17,7 +17,7 @@
   },
   "theme": "rusty_metal",
   "skills": {
-    "floater": 0,
+    "floater": 5,
     "bomber": 5,
     "blocker": 4,
     "builder": 5,

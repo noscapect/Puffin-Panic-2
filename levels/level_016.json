@@ -24,8 +24,7 @@
     "basher": 4,
     "digger": 4,
     "climber": 5,
-    "miner": 4,
-    "platformer": 4
+    "miner": 4
   },
   "terrain": [
     [

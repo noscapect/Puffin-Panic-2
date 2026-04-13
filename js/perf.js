@@ -17,13 +17,21 @@
         background:    1.00,
         terrain:       1.50,
         layerStack:    2.00,
+        terrainEdgeFx: 0.70,
+        shadows:       0.70,
         entities:      1.50,
         particles:     1.00,
+        bomberTrails:  0.50,
         weather:       1.00,
+        weatherField:  0.55,
+        caveMotes:     0.45,
         postProcess:   1.50,
         lights:        1.00,
         ringwaves:     0.50,
-        portal:        0.50
+        portal:        0.50,
+        exitRefraction: 0.45,
+        portalSparkles: 0.35,
+        distortion:    0.80
     };
 
     // ── Internal state ─────────────────────────────────────────────────────────
@@ -117,8 +125,9 @@
 
     const PASS_ORDER = [
         'frame', 'sky', 'background', 'terrain', 'layerStack',
-        'entities', 'particles', 'weather', 'postProcess', 'lights',
-        'ringwaves', 'portal'
+        'terrainEdgeFx', 'shadows', 'entities', 'particles', 'bomberTrails', 'weather',
+        'weatherField', 'caveMotes', 'postProcess', 'lights', 'ringwaves',
+        'portal', 'exitRefraction', 'portalSparkles', 'distortion'
     ];
 
     function _refreshOverlay() {

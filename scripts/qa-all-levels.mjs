@@ -26,7 +26,9 @@ if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
 
 // ─── Load manifest ────────────────────────────────────────────────────────────
 const manifest = JSON.parse(readFileSync(join(root, 'levels', 'manifest.json'), 'utf8'));
-const levelFiles = manifest.levels.map(f => join(root, 'levels', f));
+const manifestFiles = manifest.levels.map(f => join(root, 'levels', f));
+const missingLevelFiles = manifestFiles.filter(f => !existsSync(f));
+const levelFiles = manifestFiles.filter(f => existsSync(f));
 
 // ─── Run one level through the pipeline ──────────────────────────────────────
 function runQA(levelFile) {
@@ -81,9 +83,17 @@ function applyBudgetFix(levelFile, recommendedBudget) {
 
 // ─── Run QA on all levels ─────────────────────────────────────────────────────
 console.log(`Running QA on ${levelFiles.length} levels${FIX_BUDGETS ? ' (with budget auto-fix)' : ''}...\n`);
+if (missingLevelFiles.length) {
+    console.log(`Skipping ${missingLevelFiles.length} missing level file(s) listed in manifest:`);
+    for (const f of missingLevelFiles) {
+        const base = f.replace(/\\/g, '/').split('/').pop();
+        console.log(`  - ${base}`);
+    }
+    console.log('');
+}
 
-// Advanced skills not modelled by the route analyzer
-const ADVANCED_SKILLS = ['miner', 'digger'];
+// Route analyzer now supports all 8 skills including miner/digger
+const ADVANCED_SKILLS = [];
 
 const results   = [];
 let totalErrors = 0;
@@ -153,6 +163,8 @@ for (const lf of levelFiles) {
 // ─── Summary ──────────────────────────────────────────────────────────────────
 const summary = {
     levels: results.length,
+    manifestLevels: manifestFiles.length,
+    missingLevelFiles: missingLevelFiles.map(f => f.replace(/\\/g, '/').split('/').pop()),
     lintErrorsTotal:   totalErrors,
     lintWarningsTotal: totalWarn,
     routeFound:        routeOk,
@@ -179,7 +191,8 @@ writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
 
 console.log(`
 Summary
-  Levels:       ${results.length}
+    Levels:       ${results.length}
+    Missing files:${missingLevelFiles.length}
   Lint errors:  ${totalErrors}
   Lint warnings:${totalWarn}
   Route FOUND:  ${routeOk}/${results.length}

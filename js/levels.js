@@ -2,7 +2,7 @@
 // Run  node scripts/bake-levels.mjs  to regenerate the JSON files from source.
 
 const LEVELS = [];
-const TOTAL_LEVELS = 23; // 22 campaign levels + 1 bonus (level_999)
+const TOTAL_LEVELS = 99; // campaign levels loaded from manifest
 let _externalLevelsLoaded = false;
 
 function decodeRLETerrain(rlePairs, size) {

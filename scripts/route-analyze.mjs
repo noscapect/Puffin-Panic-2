@@ -43,7 +43,7 @@ function decodeTerrain(pairs, size) {
   const out = new Uint8Array(size);
   let idx = 0;
   for (const [value, count] of pairs) {
-    for (let i = 0; i < count && idx < size; i++) out[idx++] = value ? 1 : 0;
+    for (let i = 0; i < count && idx < size; i++) out[idx++] = value;
     if (idx >= size) break;
   }
   return out;
@@ -126,6 +126,120 @@ function hasWallAtBody(data, w, h, x, y, dir) {
   const cx = x + dir;
   const bodyY = Math.max(1, y - Math.floor(PUFFIN_H / 2));
   return isSolid(data, w, h, cx, bodyY);
+}
+
+function isDiggable(data, w, h, x, y, dir) {
+  if (x < 0 || x >= w || y < 0 || y >= h) return false;
+  const val = data[y * w + x];
+  if (val === 1) return true;
+  if (val === 11) return dir > 0;
+  if (val === 12) return dir < 0;
+  return false;
+}
+
+// Digger: carves straight down in a 7-wide x 4-deep column per stroke,
+// moving 1px down per stroke. Stops when nothing in the carve zone is diggable.
+function findDiggerCandidate(pointByKey, points, data, w, h, from) {
+  const cx = from.x;
+  // Check if there's diggable terrain right below the surface
+  let hasDiggableBelow = false;
+  for (let dy = 0; dy <= 3; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      if (isDiggable(data, w, h, cx + dx, from.y + dy, 0)) {
+        hasDiggableBelow = true; break;
+      }
+    }
+    if (hasDiggableBelow) break;
+  }
+  if (!hasDiggableBelow) return null;
+
+  // Simulate strokes: at depth n, carve zone is (cx-3..cx+3, from.y+n .. from.y+n+3)
+  let n = 0;
+  while (n < h - from.y - 4) {
+    let anyDig = false;
+    for (let dy = 0; dy <= 3 && !anyDig; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        if (isDiggable(data, w, h, cx + dx, from.y + n + dy, 0)) {
+          anyDig = true; break;
+        }
+      }
+    }
+    if (!anyDig) break;
+    n++;
+  }
+  if (n < 3) return null; // trivial dig
+
+  // Puffin exits dig at approximate depth from.y + n, then falls to next surface
+  const exitY = from.y + n;
+  // Search for existing surface points near the exit
+  for (let ny = exitY; ny < Math.min(h, exitY + 60); ny++) {
+    for (const dx of [0, -1, 1, -2, 2, -3, 3]) {
+      const p = pointByKey.get(key(cx + dx, ny));
+      if (p && p.id !== from.id) return p;
+    }
+  }
+  return null;
+}
+
+// Miner: carves diagonally (forward + down). Moves x += dir*0.5, y += 1 per stroke.
+// Carves 5x5 area ahead. Stops when nothing is diggable.
+function findMinerCandidate(pointByKey, points, data, w, h, from, dir) {
+  const startX = from.x;
+  // Check if there's diggable terrain ahead-and-below
+  const probeX = Math.floor(startX + dir * 3);
+  let hasDiggable = false;
+  for (let dy = 0; dy <= 4 && !hasDiggable; dy++) {
+    for (let dx = 0; dx <= 4; dx++) {
+      if (isDiggable(data, w, h, probeX + dir * dx, from.y + dy, dir)) {
+        hasDiggable = true; break;
+      }
+    }
+  }
+  if (!hasDiggable) return null;
+
+  // Simulate mining strokes
+  let mx = startX;
+  let my = from.y;
+  let strokes = 0;
+  while (strokes < 300) {
+    my += 1;
+    mx += dir * 0.5;
+    const cx = Math.floor(mx + dir * 3);
+    const cy = my;
+    let anyDig = false;
+    for (let dy = 0; dy <= 4 && !anyDig; dy++) {
+      for (let dx = 0; dx <= 4; dx++) {
+        if (isDiggable(data, w, h, cx + dir * dx, cy + dy, dir)) {
+          anyDig = true; break;
+        }
+      }
+    }
+    if (!anyDig) break;
+    strokes++;
+  }
+  if (strokes < 3) return null;
+
+  // Find landing near exit point
+  const exitX = Math.floor(mx);
+  const exitY = Math.floor(my);
+  for (let ny = exitY; ny < Math.min(h, exitY + 60); ny++) {
+    for (const dx of [0, dir, -dir, dir * 2, -dir * 2, dir * 3]) {
+      const p = pointByKey.get(key(exitX + dx, ny));
+      if (p && p.id !== from.id) return p;
+    }
+  }
+  // Wider search
+  let best = null, bestD = Infinity;
+  for (const p of points) {
+    if (p.id === from.id) continue;
+    const ddx = Math.abs(p.x - exitX);
+    const ddy = p.y - exitY;
+    if (ddx <= 20 && ddy >= -5 && ddy <= 30) {
+      const d = ddx + Math.abs(ddy);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+  }
+  return best;
 }
 
 function findBuilderCandidate(points, data, w, h, from, dir) {
@@ -255,7 +369,9 @@ function skillBudget(level) {
     builder: Number(s.builder || 0),
     basher: Number(s.basher || 0),
     climber: Number(s.climber || 0),
-    floater: Number(s.floater || 0)
+    floater: Number(s.floater || 0),
+    digger: Number(s.digger || 0),
+    miner: Number(s.miner || 0)
   };
 }
 
@@ -263,15 +379,17 @@ function withinBudget(used, budget) {
   return used.builder <= budget.builder &&
     used.basher <= budget.basher &&
     used.climber <= budget.climber &&
-    used.floater <= budget.floater;
+    used.floater <= budget.floater &&
+    used.digger <= budget.digger &&
+    used.miner <= budget.miner;
 }
 
 function cloneUsed(used) {
-  return { builder: used.builder, basher: used.basher, climber: used.climber, floater: used.floater };
+  return { builder: used.builder, basher: used.basher, climber: used.climber, floater: used.floater, digger: used.digger, miner: used.miner };
 }
 
 function stateKey(nodeId, used) {
-  return `${nodeId}|b${used.builder}|h${used.basher}|c${used.climber}|f${used.floater}`;
+  return `${nodeId}|b${used.builder}|h${used.basher}|c${used.climber}|f${used.floater}|d${used.digger}|m${used.miner}`;
 }
 
 function heuristicallyAnalyze(level, data, w, h) {
@@ -302,7 +420,7 @@ function heuristicallyAnalyze(level, data, w, h) {
   const targetRef = (exitCandidates.length ? exitCandidates[0] : fallbackExit);
 
   const heap = new MinHeap();
-  const startUsed = { builder: 0, basher: 0, climber: 0, floater: 0 };
+  const startUsed = { builder: 0, basher: 0, climber: 0, floater: 0, digger: 0, miner: 0 };
   const startState = {
     node: spawn,
     used: startUsed,
@@ -319,7 +437,7 @@ function heuristicallyAnalyze(level, data, w, h) {
   let winner = null;
   let iterations = 0;
   const maxIterations = 500000;
-  const blockedByBudget = { builder: 0, basher: 0, climber: 0, floater: 0 };
+  const blockedByBudget = { builder: 0, basher: 0, climber: 0, floater: 0, digger: 0, miner: 0 };
   let closest = {
     distToExit: Infinity,
     node: spawn,
@@ -465,6 +583,60 @@ function heuristicallyAnalyze(level, data, w, h) {
         }
       }
     }
+
+    // Digger — available from any standing point, digs straight down
+    {
+      const digTarget = findDiggerCandidate(pointByKey, points, data, w, h, cur.node);
+      if (digTarget) {
+        const used = cloneUsed(cur.used);
+        used.digger += 1;
+        if (withinBudget(used, budget)) {
+          const nd = cur.dist + 10;
+          const ns = {
+            node: digTarget,
+            used,
+            dist: nd,
+            score: nd + used.digger * 30,
+            prev: cur,
+            action: "dig"
+          };
+          const k = stateKey(ns.node.id, ns.used);
+          if (!best.has(k) || nd < best.get(k)) {
+            best.set(k, nd);
+            heap.push(ns);
+          }
+        } else if (used.digger > budget.digger) {
+          blockedByBudget.digger += 1;
+        }
+      }
+    }
+
+    // Miner — available from any standing point, mines diagonally in each direction
+    for (const mdir of [-1, 1]) {
+      const mineTarget = findMinerCandidate(pointByKey, points, data, w, h, cur.node, mdir);
+      if (mineTarget) {
+        const used = cloneUsed(cur.used);
+        used.miner += 1;
+        if (withinBudget(used, budget)) {
+          const nd = cur.dist + 12;
+          const ns = {
+            node: mineTarget,
+            used,
+            dist: nd,
+            score: nd + used.miner * 30,
+            prev: cur,
+            action: `mine:${mdir > 0 ? "R" : "L"}`
+          };
+          const k = stateKey(ns.node.id, ns.used);
+          if (!best.has(k) || nd < best.get(k)) {
+            best.set(k, nd);
+            heap.push(ns);
+          }
+        } else if (used.miner > budget.miner) {
+          blockedByBudget.miner += 1;
+        }
+      }
+    }
   }
 
   if (!winner) {
@@ -479,13 +651,17 @@ function heuristicallyAnalyze(level, data, w, h) {
       builder: blockedByBudget.builder > 0 ? 2 : 0,
       basher: blockedByBudget.basher > 0 ? 1 : 0,
       climber: blockedByBudget.climber > 0 ? 2 : 0,
-      floater: blockedByBudget.floater > 0 ? 1 : 0
+      floater: blockedByBudget.floater > 0 ? 1 : 0,
+      digger: blockedByBudget.digger > 0 ? 1 : 0,
+      miner: blockedByBudget.miner > 0 ? 1 : 0
     };
     const recommendedBudget = {
       builder: budget.builder + recommendedDelta.builder,
       basher: budget.basher + recommendedDelta.basher,
       climber: budget.climber + recommendedDelta.climber,
-      floater: budget.floater + recommendedDelta.floater
+      floater: budget.floater + recommendedDelta.floater,
+      digger: budget.digger + recommendedDelta.digger,
+      miner: budget.miner + recommendedDelta.miner
     };
 
     return {
@@ -560,7 +736,7 @@ async function main() {
 
   console.log(`Route ${result.ok ? "FOUND" : "NOT FOUND"}: ${path.basename(file)}`);
   if (result.used) {
-    console.log(`Used skills => builder:${result.used.builder}, basher:${result.used.basher}, climber:${result.used.climber}, floater:${result.used.floater}`);
+    console.log(`Used skills => builder:${result.used.builder}, basher:${result.used.basher}, climber:${result.used.climber}, floater:${result.used.floater}, digger:${result.used.digger}, miner:${result.used.miner}`);
   }
   console.log(`Report: ${path.resolve(out)}`);
 
