@@ -14,6 +14,9 @@
     "levels:qa": "node scripts/qa-all-levels.mjs",
     "levels:qa:fix": "node scripts/qa-all-levels.mjs --fix-budgets",
     "levels:finalize": "node scripts/finalize-levels.mjs",
+    "levels:exit-physics": "node scripts/qa-exit-physics.mjs --ticks=240",
+    "levels:exit-gate": "node scripts/qa-exit-physics.mjs --ticks=240 --gate --gate-threshold=4",
+    "levels:exit-fix": "node scripts/qa-exit-physics.mjs --ticks=240 --gate-threshold=4 --fix",
     "levels:deep-audit": "node scripts/deep-audit-all.mjs",
     "levels:deep-fix": "node scripts/deep-audit-all.mjs --fix"
   },

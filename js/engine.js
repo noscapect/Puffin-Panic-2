@@ -1208,8 +1208,9 @@ function loadLevel(index) {
     REQUIRED_PUFFINS = lvl.required;
     currentReleaseRate = releaseRateFromSpawnInterval(lvl.spawnRate);
     SPAWN_RATE = spawnIntervalFromReleaseRate(currentReleaseRate);
-    ENTRANCE = lvl.entrance;
-    EXIT = lvl.exit;
+    // Copy spawn objects so runtime physics does not mutate level definitions.
+    ENTRANCE = { ...lvl.entrance };
+    EXIT = { ...lvl.exit };
 
     document.getElementById('message-overlay').style.display = 'none';
     document.getElementById('pause-overlay').style.display = 'none';
@@ -1251,6 +1252,11 @@ function loadLevel(index) {
     
     terrainData.fill(0);
     lvl.buildTerrain(terrainData, GAME_WIDTH, GAME_HEIGHT);
+
+    // Pre-settle exit portal before gameplay starts so players see the final
+    // physics-valid position immediately on level start.
+    settleExitAtSpawn();
+
     renderTerrainToOffscreen();
 
     // ── Volumetric liquid: reset then fill from level waterZones ──
@@ -1536,6 +1542,17 @@ function updateExitGravity() {
         EXIT.x -= 1;
     }
     EXIT.y += 1;
+}
+
+function settleExitAtSpawn(maxSteps = 240) {
+    for (let i = 0; i < maxSteps; i++) {
+        const prevX = EXIT.x;
+        const prevY = EXIT.y;
+        updateExitGravity();
+        if (EXIT.x === prevX && EXIT.y === prevY) {
+            return;
+        }
+    }
 }
 
 // ─── Bridge Collapse ──────────────────────────────────────────────────────────

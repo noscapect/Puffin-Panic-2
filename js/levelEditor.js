@@ -892,8 +892,9 @@ function _edSetupPanel() {
         `<input type="number" value="${val}" min="${min}" max="${max}"
             oninput="_edSettings.${key}=parseInt(this.value)||${val}"
             style="padding:6px 8px;background:#0d1a28;color:#dde;border:1px solid #2a4060;border-radius:4px;font-size:12px;font-family:inherit;width:100%;box-sizing:border-box;">`;
+    const _esc = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const inp = (key, val) =>
-        `<input type="text" value="${val}"
+        `<input type="text" value="${_esc(val)}"
             oninput="_edSettings.${key}=this.value"
             style="padding:6px 8px;background:#0d1a28;color:#dde;border:1px solid #2a4060;border-radius:4px;font-size:12px;font-family:inherit;width:100%;box-sizing:border-box;">`;
 

@@ -6,6 +6,7 @@ let audioCtx = null;
 let masterGain = null;
 let bgmPlaying = false;
 let bgmOscillators = [];
+let bgmTimerId = null;
 
 function initAudio() {
     if (audioCtx) return;
@@ -385,7 +386,7 @@ function startBGM() {
         
         // Schedule next loop
         const loopDuration = bassNotes.length * bassDuration * 1000;
-        setTimeout(playBGMLoop, loopDuration - 100);
+        bgmTimerId = setTimeout(playBGMLoop, loopDuration - 100);
     }
     
     playBGMLoop();
@@ -393,6 +394,10 @@ function startBGM() {
 
 function stopBGM() {
     bgmPlaying = false;
+    if (bgmTimerId !== null) {
+        clearTimeout(bgmTimerId);
+        bgmTimerId = null;
+    }
     bgmOscillators.forEach(osc => {
         try { osc.stop(); } catch(e) {}
     });
