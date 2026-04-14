@@ -99,5 +99,6 @@
     "level_097.json",
     "level_098.json",
     "level_099.json"
-  ]
+  ],
+  "spawnRate": 75
 }

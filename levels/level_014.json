@@ -3,7 +3,7 @@
   "name": "14: Timing is Everything",
   "total": 15,
   "required": 12,
-  "spawnRate": 44,
+  "spawnRate": 75,
   "time": 10800,
   "entrance": {
     "x": 30,

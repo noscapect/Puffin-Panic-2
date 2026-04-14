@@ -18,7 +18,8 @@
     "levels:exit-gate": "node scripts/qa-exit-physics.mjs --ticks=240 --gate --gate-threshold=4",
     "levels:exit-fix": "node scripts/qa-exit-physics.mjs --ticks=240 --gate-threshold=4 --fix",
     "levels:deep-audit": "node scripts/deep-audit-all.mjs",
-    "levels:deep-fix": "node scripts/deep-audit-all.mjs --fix"
+    "levels:deep-fix": "node scripts/deep-audit-all.mjs --fix",
+    "levels:quality": "node scripts/qa-level-quality.mjs"
   },
   "dependencies": {
     "@gradio/client": "^2.1.0"

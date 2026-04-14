@@ -3,7 +3,7 @@
   "name": "95: Dragon Spine",
   "total": 26,
   "required": 20,
-  "spawnRate": 41,
+  "spawnRate": 75,
   "time": 16800,
   "entrance": {
     "x": 28,

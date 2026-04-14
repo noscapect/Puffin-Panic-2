@@ -3,7 +3,7 @@
   "name": "63: Catacombs",
   "total": 22,
   "required": 17,
-  "spawnRate": 43,
+  "spawnRate": 75,
   "time": 11400,
   "entrance": {
     "x": 24,

@@ -169,7 +169,7 @@ let _edSettings = {
     name: 'My Level',
     total: 20,
     required: 15,
-    spawnRate: 60,
+    spawnRate: 75,
     time: 9600,
     theme: 'grass',
     skills: { climber: 5, floater: 5, bomber: 3, blocker: 3, builder: 5, basher: 5, miner: 5, digger: 5 }
@@ -273,7 +273,7 @@ function enterEditorMode() {
     editorExit     = { x: 340, y: 150, w: 20, h: 12 };
     _edSettings = {
         name: 'My Level', total: 20, required: 15,
-        spawnRate: 60, time: 9600, theme: 'grass',
+        spawnRate: 75, time: 9600, theme: 'grass',
         skills: { climber: 5, floater: 5, bomber: 3, blocker: 3, builder: 5, basher: 5, miner: 5, digger: 5 }
     };
 

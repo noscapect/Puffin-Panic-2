@@ -3,7 +3,7 @@
   "name": "22: Flooded Grotto",
   "total": 25,
   "required": 19,
-  "spawnRate": 43,
+  "spawnRate": 75,
   "time": 12600,
   "entrance": {
     "x": 36,

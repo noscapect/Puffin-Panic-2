@@ -3,7 +3,7 @@
   "name": "57: Fossil Bed",
   "total": 22,
   "required": 17,
-  "spawnRate": 43,
+  "spawnRate": 75,
   "time": 12000,
   "entrance": {
     "x": 28,

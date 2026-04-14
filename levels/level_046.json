@@ -3,7 +3,7 @@
   "name": "46: Drill Tunnels",
   "total": 24,
   "required": 20,
-  "spawnRate": 45,
+  "spawnRate": 75,
   "time": 11400,
   "entrance": {
     "x": 28,

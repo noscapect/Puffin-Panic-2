@@ -3,7 +3,7 @@
   "name": "13: Fool's Gold",
   "total": 20,
   "required": 16,
-  "spawnRate": 47,
+  "spawnRate": 75,
   "time": 10800,
   "entrance": {
     "x": 30,

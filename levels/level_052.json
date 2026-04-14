@@ -3,7 +3,7 @@
   "name": "52: Forged in Iron",
   "total": 25,
   "required": 18,
-  "spawnRate": 39,
+  "spawnRate": 75,
   "time": 15600,
   "entrance": {
     "x": 28,

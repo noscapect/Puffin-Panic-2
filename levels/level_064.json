@@ -3,7 +3,7 @@
   "name": "64: Skull Pass",
   "total": 22,
   "required": 16,
-  "spawnRate": 42,
+  "spawnRate": 75,
   "time": 12000,
   "entrance": {
     "x": 24,

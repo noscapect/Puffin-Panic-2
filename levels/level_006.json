@@ -3,7 +3,7 @@
   "name": "6: Three Gaps, Two Bridges",
   "total": 15,
   "required": 12,
-  "spawnRate": 50,
+  "spawnRate": 75,
   "time": 10200,
   "entrance": {
     "x": 20,

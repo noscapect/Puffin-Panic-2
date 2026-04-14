@@ -3,7 +3,7 @@
   "name": "49: The Iron Cage",
   "total": 20,
   "required": 14,
-  "spawnRate": 39,
+  "spawnRate": 75,
   "time": 14400,
   "entrance": {
     "x": 24,

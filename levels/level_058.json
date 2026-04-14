@@ -3,7 +3,7 @@
   "name": "58: Jungle Ruins",
   "total": 24,
   "required": 19,
-  "spawnRate": 44,
+  "spawnRate": 75,
   "time": 12600,
   "entrance": {
     "x": 24,

@@ -3,7 +3,7 @@
   "name": "89: Chain Reaction",
   "total": 20,
   "required": 14,
-  "spawnRate": 39,
+  "spawnRate": 75,
   "time": 12600,
   "entrance": {
     "x": 28,

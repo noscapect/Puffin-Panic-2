@@ -3,7 +3,7 @@
   "name": "69: Dungeon Deep",
   "total": 22,
   "required": 15,
-  "spawnRate": 39,
+  "spawnRate": 75,
   "time": 15000,
   "entrance": {
     "x": 28,

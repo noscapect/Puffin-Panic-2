@@ -3,7 +3,7 @@
   "name": "2: Mind the Gap",
   "total": 10,
   "required": 9,
-  "spawnRate": 57,
+  "spawnRate": 75,
   "time": 9600,
   "entrance": {
     "x": 30,

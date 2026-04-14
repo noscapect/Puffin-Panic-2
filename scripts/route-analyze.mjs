@@ -172,7 +172,7 @@ function findDiggerCandidate(pointByKey, points, data, w, h, from) {
   // Puffin exits dig at approximate depth from.y + n, then falls to next surface
   const exitY = from.y + n;
   // Search for existing surface points near the exit
-  for (let ny = exitY; ny < Math.min(h, exitY + 60); ny++) {
+  for (let ny = exitY; ny < Math.min(h, exitY + 130); ny++) {
     for (const dx of [0, -1, 1, -2, 2, -3, 3]) {
       const p = pointByKey.get(key(cx + dx, ny));
       if (p && p.id !== from.id) return p;
@@ -222,7 +222,7 @@ function findMinerCandidate(pointByKey, points, data, w, h, from, dir) {
   // Find landing near exit point
   const exitX = Math.floor(mx);
   const exitY = Math.floor(my);
-  for (let ny = exitY; ny < Math.min(h, exitY + 60); ny++) {
+  for (let ny = exitY; ny < Math.min(h, exitY + 130); ny++) {
     for (const dx of [0, dir, -dir, dir * 2, -dir * 2, dir * 3]) {
       const p = pointByKey.get(key(exitX + dx, ny));
       if (p && p.id !== from.id) return p;
@@ -234,7 +234,7 @@ function findMinerCandidate(pointByKey, points, data, w, h, from, dir) {
     if (p.id === from.id) continue;
     const ddx = Math.abs(p.x - exitX);
     const ddy = p.y - exitY;
-    if (ddx <= 20 && ddy >= -5 && ddy <= 30) {
+    if (ddx <= 20 && ddy >= -5 && ddy <= 130) {
       const d = ddx + Math.abs(ddy);
       if (d < bestD) { bestD = d; best = p; }
     }
@@ -253,7 +253,7 @@ function findBuilderCandidate(points, data, w, h, from, dir) {
     if ((dir > 0 && dx <= minGap) || (dir < 0 && dx >= -minGap)) continue;
     if (Math.abs(dx) > maxGap) continue;
     const dy = p.y - from.y;
-    if (dy < -16 || dy > 10) continue;
+    if (dy < -Math.floor(Math.abs(dx) / 2) || dy > 10) continue;
 
     const steps = Math.abs(dx);
     let blocked = false;
@@ -436,7 +436,7 @@ function heuristicallyAnalyze(level, data, w, h) {
 
   let winner = null;
   let iterations = 0;
-  const maxIterations = 500000;
+  const maxIterations = 800000;
   const blockedByBudget = { builder: 0, basher: 0, climber: 0, floater: 0, digger: 0, miner: 0 };
   let closest = {
     distToExit: Infinity,

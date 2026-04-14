@@ -3,7 +3,7 @@
   "name": "9: The Shaft",
   "total": 12,
   "required": 10,
-  "spawnRate": 50,
+  "spawnRate": 75,
   "time": 10800,
   "entrance": {
     "x": 35,

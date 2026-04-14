@@ -3,7 +3,7 @@
   "name": "36: Abyssal Drop",
   "total": 20,
   "required": 13,
-  "spawnRate": 39,
+  "spawnRate": 75,
   "time": 13200,
   "entrance": {
     "x": 28,

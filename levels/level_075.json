@@ -3,7 +3,7 @@
   "name": "75: The Sawmill",
   "total": 24,
   "required": 18,
-  "spawnRate": 44,
+  "spawnRate": 75,
   "time": 12000,
   "entrance": {
     "x": 28,

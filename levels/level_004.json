@@ -3,7 +3,7 @@
   "name": "4: Traffic Control",
   "total": 10,
   "required": 8,
-  "spawnRate": 57,
+  "spawnRate": 75,
   "time": 9600,
   "entrance": {
     "x": 180,

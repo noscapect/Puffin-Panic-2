@@ -3,7 +3,7 @@
   "name": "10: Over the Wall",
   "total": 10,
   "required": 8,
-  "spawnRate": 50,
+  "spawnRate": 75,
   "time": 10800,
   "entrance": {
     "x": 50,

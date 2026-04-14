@@ -3,7 +3,7 @@
   "name": "91: No Margin for Error",
   "total": 18,
   "required": 14,
-  "spawnRate": 44,
+  "spawnRate": 75,
   "time": 12000,
   "entrance": {
     "x": 28,

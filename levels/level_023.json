@@ -3,7 +3,7 @@
   "name": "23: Temple Entrance",
   "total": 20,
   "required": 17,
-  "spawnRate": 45,
+  "spawnRate": 75,
   "time": 10800,
   "entrance": {
     "x": 30,

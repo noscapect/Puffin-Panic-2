@@ -3,7 +3,7 @@
   "name": "83: Steel Curtain",
   "total": 20,
   "required": 16,
-  "spawnRate": 41,
+  "spawnRate": 75,
   "time": 12000,
   "entrance": {
     "x": 24,

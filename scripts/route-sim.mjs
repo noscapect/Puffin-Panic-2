@@ -442,7 +442,7 @@ function solve(baseTerrain, entrance, exit, skills, verbose) {
                  Math.abs(ev.y - (exit.y + (exit.h || 12) / 2));
     if (dist < bestClosest) bestClosest = dist;
 
-    if (ev.event === "dead" || depth >= maxDepth) return false;
+    if (depth >= maxDepth) return false;
 
     // Memoization check
     const sk2 = stateKey(ev.x, ev.y, ev.dir, sk);

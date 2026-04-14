@@ -3,7 +3,7 @@
   "name": "35: Coral Reef Crossing",
   "total": 25,
   "required": 20,
-  "spawnRate": 45,
+  "spawnRate": 75,
   "time": 11400,
   "entrance": {
     "x": 28,
