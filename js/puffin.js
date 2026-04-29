@@ -4,6 +4,17 @@
 const _puffinBodyCache = {};
 const _BODY_CACHE_W = 12; // PUFFIN_W + room for beak overhang
 const _BODY_CACHE_H = 14; // PUFFIN_H + room for shadow
+// DPR that was active when the cache was last built. If it changes (monitor
+// switch), _drawBodyFromCache detects the mismatch and rebuilds on next draw.
+let _bodyCache_dpr = 0;
+
+// Named fractions used for collision/physics probing so the intent is clear
+// at each call site rather than bare decimal literals.
+const PUFFIN_MID_PROBE_Y    = PUFFIN_H * 0.7;   // mid-body water-zone probe
+const PUFFIN_LAVA_PROBE_Y   = PUFFIN_H * 0.75;  // lava contact centre point
+const PUFFIN_SWIM_SNAP_Y    = PUFFIN_H * 0.55;  // surface-snap depth while swimming
+const PUFFIN_CENTER_X       = PUFFIN_W / 2;
+const PUFFIN_CENTER_Y       = PUFFIN_H / 2;
 
 function _buildBodyCacheEntry(state, animFrameVal) {
     // Pre-render at full screen resolution (SCALE × DPR) so the sprite is sharp
@@ -26,6 +37,7 @@ function _buildBodyCacheEntry(state, animFrameVal) {
 }
 
 function buildPuffinBodyCache() {
+    _bodyCache_dpr = (window._canvasDPR || 1) * SCALE;
     // Normal body – two walk strides (feet / bob vary by animFrame % 10)
     _puffinBodyCache['normal_0'] = _buildBodyCacheEntry(ST_WALK, 0);  // stride A
     _puffinBodyCache['normal_1'] = _buildBodyCacheEntry(ST_WALK, 5);  // stride B
@@ -69,6 +81,7 @@ class Puffin {
         this.isBasher = false;
         this.isClimber = false;
         this.nukePanicTicks = -1;
+        this._priorVx = 1; // walking direction saved before becoming a blocker
     }
     
     canAcceptSkill(skill) {
@@ -87,6 +100,7 @@ class Puffin {
             this.isFloater = true;
             if (this.state === ST_FALL) this.state = ST_FLOAT;
         } else if (skill === 'blocker') {
+            this._priorVx = this.vx || 1; // remember direction for when unblocked
             this.state = ST_BLOCK;
             this.vx = 0;
         } else if (skill === 'builder') {
@@ -206,10 +220,11 @@ class Puffin {
             const puffinBottom = this.y + PUFFIN_H;
 
             const pad = 1;
-            const exitLeft = EXIT.x - pad;
-            const exitRight = EXIT.x + EXIT.w + pad;
-            const exitTop = EXIT.y - pad;
-            const exitBottom = EXIT.y + EXIT.h + pad;
+            const _exit = GameContext.EXIT;
+            const exitLeft = _exit.x - pad;
+            const exitRight = _exit.x + _exit.w + pad;
+            const exitTop = _exit.y - pad;
+            const exitBottom = _exit.y + _exit.h + pad;
 
             const overlapsExit =
                 puffinRight >= exitLeft &&
@@ -219,7 +234,7 @@ class Puffin {
 
             if (overlapsExit) {
                 this.state = ST_EXITED;
-                gameState.saved++;
+                GameContext.gameState.saved++;
                 createParticles(this.x, this.y, 20, PALETTE[7], true, 7);
                 if (typeof playSound === 'function') playSound('exitCheer');
             }
@@ -229,11 +244,11 @@ class Puffin {
         // (Lava-theme terrain is walkable; only lavaData cells are deadly.)
         if (typeof isLavaAt === 'function' &&
             this.state !== ST_DEAD && this.state !== ST_EXITED && this.state !== ST_SPLAT) {
-            const lcx = Math.floor(this.x + PUFFIN_W / 2);
-            const lcy = Math.floor(this.y + PUFFIN_H * 0.75);
+            const lcx = Math.floor(this.x + PUFFIN_CENTER_X);
+            const lcy = Math.floor(this.y + PUFFIN_LAVA_PROBE_Y);
             if (isLavaAt(lcx, lcy) || isLavaAt(lcx, lcy + 1)) {
                 this.state = ST_DEAD;
-                gameState.dead++;
+                GameContext.gameState.dead++;
                 // Small fire/ember burst
                 const fireColors = [[255,100,0],[255,180,0],[255,60,0]];
                 for (let fi = 0; fi < 8; fi++) {
@@ -242,7 +257,7 @@ class Puffin {
                     fp.vx = (Math.random() - 0.5) * 5;
                     fp.vy = -Math.random() * 4;
                     fp.life = 15 + Math.random() * 10;
-                    particles.push(fp);
+                    GameContext.particles.push(fp);
                 }
             }
         }
@@ -250,7 +265,7 @@ class Puffin {
         // Bounds check
         if (this.y > GAME_HEIGHT) {
             this.state = ST_DEAD;
-            gameState.dead++;
+            GameContext.gameState.dead++;
         }
     }
 
@@ -259,14 +274,14 @@ class Puffin {
         // Check whether the puffin's body intersects any cell containing liquid.
         // We probe three points: the feet, the centre, and 4px above feet.
         const probePoints = [
-            { x: Math.floor(px + PUFFIN_W / 2), y: Math.floor(py + PUFFIN_H)     },
-            { x: Math.floor(px + PUFFIN_W / 2), y: Math.floor(py + PUFFIN_H * 0.7) },
-            { x: Math.floor(px + PUFFIN_W / 2), y: Math.floor(py + PUFFIN_H - 4)  },
+            { x: Math.floor(px + PUFFIN_CENTER_X), y: Math.floor(py + PUFFIN_H)            },
+            { x: Math.floor(px + PUFFIN_CENTER_X), y: Math.floor(py + PUFFIN_MID_PROBE_Y)  },
+            { x: Math.floor(px + PUFFIN_CENTER_X), y: Math.floor(py + PUFFIN_H - 4)        },
         ];
 
         for (const pt of probePoints) {
             if (pt.x < 0 || pt.x >= GAME_WIDTH || pt.y < 0 || pt.y >= GAME_HEIGHT) continue;
-            if ((typeof liquidData !== 'undefined') && liquidData[pt.y * GAME_WIDTH + pt.x] > 0) {
+            if (GameContext.liquidData[pt.y * GAME_WIDTH + pt.x] > 0) {
                 // Build a synthetic zone from the live liquid topology at this column.
                 const colX = Math.floor(px + PUFFIN_W / 2);
                 const surfY = (typeof getLiquidSurfaceY === 'function') ? getLiquidSurfaceY(colX) : pt.y;
@@ -282,7 +297,7 @@ class Puffin {
         }
 
         // ── Fallback: static waterZone rectangles (levels without liquid) ──
-        const lvl = LEVELS[currentLevelIndex];
+        const lvl = GameContext.LEVELS[GameContext.currentLevelIndex];
         if (!lvl || !lvl.waterZones) return null;
         for (const zone of lvl.waterZones) {
             const inX = px >= zone.x && px <= zone.x + zone.w;
@@ -300,16 +315,16 @@ class Puffin {
         const surfaceY = zone._fromLiquidSim
             ? (typeof getLiquidSurfaceY === 'function' ? getLiquidSurfaceY(Math.floor(this.x + PUFFIN_W / 2)) : zone.y)
             : zone.y;
-        const targetY = surfaceY - Math.floor(PUFFIN_H * 0.55) + bob;
+        const targetY = surfaceY - Math.floor(PUFFIN_SWIM_SNAP_Y) + bob;
         const dy = targetY - this.y;
         this.y += Math.max(-1.2, Math.min(1.2, dy));
 
         // Safety clamp so they cannot sink below the liquid body.
-        const maxDepthY = zone.y + zone.h - PUFFIN_H + 1;
+        const maxDepthY = zone.y + zone.h - PUFFIN_H + 1; // safety: don't sink below liquid body
         if (this.y > maxDepthY) this.y = maxDepthY;
 
         // Swim toward the exit by default; this keeps puzzle flow deterministic.
-        const exitCenterX = EXIT.x + EXIT.w / 2;
+        const exitCenterX = GameContext.EXIT.x + GameContext.EXIT.w / 2;
         const desiredDir = this.x <= exitCenterX ? 1 : -1;
         if (this.vx !== desiredDir && this.animFrame % 6 === 0) {
             this.vx = desiredDir;
@@ -318,7 +333,7 @@ class Puffin {
         if (this.animFrame % 2 === 0) {
             const swimSpeed = 0.9;
             const nextX = this.x + this.vx * swimSpeed;
-            const centerY = Math.floor(this.y + PUFFIN_H / 2);
+            const centerY = Math.floor(this.y + PUFFIN_CENTER_Y);
             const probeX = Math.floor(nextX + (this.vx > 0 ? PUFFIN_W : 0));
             const leadX = Math.floor(nextX + (this.vx > 0 ? PUFFIN_W - 1 : 0));
 
@@ -327,10 +342,11 @@ class Puffin {
                 const testXs = [leadX, shorelineX];
                 for (const tx of testXs) {
                     let landingY = null;
-                    // Allow a much larger upward search so puffins can climb onto banks.
+                    // Scan 20px up (climb banks) and 18px down (step onto raised shores).
+                    // The asymmetry is intentional: pools typically sit below the landscape.
                     for (let dy = -20; dy <= 18; dy++) {
                         const testY = Math.floor(this.y + dy);
-                        const testCenterY = Math.floor(testY + PUFFIN_H / 2);
+                        const testCenterY = Math.floor(testY + PUFFIN_CENTER_Y);
                         const clearBody = !isSolidAt(tx, testCenterY) && !isSolidAt(tx + this.vx, testCenterY);
                         const clearFeet = !isSolidAt(tx, testY + PUFFIN_H);
                         const floorUnderFeet = isSolidAt(tx, testY + PUFFIN_H + 1);
@@ -339,7 +355,7 @@ class Puffin {
                             break;
                         }
                     }
-                    if (landingY !== null && !this.checkBlocker(tx, landingY + PUFFIN_H / 2)) {
+                    if (landingY !== null && !this.checkBlocker(tx, landingY + PUFFIN_CENTER_Y)) {
                         this.x = nextX;
                         this.y = landingY;
                         this.state = ST_WALK;
@@ -386,9 +402,10 @@ class Puffin {
         if (this.state === ST_FALL && this.vy > 3.0) this.vy = 3.0; // max fall speed
 
         // Wind drifts floating puffins horizontally (falling puffins feel it less).
-        if (typeof _windX !== 'undefined' && _windX !== 0) {
+        const windX = GameContext.windX;
+        if (windX !== 0) {
             const windFactor = this.state === ST_FLOAT ? 0.5 : 0.15;
-            this.x = Math.max(0, Math.min(GAME_WIDTH - PUFFIN_W, this.x + _windX * windFactor));
+            this.x = Math.max(0, Math.min(GAME_WIDTH - PUFFIN_W, this.x + windX * windFactor));
         }
         
         let steps = Math.ceil(this.vy);
@@ -398,8 +415,8 @@ class Puffin {
             this.y += this.vy / steps;
 
             const swimZone = this.getWaterZoneAt(
-                Math.floor(this.x + PUFFIN_W / 2),
-                Math.floor(this.y + PUFFIN_H / 2)
+                Math.floor(this.x + PUFFIN_CENTER_X),
+                Math.floor(this.y + PUFFIN_CENTER_Y)
             );
             if (swimZone) {
                 this.state = ST_WALK;
@@ -428,7 +445,7 @@ class Puffin {
             if (fallDist > FALL_DEATH_DIST && !this.isFloater && this.state !== ST_FLOAT) {
                 this.state = ST_SPLAT;
                 this.actionTicks = 0;
-                gameState.dead++;
+                GameContext.gameState.dead++;
                 createParticles(this.x, this.y+PUFFIN_H, 10, PALETTE[6], true, 6);
             } else {
                 // Track floater save: if puffin had floater and fell from a fatal distance
@@ -455,8 +472,8 @@ class Puffin {
         }
 
         const swimZone = this.getWaterZoneAt(
-            Math.floor(this.x + PUFFIN_W / 2),
-            Math.floor(this.y + PUFFIN_H / 2)
+            Math.floor(this.x + PUFFIN_CENTER_X),
+            Math.floor(this.y + PUFFIN_CENTER_Y)
         );
         if (swimZone) {
             this.doSwim(swimZone);
@@ -479,9 +496,9 @@ class Puffin {
             let nx = Math.floor(nextX);
             
             // Check wall at mid-body and feet
-            let wallMid = isSolidAt(nx, Math.floor(this.y + PUFFIN_H/2));
+            let wallMid = isSolidAt(nx, Math.floor(this.y + PUFFIN_CENTER_Y));
             let wallBottom = isSolidAt(nx, Math.floor(this.y + PUFFIN_H - 1));
-            let hitBlocker = this.checkBlocker(nx, this.y + PUFFIN_H/2);
+            let hitBlocker = this.checkBlocker(nx, this.y + PUFFIN_CENTER_Y);
             
             if (wallMid || wallBottom || hitBlocker) {
                 // Try stepping up (ramp climbing) — up to 6 pixels
@@ -491,7 +508,7 @@ class Puffin {
                     for (let step = 1; step <= MAX_STEP; step++) {
                         let testY = this.y - step;
                         let headClear = !isSolidAt(nx, Math.floor(testY));
-                        let midClear  = !isSolidAt(nx, Math.floor(testY + PUFFIN_H/2));
+                        let midClear  = !isSolidAt(nx, Math.floor(testY + PUFFIN_CENTER_Y));
                         let feetClear = !isSolidAt(nx, Math.floor(testY + PUFFIN_H - 1));
                         let floorSolid = isSolidAt(nx, Math.floor(testY + PUFFIN_H));
                         if (headClear && midClear && feetClear && floorSolid) {
@@ -550,7 +567,7 @@ class Puffin {
             // Carve terrain horizontally
             let carved = false;
             let cx = Math.floor(this.x + (this.vx * 2));
-            let cy = Math.floor(this.y + PUFFIN_H/2);
+            let cy = Math.floor(this.y + PUFFIN_CENTER_Y);
             for (let y = -5; y <= 6; y++) {
                 for (let x = -2; x <= 2; x++) {
                     if (canDigAt(cx+x, cy+y, this.vx)) {
@@ -566,7 +583,7 @@ class Puffin {
                 if (typeof playSound === 'function') playSound('bash');
             } else {
                 // Check if there's still solid terrain ahead - only exit if truly clear
-                let ahead = isSolidAt(Math.floor(this.x + this.vx), Math.floor(this.y + PUFFIN_H/2));
+                let ahead = isSolidAt(Math.floor(this.x + this.vx), Math.floor(this.y + PUFFIN_CENTER_Y));
                 if (ahead) {
                     // Steel impact: spark, stop bashing, and turn away.
                     if (typeof createSparkParticles === 'function') createSparkParticles(cx, cy);
@@ -587,7 +604,7 @@ class Puffin {
         this.actionTicks++;
         if (this.actionTicks % 10 === 0) {
             // Blockers turn active diggers away before the next dig stroke.
-            if (this.checkBlocker(Math.floor(this.x + this.vx * 2), this.y + PUFFIN_H / 2)) {
+            if (this.checkBlocker(Math.floor(this.x + this.vx * 2), this.y + PUFFIN_CENTER_Y)) {
                 this.state = ST_WALK;
                 this.vx *= -1;
                 return;
@@ -636,7 +653,7 @@ class Puffin {
         this.actionTicks++;
         if (this.actionTicks % 12 === 0) {
             // Blockers should repel miners too.
-            if (this.checkBlocker(Math.floor(this.x + this.vx * 4), this.y + PUFFIN_H / 2)) {
+            if (this.checkBlocker(Math.floor(this.x + this.vx * 4), this.y + PUFFIN_CENTER_Y)) {
                 this.state = ST_WALK;
                 this.vx *= -1;
                 return;
@@ -735,7 +752,7 @@ class Puffin {
             
             // Smart Builder: Stop building if hitting a wall
             let checkX = Math.floor(this.x + this.vx * 4);
-            let checkY = Math.floor(this.y - 1 + PUFFIN_H / 2);
+            let checkY = Math.floor(this.y - 1 + PUFFIN_CENTER_Y);
             if (isSolidAt(checkX, checkY)) {
                 failBuild();
                 return;
@@ -813,8 +830,8 @@ class Puffin {
         if (typeof playSound === 'function') playSound('explosion');
         
         // Visual polish: Screen shake on explosion
-        screenShake = 12;
-        screenShakeIntensity = 8;
+        GameContext.screenShake = 12;
+        GameContext.screenShakeIntensity = 8;
         
         // Visual polish: Create shockwave particles
         if (typeof createShockwave === 'function') createShockwave(this.x + PUFFIN_W/2, this.y + PUFFIN_H/2);
@@ -859,7 +876,7 @@ class Puffin {
                     p.vx = Math.cos(angle) * speed;
                     p.vy = Math.sin(angle) * speed - 3;
                     p.bounciness = 0.3 + Math.random() * 0.4;
-                    particles.push(p);
+                    GameContext.particles.push(p);
                 }
             }
         }
@@ -885,22 +902,23 @@ class Puffin {
             p.vy = Math.sin(angle) * (2 + Math.random() * 5) - 2;
             p.life = 20 + Math.random() * 30;
             p.size = 2;
-            particles.push(p);
+            GameContext.particles.push(p);
         }
-        
+
         this.state = ST_DEAD;
-        gameState.dead++;
+        GameContext.gameState.dead++;
     }
     
     checkBlocker(tx, ty) {
         // Only walking/active ground skills are blocked; fallers pass through.
         if (this.state === ST_FALL || this.state === ST_FLOAT) return false;
 
-        for (let p of puffins) {
+        // O(n) over all puffins — acceptable at typical counts (< 100).
+        for (let p of GameContext.puffins) {
             if (p === this) continue;
             if (p.state === ST_BLOCK) {
                 let dx = Math.abs(tx - p.x);
-                let dy = Math.abs(ty - (p.y + PUFFIN_H/2));
+                let dy = Math.abs(ty - (p.y + PUFFIN_CENTER_Y));
                 if (dx < 6 && dy < 10) return true;
             }
         }
@@ -911,7 +929,7 @@ class Puffin {
     toggleBlocker() {
         if (this.state === ST_BLOCK) {
             this.state = ST_WALK;
-            this.vx = 1; // Reset direction
+            this.vx = this._priorVx || 1; // restore direction from before blocking
             return true;
         }
         return false;
@@ -1164,6 +1182,10 @@ class Puffin {
             this.drawIllustratedBody(ctx);
             return;
         }
+        // Rebuild if the device pixel ratio changed (e.g. moved to another monitor).
+        if ((window._canvasDPR || 1) * SCALE !== _bodyCache_dpr) {
+            buildPuffinBodyCache();
+        }
         const cached = _puffinBodyCache[this._getBodyCacheKey()];
         if (cached) {
             // Specify dest size in game coords — the high-res sprite maps 1:1 to screen pixels.
@@ -1388,7 +1410,7 @@ class Puffin {
         }
 
         // Hover highlight
-        if (hoveredPuffin === this && activeSkill && currentSkillCounts[activeSkill] > 0) {
+        if (GameContext.hoveredPuffin === this && GameContext.activeSkill && GameContext.currentSkillCounts[GameContext.activeSkill] > 0) {
             ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
             ctx.strokeRect(Math.floor(this.x)-1, Math.floor(this.y)-1, PUFFIN_W+2, PUFFIN_H+2);
         }

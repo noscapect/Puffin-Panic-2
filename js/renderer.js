@@ -249,6 +249,27 @@
             });
             if (!this.gl) return false;
 
+            // Gracefully handle GPU context loss (tab backgrounded, driver crash, etc.).
+            // supportsHybridBasePass() returns false while gl is null, so the engine
+            // automatically falls back to the Canvas2D path until context is restored.
+            this.glCanvas.addEventListener('webglcontextlost', (e) => {
+                e.preventDefault();
+                console.warn('[Renderer] WebGL context lost — falling back to Canvas2D until restored.');
+                this.gl = null;
+            }, false);
+            this.glCanvas.addEventListener('webglcontextrestored', () => {
+                this.gl = this.glCanvas.getContext('webgl', {
+                    alpha: true,
+                    antialias: false,
+                    premultipliedAlpha: true,
+                    preserveDrawingBuffer: true
+                });
+                if (this.gl) {
+                    this._initPrograms();
+                    console.info('[Renderer] WebGL context restored.');
+                }
+            }, false);
+
             this._initPrograms();
             return true;
         }
@@ -1089,7 +1110,15 @@
             if (!this.supportsHybridBasePass()) return false;
             if (!Array.isArray(particles) || particles.length === 0) return false;
 
-            const packed = [];
+            // Pre-size the buffer for the worst case so we never allocate mid-loop.
+            const maxFloats = particles.length * 7;
+            if (this._particleCpuBuffer.length < maxFloats) {
+                const growTo = Math.max(maxFloats, Math.floor(this._particleCpuBuffer.length * 1.5) + 64);
+                this._particleCpuBuffer = new Float32Array(growTo);
+            }
+            const buf = this._particleCpuBuffer;
+            let offset = 0;
+
             for (let i = 0; i < particles.length; i++) {
                 const p = particles[i];
                 if (!p) continue;
@@ -1098,64 +1127,51 @@
                 const alpha = p.isPermanent ? 1 : Math.max(0, (Number(p.life) || 0) / 40);
                 if (alpha <= 0) continue;
 
-                const px = Math.floor(Number(p.x) || 0) + 0.5;
-                const py = Math.floor(Number(p.y) || 0) + 0.5;
-                const sz = Math.max(1, Number(p.size) || 1);
-
-                packed.push(
-                    px,
-                    py,
-                    Math.max(0, Math.min(255, Number(c[0]) || 255)) / 255,
-                    Math.max(0, Math.min(255, Number(c[1]) || 255)) / 255,
-                    Math.max(0, Math.min(255, Number(c[2]) || 255)) / 255,
-                    alpha,
-                    sz
-                );
+                buf[offset]     = Math.floor(Number(p.x) || 0) + 0.5;
+                buf[offset + 1] = Math.floor(Number(p.y) || 0) + 0.5;
+                buf[offset + 2] = Math.max(0, Math.min(255, Number(c[0]) || 255)) / 255;
+                buf[offset + 3] = Math.max(0, Math.min(255, Number(c[1]) || 255)) / 255;
+                buf[offset + 4] = Math.max(0, Math.min(255, Number(c[2]) || 255)) / 255;
+                buf[offset + 5] = alpha;
+                buf[offset + 6] = Math.max(1, Number(p.size) || 1);
+                offset += 7;
             }
 
-            if (packed.length === 0) return false;
-
-            const neededFloats = packed.length;
-            if (this._particleCpuBuffer.length < neededFloats) {
-                const growTo = Math.max(neededFloats, Math.floor(this._particleCpuBuffer.length * 1.5) + 64);
-                this._particleCpuBuffer = new Float32Array(growTo);
-            }
-            this._particleCpuBuffer.set(packed, 0);
-            const data = this._particleCpuBuffer.subarray(0, neededFloats);
-            return this._renderPackedParticleData(ctx, data, gameWidth, gameHeight);
+            if (offset === 0) return false;
+            return this._renderPackedParticleData(ctx, buf.subarray(0, offset), gameWidth, gameHeight);
         }
 
         renderParticleCloud(ctx, points, gameWidth, gameHeight) {
             if (!this.supportsHybridBasePass()) return false;
             if (!Array.isArray(points) || points.length === 0) return false;
 
-            const packed = [];
+            const maxFloats = points.length * 7;
+            if (this._particleCpuBuffer.length < maxFloats) {
+                const growTo = Math.max(maxFloats, Math.floor(this._particleCpuBuffer.length * 1.5) + 64);
+                this._particleCpuBuffer = new Float32Array(growTo);
+            }
+            const buf = this._particleCpuBuffer;
+            let offset = 0;
+
             for (let i = 0; i < points.length; i++) {
                 const p = points[i];
                 if (!p) continue;
                 const c = Array.isArray(p.color) ? p.color : [255, 255, 255];
                 const alpha = Math.max(0, Math.min(1, Number(p.alpha) || 0));
                 if (alpha <= 0) continue;
-                packed.push(
-                    Number(p.x) || 0,
-                    Number(p.y) || 0,
-                    Math.max(0, Math.min(255, Number(c[0]) || 255)) / 255,
-                    Math.max(0, Math.min(255, Number(c[1]) || 255)) / 255,
-                    Math.max(0, Math.min(255, Number(c[2]) || 255)) / 255,
-                    alpha,
-                    Math.max(1, Number(p.size) || 1)
-                );
+
+                buf[offset]     = Number(p.x) || 0;
+                buf[offset + 1] = Number(p.y) || 0;
+                buf[offset + 2] = Math.max(0, Math.min(255, Number(c[0]) || 255)) / 255;
+                buf[offset + 3] = Math.max(0, Math.min(255, Number(c[1]) || 255)) / 255;
+                buf[offset + 4] = Math.max(0, Math.min(255, Number(c[2]) || 255)) / 255;
+                buf[offset + 5] = alpha;
+                buf[offset + 6] = Math.max(1, Number(p.size) || 1);
+                offset += 7;
             }
 
-            if (packed.length === 0) return false;
-            const neededFloats = packed.length;
-            if (this._particleCpuBuffer.length < neededFloats) {
-                const growTo = Math.max(neededFloats, Math.floor(this._particleCpuBuffer.length * 1.5) + 64);
-                this._particleCpuBuffer = new Float32Array(growTo);
-            }
-            this._particleCpuBuffer.set(packed, 0);
-            const data = this._particleCpuBuffer.subarray(0, neededFloats);
-            return this._renderPackedParticleData(ctx, data, gameWidth, gameHeight);
+            if (offset === 0) return false;
+            return this._renderPackedParticleData(ctx, buf.subarray(0, offset), gameWidth, gameHeight);
         }
 
         _renderPackedParticleData(ctx, data, gameWidth, gameHeight) {
@@ -1545,8 +1561,12 @@
             this.gl.activeTexture(this.gl.TEXTURE0);
             this.gl.bindTexture(this.gl.TEXTURE_2D, this._uploadTexture);
             this.gl.pixelStorei(this.gl.UNPACK_FLIP_Y_WEBGL, 0);
-            this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.canvas);
-            this.gl.pixelStorei(this.gl.UNPACK_FLIP_Y_WEBGL, 1);
+            try {
+                this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.canvas);
+            } finally {
+                // Always restore the flag so subsequent texture uploads are Y-flipped correctly.
+                this.gl.pixelStorei(this.gl.UNPACK_FLIP_Y_WEBGL, 1);
+            }
             this.gl.uniform1i(this._loc.distortion.uTex, 0);
             this.gl.uniform2f(this._loc.distortion.uResolution, drawW, drawH);
             this.gl.uniform1f(this._loc.distortion.uTime, typeof opts.time === 'number' ? opts.time : 0);

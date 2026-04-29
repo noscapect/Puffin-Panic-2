@@ -160,6 +160,28 @@ const WEATHER_PARTICLE_CAP = 180;
 let _atmCache = { behind: null, front: null, lastTick: -999, theme: '' };
 let _terrainFxCache = { theme: '', lastTick: -999, points: [] };
 
+// --- GameContext ---
+// Single access point for the mutable engine state that Puffin methods need.
+// Using getters/setters means Puffin always sees the live values, and the
+// dependency on shared state is explicit rather than scattered bare globals.
+const GameContext = {
+    get puffins()               { return puffins; },
+    get particles()             { return particles; },
+    get gameState()             { return gameState; },
+    get EXIT()                  { return EXIT; },
+    get LEVELS()                { return typeof LEVELS !== 'undefined' ? LEVELS : []; },
+    get currentLevelIndex()     { return currentLevelIndex; },
+    get liquidData()            { return liquidData; },
+    get windX()                 { return _windX; },
+    get hoveredPuffin()         { return hoveredPuffin; },
+    get activeSkill()           { return activeSkill; },
+    get currentSkillCounts()    { return currentSkillCounts; },
+    get screenShake()           { return screenShake; },
+    set screenShake(v)          { screenShake = v; },
+    get screenShakeIntensity()  { return screenShakeIntensity; },
+    set screenShakeIntensity(v) { screenShakeIntensity = v; },
+};
+
 // Optional WebGL effect switches.
 // Keep baseline hybrid features enabled by default and future additions disabled.
 const WEBGL_EFFECT_DEFAULTS = {
@@ -1060,6 +1082,17 @@ function populateLevelSelect() {
 
 // --- Main Game Logic ---
 
+// Re-subscribes each time so we always track the current DPR value correctly
+// (matchMedia queries are one-shot for a specific resolution).
+function _watchForDprChange() {
+    const mql = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    mql.addEventListener('change', () => {
+        window._canvasDPR = Math.min(Math.round(window.devicePixelRatio || 1), 2);
+        buildPuffinBodyCache();
+        _watchForDprChange();
+    }, { once: true });
+}
+
 function getRequestedRenderBackend() {
     try {
         const params = new URLSearchParams(window.location.search || '');
@@ -1137,6 +1170,7 @@ window.onload = function() {
 
     // Build puffin body sprite cache now that canvas APIs are available
     buildPuffinBodyCache();
+    _watchForDprChange();
 
     setupInputs();
 
@@ -1417,9 +1451,7 @@ function gameLoop(timestamp = 0) {
         for (let i = 0; i < gameSpeed; i++) {
             if (gameState.active && !gameState.paused) update();
         }
-        PerfMonitor.frameStart();
         draw();
-        PerfMonitor.frameEnd();
     }
     loopId = requestAnimationFrame(gameLoop);
 }
@@ -2194,7 +2226,6 @@ function draw() {
     const frameTime = gameState.ticks / FPS;
     const sky = getThemeSkyColors();
     const useHybridWebGLBase = !!(renderer && typeof renderer.supportsHybridBasePass === 'function' && renderer.supportsHybridBasePass());
-    PerfMonitor.passStart('sky');
     let skyHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderSkyLayer === 'function') {
         skyHandledByWebGL = _runWebGLEffect('skyLayer', () => renderer.renderSkyLayer(ctx, sky, drawW, drawH));
@@ -2209,7 +2240,6 @@ function draw() {
         ctx.fillStyle = sky.veil;
         ctx.fillRect(0, 0, drawW, drawH);
     }
-    PerfMonitor.passEnd('sky');
 
     ctx.save();
 
@@ -2224,9 +2254,7 @@ function draw() {
 
     ctx.scale(SCALE, SCALE);
 
-    PerfMonitor.passStart('background');
     drawThemeBackground(ctx);
-    PerfMonitor.passEnd('background');
 
     let ex = ENTRANCE.x, ey = ENTRANCE.y;
     ctx.fillStyle = '#5a3010';
@@ -2284,7 +2312,6 @@ function draw() {
     ctx.fill();
     ctx.restore();
 
-    PerfMonitor.passStart('terrain');
     let terrainHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderTerrainLiquidLayer === 'function') {
         terrainHandledByWebGL = _runWebGLEffect('terrainComposite', () =>
@@ -2296,9 +2323,7 @@ function draw() {
         // Draw volumetric liquid layer (rendered at game resolution, scaled up with terrain)
         if (liquidCanvas) ctx.drawImage(liquidCanvas, 0, 0);
     }
-    PerfMonitor.passEnd('terrain');
 
-    PerfMonitor.passStart('layerStack');
     const useHybridWebGLLayers = !!(
         useHybridWebGLBase &&
         _isWebGLEffectEnabled('layerStack') &&
@@ -2350,9 +2375,7 @@ function draw() {
         const _atmFront = _getOrUpdateAtmosphereCache('front');
         if (_atmFront) ctx.drawImage(_atmFront, 0, 0); else drawThemeAtmosphere(ctx, 'front');
     }
-    PerfMonitor.passEnd('layerStack');
 
-    PerfMonitor.passStart('terrainEdgeFx');
     const terrainEdgePoints = _isWebGLEffectEnabled('terrainEdgeFx')
         ? _getTerrainEdgeGlowPoints(currentTheme, gameState.ticks)
         : [];
@@ -2365,9 +2388,7 @@ function draw() {
     if (!terrainEdgeHandledByWebGL && terrainEdgePoints.length > 0) {
         _drawWeatherParticleFallback(ctx, terrainEdgePoints);
     }
-    PerfMonitor.passEnd('terrainEdgeFx');
 
-    PerfMonitor.passStart('shadows');
     const shadowBlobs = _isWebGLEffectEnabled('shadows')
         ? _buildShadowBlobs()
         : [];
@@ -2389,9 +2410,7 @@ function draw() {
         }
         ctx.restore();
     }
-    PerfMonitor.passEnd('shadows');
 
-    PerfMonitor.passStart('entities');
     let puffinBodiesHandledByWebGL = false;
     const puffinsWithWebGLBody = new Set();
     if (useHybridWebGLBase && _isWebGLEffectEnabled('puffinBodies') && typeof renderer.renderPuffinBodies === 'function' && window.PuffinRender) {
@@ -2450,9 +2469,7 @@ function draw() {
             p.draw(ctx);
         }
     }
-    PerfMonitor.passEnd('entities');
 
-    PerfMonitor.passStart('particles');
     let particlesHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderParticles === 'function') {
         particlesHandledByWebGL = _runWebGLEffect('particles', () =>
@@ -2462,9 +2479,7 @@ function draw() {
     if (!particlesHandledByWebGL) {
         particles.forEach(p => p.draw(ctx));
     }
-    PerfMonitor.passEnd('particles');
 
-    PerfMonitor.passStart('bomberTrails');
     const bomberTrailPoints = _isWebGLEffectEnabled('bomberTrailWisps')
         ? _buildBomberTrailCloud(gameState.ticks)
         : [];
@@ -2477,9 +2492,7 @@ function draw() {
     if (!bomberTrailsHandledByWebGL && bomberTrailPoints.length > 0) {
         _drawWeatherParticleFallback(ctx, bomberTrailPoints);
     }
-    PerfMonitor.passEnd('bomberTrails');
 
-    PerfMonitor.passStart('weather');
     const weatherType = _getWeatherTypeForTheme(currentTheme);
     const weatherPoints = weatherType
         ? _buildWeatherParticleCloud(currentTheme, gameState.ticks, GAME_WIDTH, GAME_HEIGHT, _windX)
@@ -2493,9 +2506,7 @@ function draw() {
     if (!weatherHandledByWebGL && weatherPoints.length > 0) {
         _drawWeatherParticleFallback(ctx, weatherPoints);
     }
-    PerfMonitor.passEnd('weather');
 
-    PerfMonitor.passStart('weatherField');
     let weatherFieldHandledByWebGL = false;
     if (_isWebGLEffectEnabled('weatherField') && useHybridWebGLBase && typeof renderer.renderWeatherField === 'function') {
         weatherFieldHandledByWebGL = _runWebGLEffect('weatherField', () =>
@@ -2507,9 +2518,7 @@ function draw() {
             })
         );
     }
-    PerfMonitor.passEnd('weatherField');
 
-    PerfMonitor.passStart('caveMotes');
     const caveMotePoints = _isWebGLEffectEnabled('caveAmbientMotes')
         ? _buildCaveAmbientMotes(currentTheme, gameState.ticks)
         : [];
@@ -2522,7 +2531,6 @@ function draw() {
     if (!caveMotesHandledByWebGL && caveMotePoints.length > 0) {
         _drawWeatherParticleFallback(ctx, caveMotePoints);
     }
-    PerfMonitor.passEnd('caveMotes');
 
     if (activeSkill && currentSkillCounts[activeSkill] > 0) {
         ctx.strokeStyle = hoveredPuffin ? '#0f0' : '#fff';
@@ -2546,7 +2554,6 @@ function draw() {
 
     ctx.restore();
 
-    PerfMonitor.passStart('postProcess');
     const postProcessGrades = {
         lava: [200, 70, 20], volcanic_ash: [180, 80, 30], obsidian_floor: [160, 60, 40],
         desert: [210, 150, 55], salt_flats: [200, 175, 100], sandstone: [215, 165, 70],
@@ -2597,10 +2604,8 @@ function draw() {
         }
     }
 
-    PerfMonitor.passEnd('postProcess');
 
     // Dynamic lighting (feature pass #1)
-    PerfMonitor.passStart('lights');
     const dynamicLights = [];
     const terrainContactLights = _isWebGLEffectEnabled('terrainEdgeFx')
         ? _buildTerrainContactLights(terrainEdgePoints, currentTheme)
@@ -2671,9 +2676,7 @@ function draw() {
         ctx.restore();
     }
 
-    PerfMonitor.passEnd('lights');
 
-    PerfMonitor.passStart('ringwaves');
     const bomberRingwaves = [];
     for (let i = 0; i < puffins.length; i++) {
         const p = puffins[i];
@@ -2717,9 +2720,7 @@ function draw() {
         ctx.restore();
     }
 
-    PerfMonitor.passEnd('ringwaves');
 
-    PerfMonitor.passStart('portal');
     const portalCharge = Math.max(0, Math.min(1, gameState.saved / Math.max(1, REQUIRED_PUFFINS)));
     const portalEffect = {
         x: (EXIT.x + EXIT.w / 2) * SCALE,
@@ -2762,9 +2763,7 @@ function draw() {
         ctx.restore();
     }
 
-    PerfMonitor.passEnd('portal');
 
-    PerfMonitor.passStart('exitRefraction');
     const exitRefractionEffects = _isWebGLEffectEnabled('exitRefractionRing')
         ? _buildExitRefractionEffects(portalEffect, portalCharge, gameState.ticks)
         : [];
@@ -2779,9 +2778,7 @@ function draw() {
             })
         );
     }
-    PerfMonitor.passEnd('exitRefraction');
 
-    PerfMonitor.passStart('portalSparkles');
     const portalSparkles = _isWebGLEffectEnabled('portalSparkles')
         ? _buildPortalSparkleCloud(gameState.ticks, portalCharge)
         : [];
@@ -2794,9 +2791,7 @@ function draw() {
     if (!portalSparklesHandledByWebGL && portalSparkles.length > 0) {
         _drawWeatherParticleFallback(ctx, portalSparkles);
     }
-    PerfMonitor.passEnd('portalSparkles');
 
-    PerfMonitor.passStart('distortion');
     const sceneDistortionEffects = _isWebGLEffectEnabled('distortion')
         ? _buildSceneDistortionEffects(currentTheme, gameState.ticks, portalEffect)
         : [];
@@ -2810,7 +2805,6 @@ function draw() {
             })
         );
     }
-    PerfMonitor.passEnd('distortion');
 
     // Long-press tooltip overlay
     if (_touchTooltip) {
