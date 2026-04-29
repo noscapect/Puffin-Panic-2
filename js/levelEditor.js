@@ -947,9 +947,10 @@ function _edFilePanel() {
     <button onclick="loadLevelFromStorage()" style="${_b('#0a1a3a','#37a')}min-height:48px;">📂 Load</button>
     <button onclick="exportLevel()"         style="${_b('#0a1a3a','#37a')}min-height:48px;">📋 Export</button>
     <button onclick="importLevelPrompt()"   style="${_b('#1a0a2a','#67a')}min-height:48px;">📥 Import</button>
+    <button onclick="_edImportFile()"       style="${_b('#1a0a2a','#67a')}min-height:48px;">📁 File Import</button>
 </div>
 <div style="color:#445;font-size:11px;margin-top:10px;">
-    Export copies JSON to clipboard. Import pastes it back in. Share your map as text!
+    Export copies JSON to clipboard. Import pastes it back in. Share your map as text! Or use File Import to load a JSON file.
 </div>`;
 }
 
@@ -1065,6 +1066,20 @@ function importLevel(jsonString) {
 function importLevelPrompt() {
     const json = prompt('Paste level JSON to import:');
     if (json) importLevel(json);
+}
+
+function _edImportFile() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => importLevel(ev.target.result);
+        reader.readAsText(file);
+    };
+    input.click();
 }
 
 // ─── Test Level ───────────────────────────────────────────────

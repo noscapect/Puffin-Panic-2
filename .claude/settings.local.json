@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --input-type=module --check)",
+      "Bash(node --input-type=module)"
+    ]
+  }
+}

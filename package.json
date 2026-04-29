@@ -1,6 +1,8 @@
 {
   "name": "puffins-panic",
   "scripts": {
-    "editor": "node scripts/level-editor-server.mjs"
+    "editor": "node scripts/level-editor-server.mjs",
+    "level:generate": "node scripts/generate-level.mjs",
+    "campaign:generate": "node scripts/generate-campaign.mjs"
   }
 }
