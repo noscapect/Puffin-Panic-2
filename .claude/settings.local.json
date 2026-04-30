@@ -10,7 +10,8 @@
       "Bash(node -e \"const d = JSON.parse\\(require\\('fs'\\).readFileSync\\('levels/manifest.json','utf8'\\)\\); console.log\\(JSON.stringify\\(d, null, 2\\)\\);\")",
       "Bash(node -e \"const d = JSON.parse\\(require\\('fs'\\).readFileSync\\('levels/manifest.json','utf8'\\)\\); console.log\\(d.levels.slice\\(-5\\)\\);\")",
       "Bash(git checkout *)",
-      "Bash(node scripts/import-image-level.mjs --output levels/level_100.json --name \"100: Mushroom Forest\")"
+      "Bash(node scripts/import-image-level.mjs --output levels/level_100.json --name \"100: Mushroom Forest\")",
+      "Bash(node scripts/import-image-level.mjs --input img/levels/level_20.png --output levels/level_020.json --name \"20: Ancient Ruins\")"
     ]
   }
 }
