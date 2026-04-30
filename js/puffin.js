@@ -89,7 +89,8 @@ class Puffin {
         if (skill === 'bomber' && this.bomberTicks > 0) return false;
         if (skill === 'floater' && this.state !== ST_FALL && this.state !== ST_WALK) return false;
         if (skill === 'climber' && this.isClimber) return false; // Already a climber
-        if (skill === 'miner' && this.state !== ST_WALK) return false;
+        if (skill === 'miner'      && this.state !== ST_WALK) return false;
+        if (skill === 'platformer' && this.state !== ST_WALK) return false;
         return true;
     }
     
@@ -118,6 +119,10 @@ class Puffin {
         } else if (skill === 'miner') {
             this.state = ST_MINE;
             this.actionTicks = 0;
+        } else if (skill === 'platformer') {
+            this.state = ST_PLATFORM;
+            this.actionTicks = 0;
+            this.bricksLayed = 0;
         }
     }
     
@@ -193,6 +198,9 @@ class Puffin {
                 break;
             case ST_BUILD:
                 this.doBuild();
+                break;
+            case ST_PLATFORM:
+                this.doPlatform();
                 break;
             case ST_BASH:
                 this.doBash();
@@ -797,11 +805,65 @@ class Puffin {
         }
     }
     
+    doPlatform() {
+        this.actionTicks++;
+        if (this.actionTicks % 6 === 0) {
+            const bx = Math.floor(this.x + (this.vx * 4));
+            const by = Math.floor(this.y + PUFFIN_H);
+
+            // Stop if wall ahead at mid-body height
+            const checkX = Math.floor(this.x + this.vx * 4);
+            const checkY = Math.floor(this.y + PUFFIN_CENTER_Y);
+            if (isSolidAt(checkX, checkY)) {
+                this.state = ST_WALK;
+                this.vx *= -1;
+                this.builderFailTicks = 12;
+                if (typeof createSparkParticles === 'function') createSparkParticles(checkX, checkY);
+                if (typeof playSound === 'function') playSound('bash');
+                return;
+            }
+
+            // Stop if leading edge is already solid terrain
+            const leadX = bx + (this.vx * 3);
+            if (isSolidAt(leadX, by) || isSolidAt(leadX, by - 1)) {
+                this.state = ST_WALK;
+                this.vx *= -1;
+                this.builderFailTicks = 12;
+                if (typeof createSparkParticles === 'function') createSparkParticles(leadX, by - 1);
+                if (typeof playSound === 'function') playSound('bash');
+                return;
+            }
+
+            // Lay a flat 2-tile-thick platform segment (4 wide) at foot level
+            for (let i = 0; i < 4; i++) {
+                setTerrain(bx + (this.vx * i), by,     1);
+                setTerrain(bx + (this.vx * i), by - 1, 1);
+            }
+            const startX = Math.min(bx, bx + this.vx * 3);
+            updateTerrainPixels(startX, by - 1, 4, 2);
+
+            this.x += this.vx * 2; // Walk forward; no y-rise (stays flat)
+            this.bricksLayed++;
+
+            if (typeof Achievements !== 'undefined') Achievements.trackBuild();
+
+            if (this.bricksLayed >= 20) {
+                this.shrugTicks = 20;
+                this.state = ST_WALK;
+                if (typeof createDustParticles === 'function') createDustParticles(this.x, this.y + PUFFIN_H);
+                if (typeof playSound === 'function') playSound('build');
+                return;
+            }
+
+            if (typeof playSound === 'function') playSound('build');
+        }
+    }
+
     getSprite() {
         let spr = SPRITE_WALK[0];
         if (this.state === ST_WALK) {
             spr = SPRITE_WALK[Math.floor(this.animFrame / 5) % 2];
-        } else if (this.state === ST_BUILD) {
+        } else if (this.state === ST_BUILD || this.state === ST_PLATFORM) {
             spr = SPRITE_BUILD;
         } else if (this.state === ST_BASH) {
             spr = SPRITE_BASH;
@@ -950,6 +1012,15 @@ class Puffin {
             this.state = ST_FALL;
             this.fallStartY = this.y;
             this.vy = 0;
+            return true;
+        }
+        return false;
+    }
+
+    // Allow stopping platformers by clicking them again
+    togglePlatformer() {
+        if (this.state === ST_PLATFORM) {
+            this.state = ST_WALK;
             return true;
         }
         return false;
@@ -1257,6 +1328,18 @@ class Puffin {
             ctx.fillRect(6, 7, 3, 2);
             ctx.fillStyle = '#9f6130';
             ctx.fillRect(6, 8, 3, 1);
+        } else if (this.state === ST_PLATFORM) {
+            // Platformer: blue hard hat (distinct from builder's yellow) + flat brick held forward
+            ctx.fillStyle = '#4488ff';
+            ctx.fillRect(-1, -4, PUFFIN_W + 2, 2); // brim
+            ctx.fillRect(1, -6, PUFFIN_W - 2, 3);  // crown
+            ctx.fillStyle = '#2255cc'; // shadow line on hat
+            ctx.fillRect(1, -4, 3, 1);
+            // Flat brick carried forward (horizontal, not diagonal like builder's)
+            ctx.fillStyle = '#d28c42';
+            ctx.fillRect(5, 9, 5, 2);
+            ctx.fillStyle = '#9f6130';
+            ctx.fillRect(5, 10, 5, 1);
         } else if (this.state === ST_CLIMB) {
             // Climbing grip marks (pitons on wall side)
             ctx.fillStyle = '#aaaaaa';

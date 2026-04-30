@@ -1032,9 +1032,10 @@ function handleGamePointerDown(gameX, gameY) {
     const target = getBestPuffinAt(gameX, gameY, activeSkill);
 
     if (!activeSkill && target) {
-        if (target.toggleBlocker()) { playSound('click'); return; }
-        if (target.toggleBuilder()) { playSound('click'); return; }
-        if (target.toggleMiner())   { playSound('click'); return; }
+        if (target.toggleBlocker())    { playSound('click'); return; }
+        if (target.toggleBuilder())    { playSound('click'); return; }
+        if (target.toggleMiner())      { playSound('click'); return; }
+        if (target.togglePlatformer()) { playSound('click'); return; }
     }
 
     if (activeSkill) {

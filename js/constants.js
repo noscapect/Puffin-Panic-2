@@ -46,17 +46,19 @@ const ST_PANIC = 10;
 const ST_CLIMB = 11;
 const ST_MINE = 12;
 const ST_NUKE_PANIC = 13;
+const ST_PLATFORM = 14;
 
-// Skills definition — Original 8 Lemmings skills
+// Skills definition — Original 8 Lemmings skills + Platformer
 const SKILLS = [
-    { id: 'climber', name: 'Climber', icon: '🧗' },
-    { id: 'floater', name: 'Floater', icon: '☂️' },
-    { id: 'bomber',  name: 'Bomber',  icon: '💣' },
-    { id: 'blocker', name: 'Blocker', icon: '🛑' },
-    { id: 'builder', name: 'Builder', icon: '🧱' },
-    { id: 'basher',  name: 'Basher',  icon: '🥊' },
-    { id: 'miner',   name: 'Miner',   icon: '⚒️' },
-    { id: 'digger',  name: 'Digger',  icon: '⛏️' }
+    { id: 'climber',    name: 'Climber',    icon: '🧗' },
+    { id: 'floater',    name: 'Floater',    icon: '☂️' },
+    { id: 'bomber',     name: 'Bomber',     icon: '💣' },
+    { id: 'blocker',    name: 'Blocker',    icon: '🛑' },
+    { id: 'builder',    name: 'Builder',    icon: '🧱' },
+    { id: 'basher',     name: 'Basher',     icon: '🥊' },
+    { id: 'miner',      name: 'Miner',      icon: '⚒️' },
+    { id: 'digger',     name: 'Digger',     icon: '⛏️' },
+    { id: 'platformer', name: 'Platformer', icon: '🏗' },
 ];
 
 // Palette for rendering
