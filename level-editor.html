@@ -106,6 +106,8 @@ button.icon{padding:4px 8px;min-width:28px;font-size:13px}
   <div class="tb-sep"></div>
   <button class="success" id="btn-save">💾 Save</button>
   <button id="btn-dl">⬇ Download</button>
+  <button id="btn-import">⬆ Import</button>
+  <button id="btn-import-img" title="Import terrain from a black & white image (dark = solid)">🖼 Import Image</button>
   <span id="dirty">● Unsaved changes</span>
 </div>
 
@@ -588,6 +590,95 @@ function downloadJSON() {
   a.click();
 }
 
+function importFromFile() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (dirty && !confirm('Import will replace the current level. Discard unsaved changes?')) return;
+    try {
+      const data = JSON.parse(await file.text());
+
+      // Support both [[v,c],...] (external editor) and flat [v,c,v,c,...] (in-game export)
+      let rle;
+      if (data.terrain) {
+        rle = data.terrain;
+      } else if (Array.isArray(data.data)) {
+        const flat = data.data;
+        rle = [];
+        for (let i = 0; i < flat.length - 1; i += 2) rle.push([flat[i], flat[i+1]]);
+      } else {
+        throw new Error('No terrain data in file');
+      }
+
+      level = {
+        version: data.version ?? 1,
+        name: data.name || file.name.replace(/\.json$/i, ''),
+        total: data.total ?? 20,
+        required: data.required ?? 15,
+        spawnRate: data.spawnRate ?? 60,
+        time: data.time ?? 9600,
+        entrance: data.entrance ?? {x:30, y:40},
+        exit: data.exit ?? {x:340, y:150, w:20, h:12},
+        theme: data.theme || 'grass',
+        skills: data.skills ?? {},
+        waterZones: data.waterZones,
+        lavaZones: data.lavaZones,
+      };
+      terrain = decodeRLE(rle);
+      undoQ = []; redoQ = [];
+      syncFormFromLevel();
+      syncSkillsFromLevel();
+      syncZones();
+      imgData = null;
+      render();
+      markDirty();
+      setStatus('ok', `Imported: ${level.name}`);
+    } catch(err) {
+      setStatus('err', 'Import failed: ' + err.message);
+    }
+  };
+  input.click();
+}
+
+function importFromImage() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (dirty && !confirm('Import will replace the current terrain. Discard unsaved changes?')) return;
+
+    const img = new Image();
+    img.onload = () => {
+      // Draw scaled to level dimensions on an offscreen canvas
+      const oc = document.createElement('canvas');
+      oc.width = W; oc.height = H;
+      const ox = oc.getContext('2d');
+      ox.drawImage(img, 0, 0, W, H);
+      const { data } = ox.getImageData(0, 0, W, H);
+
+      saveUndo();
+      for (let i = 0; i < W * H; i++) {
+        const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+        // Standard luminance — dark pixels become solid terrain
+        const lum = 0.299*r + 0.587*g + 0.114*b;
+        terrain[i] = lum < 128 ? 1 : 0;
+      }
+      imgData = null;
+      render();
+      markDirty();
+      setStatus('ok', `Image imported — adjust entrance/exit/settings as needed`);
+    };
+    img.onerror = () => setStatus('err', 'Failed to load image');
+    img.src = URL.createObjectURL(file);
+  };
+  input.click();
+}
+
 // ─── Serialization ─────────────────────────────────────────────
 function serializeLevel() {
   const clone = {...level, terrain: encodeRLE(terrain)};
@@ -764,9 +855,11 @@ function wire() {
   // Grid
   $('grid-chk').addEventListener('change', e => { showGrid=e.target.checked; render(); });
 
-  // Save / Download
+  // Save / Download / Import
   $('btn-save').addEventListener('click', saveToDisk);
   $('btn-dl').addEventListener('click', downloadJSON);
+  $('btn-import').addEventListener('click', importFromFile);
+  $('btn-import-img').addEventListener('click', importFromImage);
 
   // Undo / Redo
   $('btn-undo').addEventListener('click', undo);

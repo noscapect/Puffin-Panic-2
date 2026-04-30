@@ -1291,6 +1291,8 @@ function loadLevel(index) {
     // physics-valid position immediately on level start.
     settleExitAtSpawn();
 
+    // Load level image texture if present (async; re-renders when ready)
+    if (window.TerrainImage) window.TerrainImage.load(lvl.imageSource || null);
     renderTerrainToOffscreen();
 
     // ── Volumetric liquid: reset then fill from level waterZones ──

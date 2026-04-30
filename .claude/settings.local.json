@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(node --input-type=module --check)",
-      "Bash(node --input-type=module)"
+      "Bash(node --input-type=module)",
+      "Bash(node -e ' *)",
+      "Bash(npm install *)",
+      "Bash(node scripts/import-image-level.mjs)",
+      "Bash(node -e \"const d = JSON.parse\\(require\\('fs'\\).readFileSync\\('levels/level_030.json','utf8'\\)\\); console.log\\('imageSource:', d.imageSource\\); console.log\\('theme:', d.theme\\);\")",
+      "Bash(node -e \"const d = JSON.parse\\(require\\('fs'\\).readFileSync\\('levels/manifest.json','utf8'\\)\\); console.log\\(JSON.stringify\\(d, null, 2\\)\\);\")",
+      "Bash(node -e \"const d = JSON.parse\\(require\\('fs'\\).readFileSync\\('levels/manifest.json','utf8'\\)\\); console.log\\(d.levels.slice\\(-5\\)\\);\")",
+      "Bash(git checkout *)",
+      "Bash(node scripts/import-image-level.mjs --output levels/level_100.json --name \"100: Mushroom Forest\")"
     ]
   }
 }

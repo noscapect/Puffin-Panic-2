@@ -1037,6 +1037,7 @@ function importLevelData(data) {
     if (data.time)     _edSettings.time     = data.time;
     if (data.theme)    _edSettings.theme    = data.theme;
     if (data.skills)   _edSettings.skills   = { ..._edSettings.skills, ...data.skills };
+    if (window.TerrainImage) window.TerrainImage.load(data.imageSource || null);
 
     // Lock solver if this JSON was exported/shared by another player
     _edImported = data.shared === true;

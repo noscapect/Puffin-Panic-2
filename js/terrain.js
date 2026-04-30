@@ -102,6 +102,39 @@ function renderTerrainForEditor() {
     terrainImgData = _renderTerrainCore(terrainImgData, terrainImgData, offCtx);
 }
 
+// --- Level image texture ---
+// When a level has an imageSource, its PNG is downscaled to GAME_WIDTH×GAME_HEIGHT
+// and stored here.  getTerrainPixelColor samples it directly for solid cells,
+// bypassing the procedural pipeline entirely.
+let _levelImgData = null;
+
+function loadLevelImage(src) {
+    _levelImgData = null;
+    if (!src) { renderTerrainToOffscreen(); return; }
+    const img = new Image();
+    img.onload = () => {
+        try {
+            const c = document.createElement('canvas');
+            c.width = GAME_WIDTH; c.height = GAME_HEIGHT;
+            const cx = c.getContext('2d');
+            cx.imageSmoothingEnabled = true;
+            cx.imageSmoothingQuality = 'high';
+            cx.drawImage(img, 0, 0, GAME_WIDTH, GAME_HEIGHT);
+            _levelImgData = cx.getImageData(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        } catch (e) {
+            console.error('[Terrain] loadLevelImage failed (CORS? serve via HTTP):', e);
+            _levelImgData = null;
+        }
+        renderTerrainToOffscreen();
+    };
+    img.onerror = () => {
+        console.error('[Terrain] Could not load level image:', src);
+        _levelImgData = null;
+        renderTerrainToOffscreen();
+    };
+    img.src = src;
+}
+
 // --- Photo-texture cache ---
 // Keyed by theme name. Each entry: { data: Uint8ClampedArray, w: number, h: number }
 const _terrainTexCache = {};
@@ -245,6 +278,12 @@ function getTerrainPixelColor(x, y, theme, profile, themeName) {
     const v = terrainData[i];
 
     if (v === 0) return [0, 0, 0, 0];
+
+    // Level image: sample the source PNG directly, skip all procedural rendering
+    if (v === 1 && _levelImgData) {
+        const pi = i * 4;
+        return [_levelImgData.data[pi], _levelImgData.data[pi + 1], _levelImgData.data[pi + 2], 255];
+    }
 
     if (v === 10) {
         // Steel
@@ -524,6 +563,8 @@ function renderTerrainToOffscreen() {
 
 // Expose core rendering for editor use
 window._renderTerrainCore = _renderTerrainCore;
+
+window.TerrainImage = { load: loadLevelImage };
 
 // Texture debug helpers (call from browser console if needed)
 window.TerrainTextures = {

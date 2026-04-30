@@ -33,6 +33,7 @@ function buildRuntimeLevelFromJson(data, fileName) {
         entrance:   data.entrance  || { x: 70, y: 20 },
         exit:       data.exit      || { x: 340, y: 78, w: 20, h: 12 },
         theme:      data.theme     || 'grass',
+        imageSource: data.imageSource || null,
         skills:     Object.assign({}, defaultSkills, data.skills || {}),
         importedFromFile: fileName,
         buildTerrain: function(runtimeData) { runtimeData.set(decoded); },

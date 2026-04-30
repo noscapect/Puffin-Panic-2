@@ -4,5 +4,8 @@
     "editor": "node scripts/level-editor-server.mjs",
     "level:generate": "node scripts/generate-level.mjs",
     "campaign:generate": "node scripts/generate-campaign.mjs"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0"
   }
 }
