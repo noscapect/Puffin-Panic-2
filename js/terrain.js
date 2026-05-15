@@ -1057,10 +1057,19 @@ function updateSand() {
     const ticks = (typeof gameState !== 'undefined') ? gameState.ticks : 0;
 
     // Bottom-to-top sweep so grains fall the full distance in one pass.
-    for (let y = H - 2; y >= 0; y--) {
+    for (let y = H - 1; y >= 0; y--) {
         for (let x = 0; x < W; x++) {
             const i = y * W + x;
             if (sandData[i] !== 1) continue;
+
+            // Sand hitting the bottom of the world solidifies immediately
+            if (y === H - 1) {
+                sandData[i] = 1; 
+                terrainData[i] = 1;
+                sandData[i] = 0;
+                updateTerrainPixels(x, y, 1, 1);
+                continue;
+            }
 
             const bi = i + W; // cell directly below
 
