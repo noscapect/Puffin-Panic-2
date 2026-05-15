@@ -1,4 +1,4 @@
-﻿// --- Terrain System ---
+// --- Terrain System ---
 function getTerrain(x, y) {
     x = Math.floor(x);
     y = Math.floor(y);
@@ -42,7 +42,15 @@ function isDiggableTerrain(val, digDir = 0) {
     return false; // Steel and other solid materials are not diggable.
 }
 
+let globalSteelZones = [];
+function clearSteelZones() { globalSteelZones = []; }
+function registerSteelZone(x, y, w, h) { globalSteelZones.push({ x, y, w, h }); }
+
 function canDigAt(x, y, digDir = 0) {
+    for (let i = 0; i < globalSteelZones.length; i++) {
+        let z = globalSteelZones[i];
+        if (x >= z.x && x < z.x + z.w && y >= z.y && y < z.y + z.h) return false;
+    }
     return isDiggableTerrain(getTerrain(x, y), digDir);
 }
 
@@ -73,6 +81,53 @@ function ensurePathClear() {
     
     updateTerrainPixels(ENTRANCE.x - 2, ENTRANCE.y - 2, 5, 5);
     updateTerrainPixels(EXIT.x - 2, EXIT.y - 2, EXIT.w + 4, EXIT.h + 4);
+}
+
+const TERRAIN_PIECES = {
+    // Dirt & Normal Terrain
+    'dirt_tiny': { w: 8, h: 8, val: 1 },
+    'dirt_small': { w: 16, h: 16, val: 1 },
+    'dirt_block': { w: 32, h: 32, val: 1 },
+    'dirt_slab': { w: 64, h: 16, val: 1 },
+    'dirt_slab_long': { w: 128, h: 16, val: 1 },
+    'dirt_pillar': { w: 16, h: 64, val: 1 },
+    'dirt_column': { w: 32, h: 128, val: 1 },
+    'dirt_huge': { w: 128, h: 128, val: 1 },
+    'dirt_floor': { w: 420, h: 32, val: 1 },
+    
+    // Steps & Slopes (blocky approximations that the step-up physics handles gracefully)
+    'step_small': { w: 16, h: 8, val: 1 },
+    'step_large': { w: 32, h: 16, val: 1 },
+
+    // Steel (Indestructible)
+    'steel_plate': { w: 16, h: 32, val: 10 },
+    'steel_plate_h': { w: 32, h: 16, val: 10 },
+    'steel_block': { w: 32, h: 32, val: 10 },
+    'steel_pillar': { w: 16, h: 64, val: 10 },
+    'steel_column': { w: 32, h: 128, val: 10 },
+    'steel_huge': { w: 64, h: 64, val: 10 },
+    'steel_floor': { w: 420, h: 16, val: 10 },
+    
+    // Special
+    'bridge_wood': { w: 48, h: 8, val: 1 }
+};
+
+function stampTerrainObjects(objects) {
+    if (!Array.isArray(objects)) return;
+    for (let obj of objects) {
+        let piece = TERRAIN_PIECES[obj.type];
+        if (!piece) continue;
+        
+        if (piece.val === 10) {
+            registerSteelZone(obj.x, obj.y, piece.w, piece.h);
+        }
+        
+        for (let y = 0; y < piece.h; y++) {
+            for (let x = 0; x < piece.w; x++) {
+                setTerrain(obj.x + x, obj.y + y, piece.val);
+            }
+        }
+    }
 }
 
 function clampColor(v) {
@@ -277,7 +332,53 @@ function getTerrainPixelColor(x, y, theme, profile, themeName) {
     const i = y * GAME_WIDTH + x;
     const v = terrainData[i];
 
-    if (v === 0) return [0, 0, 0, 0];
+    if (v === 0) {
+        // Background terrain: visual-only layer that puffins pass through.
+        // Rendered at reduced brightness so it's clearly "behind" the foreground.
+        if (typeof bgTerrainData !== 'undefined' && bgTerrainData[i] !== 0) {
+            const BG_DIM = 0.55; // brightness multiplier for background layer
+            const bgv = bgTerrainData[i];
+
+            // Level image background
+            if (bgv === 1 && _levelImgData) {
+                const pi = i * 4;
+                return [
+                    Math.round(_levelImgData.data[pi]     * BG_DIM),
+                    Math.round(_levelImgData.data[pi + 1] * BG_DIM),
+                    Math.round(_levelImgData.data[pi + 2] * BG_DIM),
+                    255
+                ];
+            }
+
+            // Procedural/textured background — terrain colors without surface crust
+            const texSample = sampleTerrainTexture(themeName || '', x, y);
+            const coarse = Math.sin(x * 0.11 + y * 0.05) + Math.cos(x * 0.07 - y * 0.13);
+            const fine = (hashNoise2D(x, y) - 0.5) * 2;
+            const noise = coarse * (profile.noiseAmp * 0.03) + fine * (profile.noiseAmp * 0.03);
+            const depth = (y / GAME_HEIGHT) * profile.depthTint * 12;
+            let br, bg, bb;
+            if (texSample) {
+                const blend = _terrainTexState.blend;
+                const pr = theme.terrain[0] + noise - depth;
+                const pg = theme.terrain[1] + noise * 0.95 - depth * 0.9;
+                const pb = theme.terrain[2] + noise * 0.9 - depth * 0.8;
+                br = texSample[0] * blend + pr * (1 - blend);
+                bg = texSample[1] * blend + pg * (1 - blend);
+                bb = texSample[2] * blend + pb * (1 - blend);
+            } else {
+                br = theme.terrain[0] + noise - depth;
+                bg = theme.terrain[1] + noise * 0.95 - depth * 0.9;
+                bb = theme.terrain[2] + noise * 0.9 - depth * 0.8;
+            }
+            return [
+                clampColor(br * BG_DIM),
+                clampColor(bg * BG_DIM),
+                clampColor(bb * BG_DIM),
+                255
+            ];
+        }
+        return [0, 0, 0, 0];
+    }
 
     // Level image: sample the source PNG directly, skip all procedural rendering
     if (v === 1 && _levelImgData) {
@@ -928,16 +1029,23 @@ function meltIceInRadius(cx, cy, radius) {
 // Convert cells immediately above (x, y) into falling sand.
 // Called after terrain is cleared so the cells above now hang unsupported.
 function _activateSandAbove(x, y) {
-    for (let dx = -1; dx <= 1; dx++) {
-        const nx = x + dx, ny = y - 1;
-        if (nx < 0 || nx >= GAME_WIDTH || ny < 0) continue;
-        const i = ny * GAME_WIDTH + nx;
-        // Only dislodge diggable solid — not air, not steel (10), not already sand.
-        if (terrainData[i] !== 0 && terrainData[i] !== 10 && sandData[i] === 0) {
-            terrainData[i] = 0;
-            sandData[i] = 1;
-            updateTerrainPixels(nx, ny, 1, 1); // show the cell as air immediately
-        }
+    // Only activate sand cascades if the current level theme supports it.
+    if (typeof getCurrentThemeName === 'function') {
+        const theme = getCurrentThemeName();
+        if (!SAND_THEMES.has(theme)) return;
+    }
+
+    // Narrower activation: only dislodge the cell directly above.
+    // This prevents massive horizontal "cone" collapses while still
+    // allowing vertical columns of sand to pour down.
+    const nx = x, ny = y - 1;
+    if (nx < 0 || nx >= GAME_WIDTH || ny < 0) return;
+    const i = ny * GAME_WIDTH + nx;
+    // Only dislodge diggable solid — not air, not steel (10), not already sand.
+    if (terrainData[i] !== 0 && terrainData[i] !== 10 && sandData[i] === 0) {
+        terrainData[i] = 0;
+        sandData[i] = 1;
+        updateTerrainPixels(nx, ny, 1, 1);
     }
 }
 
@@ -946,6 +1054,8 @@ function updateSand() {
     if (typeof SAND_THEMES === 'undefined' || !SAND_THEMES.has(getCurrentThemeName())) return;
     if (typeof sandData === 'undefined') return;
     const W = GAME_WIDTH, H = GAME_HEIGHT;
+    const ticks = (typeof gameState !== 'undefined') ? gameState.ticks : 0;
+
     // Bottom-to-top sweep so grains fall the full distance in one pass.
     for (let y = H - 2; y >= 0; y--) {
         for (let x = 0; x < W; x++) {
@@ -958,13 +1068,16 @@ function updateSand() {
             if (terrainData[bi] === 0 && sandData[bi] === 0 && (typeof liquidData === 'undefined' || liquidData[bi] === 0)) {
                 sandData[i] = 0;
                 sandData[bi] = 1;
-                _activateSandAbove(x, y); // cascade: expose cells above old position
+                _activateSandAbove(x, y); // cascade: expose cell above old position
                 continue;
             }
 
-            // 2. Slide diagonally (random-preferred direction to prevent bias).
+            // 2. Slide diagonally (deterministic choice based on position and time).
             let moved = false;
-            const dx0 = (Math.random() < 0.5) ? -1 : 1;
+            // Use a simple hash for deterministic "randomness"
+            const hash = (x * 7919 + y * 5113 + ticks * 131) % 2;
+            const dx0 = (hash === 0) ? -1 : 1;
+            
             for (let a = 0; a < 2; a++) {
                 const dx = (a === 0) ? dx0 : -dx0;
                 const nx = x + dx;
@@ -981,8 +1094,9 @@ function updateSand() {
             if (moved) continue;
 
             // 3. Completely blocked — solidify back into terrain.
-            sandData[i] = 0;
+            sandData[i] = 1; // set as normal terrain value
             terrainData[i] = 1;
+            sandData[i] = 0; // clear from falling sand state
             updateTerrainPixels(x, y, 1, 1);
         }
     }

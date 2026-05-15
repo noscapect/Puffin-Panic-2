@@ -128,6 +128,8 @@ let _liquidDirty  = false; // set true whenever liquid changes
 let sandData      = new Uint8Array(GAME_WIDTH * GAME_HEIGHT);
 // --- Liquid lava state (filled from level lavaZones; deadly to puffins) ---
 let lavaData      = new Uint8Array(GAME_WIDTH * GAME_HEIGHT);
+// --- Background terrain (visual-only; puffins pass through it) ---
+let bgTerrainData = new Uint8Array(GAME_WIDTH * GAME_HEIGHT);
 // --- Bridge stress (puffin-frames accumulated on each unsupported cell) ---
 let bridgeStress  = new Uint16Array(GAME_WIDTH * GAME_HEIGHT);
 // --- Horizontal wind force (theme-driven; affects floaters + particles) ---
@@ -1286,6 +1288,13 @@ function loadLevel(index) {
     syncReleaseRateControls();
     
     terrainData.fill(0);
+    bgTerrainData.fill(0);
+    if (typeof clearSteelZones === 'function') {
+        clearSteelZones();
+        if (Array.isArray(lvl.steelZones)) {
+            lvl.steelZones.forEach(z => registerSteelZone(z.x, z.y, z.w, z.h));
+        }
+    }
     lvl.buildTerrain(terrainData, GAME_WIDTH, GAME_HEIGHT);
 
     // Pre-settle exit portal before gameplay starts so players see the final

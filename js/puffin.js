@@ -57,6 +57,38 @@ window.PuffinRender = {
     }
 };
 
+// --- Destructible Masks ---
+const MASK_BASH = [];
+for (let y = -7; y <= 6; y++) {
+    for (let x = 0; x <= 5; x++) {
+        if (x === 5 && (y < -4 || y > 4)) continue;
+        if (x === 4 && (y < -5 || y > 5)) continue;
+        MASK_BASH.push({x, y});
+    }
+}
+const MASK_DIG = [];
+for (let y = 0; y <= 3; y++) {
+    for (let x = -4; x <= 4; x++) {
+        if (Math.abs(x) === 4 && y === 3) continue;
+        MASK_DIG.push({x, y});
+    }
+}
+const MASK_MINE = [];
+for (let y = 0; y <= 4; y++) {
+    for (let x = 0; x <= 5; x++) {
+        if (x === 5 && (y === 0 || y === 4)) continue;
+        MASK_MINE.push({x, y});
+    }
+}
+const MASK_CRATER = [];
+for (let y = -18; y <= 18; y++) {
+    for (let x = -18; x <= 18; x++) {
+        if (x*x + y*y <= 18*18) {
+            MASK_CRATER.push({x, y});
+        }
+    }
+}
+
 // --- Puffin Class ---
 class Puffin {
     constructor(x, y) {
@@ -433,14 +465,14 @@ class Puffin {
                 return;
             }
             
-            // Check landing at feet
-            let fx = Math.floor(this.x);
+            // Check landing at center foot
+            let fx = Math.floor(this.x + PUFFIN_CENTER_X);
             let fy = Math.floor(this.y + PUFFIN_H);
             
             if (isSolidAt(fx, fy)) {
                 // Snap to top of terrain
                 this.y = fy - PUFFIN_H - 1;
-                while (isSolidAt(Math.floor(this.x), Math.floor(this.y + PUFFIN_H))) {
+                while (isSolidAt(Math.floor(this.x + PUFFIN_CENTER_X), Math.floor(this.y + PUFFIN_H))) {
                     this.y--;
                 }
                 landed = true;
@@ -456,7 +488,7 @@ class Puffin {
                 GameContext.gameState.dead++;
                 createParticles(this.x, this.y+PUFFIN_H, 10, PALETTE[6], true, 6);
             } else {
-                // Track floater save: if puffin had floater and fell from a fatal distance
+                // Track floater save
                 if (this.isFloater && fallDist > FALL_DEATH_DIST) {
                     if (typeof Achievements !== 'undefined') {
                         Achievements.stats.floaterSaves++;
@@ -473,7 +505,6 @@ class Puffin {
             return;
         }
 
-        // Builder shrug: brief frozen pause before resuming walk after 12 bricks
         if (this.shrugTicks > 0) {
             this.shrugTicks--;
             return;
@@ -487,83 +518,92 @@ class Puffin {
             this.doSwim(swimZone);
             return;
         }
-
-        // Fall off edge check
-        let fx = Math.floor(this.x);
-        let fy = Math.floor(this.y + PUFFIN_H + 1);
-        if (!isSolidAt(fx, fy)) {
-            this.state = this.isFloater ? ST_FLOAT : ST_FALL;
-            this.fallStartY = this.y;
-            this.vy = 0;
-            return;
-        }
         
         // Move horizontal
         if (this.animFrame % 2 === 0) {
             let nextX = this.x + this.vx;
-            let nx = Math.floor(nextX);
             
-            // Check wall at mid-body and feet
-            let wallMid = isSolidAt(nx, Math.floor(this.y + PUFFIN_CENTER_Y));
-            let wallBottom = isSolidAt(nx, Math.floor(this.y + PUFFIN_H - 1));
-            let hitBlocker = this.checkBlocker(nx, this.y + PUFFIN_CENTER_Y);
+            // Screen boundary check: flip direction if hitting the edge of the world.
+            if (nextX < 0 || nextX > GAME_WIDTH - PUFFIN_W) {
+                this.vx *= -1;
+                this.turnCooldown = 5;
+                return;
+            }
+
+            let centerX = Math.floor(nextX + PUFFIN_CENTER_X);
+            let currentFootY = Math.floor(this.y + PUFFIN_H);
             
-            if (wallMid || wallBottom || hitBlocker) {
-                // Try stepping up (ramp climbing) — up to 6 pixels
-                let stepped = false;
-                if (!hitBlocker) {
-                    const MAX_STEP = 6;
-                    for (let step = 1; step <= MAX_STEP; step++) {
-                        let testY = this.y - step;
-                        let headClear = !isSolidAt(nx, Math.floor(testY));
-                        let midClear  = !isSolidAt(nx, Math.floor(testY + PUFFIN_CENTER_Y));
-                        let feetClear = !isSolidAt(nx, Math.floor(testY + PUFFIN_H - 1));
-                        let floorSolid = isSolidAt(nx, Math.floor(testY + PUFFIN_H));
-                        if (headClear && midClear && feetClear && floorSolid) {
-                            this.x = nextX;
-                            this.y = testY;
-                            stepped = true;
-                            break;
-                        }
-                        // Also accept stepping onto open air (will fall next frame)
-                        if (headClear && midClear && feetClear && !floorSolid) {
-                            this.x = nextX;
-                            this.y = testY;
-                            stepped = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (!stepped) {
-                    if (hitBlocker) {
-                        // Tiny turn buffer to avoid jittering crowds around blockers.
-                        if (this.turnCooldown <= 0) {
-                            this.vx *= -1;
-                            this.turnCooldown = 7;
-                        }
-                        return;
-                    }
-
-                    // Climbers scale vertical walls
-                    if (this.isClimber && wallMid) {
-                        this.state = ST_CLIMB;
-                        this.actionTicks = 0;
-                        return;
-                    }
-                    
-                    // Bashers start digging when hitting wall
-                    if (this.isBasher && wallMid) {
-                        this.state = ST_BASH;
-                        this.actionTicks = 0;
-                        return;
-                    }
-
-                    // Otherwise turn around
+            let hitBlocker = this.checkBlocker(centerX, Math.floor(this.y + PUFFIN_CENTER_Y));
+            if (hitBlocker) {
+                if (this.turnCooldown <= 0) {
                     this.vx *= -1;
+                    this.turnCooldown = 7;
                 }
+                return;
+            }
+
+            const MAX_STEP = 6;
+            let isWall = false;
+
+            // 1. Check for wall (solid pixels anywhere from MAX_STEP+1 up to head)
+            for (let dy = MAX_STEP + 1; dy <= PUFFIN_H - 1; dy++) {
+                if (isSolidAt(centerX, currentFootY - dy)) {
+                    isWall = true;
+                    break;
+                }
+            }
+
+            if (isWall) {
+                // Climbers scale vertical walls
+                if (this.isClimber) {
+                    this.state = ST_CLIMB;
+                    this.actionTicks = 0;
+                    return;
+                }
+                // Bashers start digging when hitting wall
+                if (this.isBasher) {
+                    this.state = ST_BASH;
+                    this.actionTicks = 0;
+                    return;
+                }
+                // Otherwise turn around
+                this.vx *= -1;
+                return;
+            }
+
+            // 2. No wall. Check for step-up (solid pixels between 0 and MAX_STEP)
+            let stepY = null;
+            for (let dy = MAX_STEP; dy >= 0; dy--) {
+                if (isSolidAt(centerX, currentFootY - dy)) {
+                    stepY = currentFootY - dy;
+                    break;
+                }
+            }
+
+            this.x = nextX;
+
+            if (stepY !== null) {
+                // Step up to the highest solid pixel found
+                this.y = stepY - PUFFIN_H - 1; 
             } else {
-                this.x = nextX; // Path clear
+                // 3. No step up. Check for step-down or flat ground.
+                let steppedDown = false;
+                for (let dy = 1; dy <= 3; dy++) { 
+                    if (isSolidAt(centerX, currentFootY + dy)) {
+                        this.y = currentFootY + dy - PUFFIN_H - 1;
+                        steppedDown = true;
+                        break;
+                    }
+                }
+                
+                if (!steppedDown) {
+                    // No ground within 3 pixels down? Fall.
+                    if (!isSolidAt(centerX, currentFootY + 1)) {
+                        this.state = this.isFloater ? ST_FLOAT : ST_FALL;
+                        this.fallStartY = this.y;
+                        this.vy = 0;
+                    }
+                }
             }
         }
     }
@@ -572,35 +612,44 @@ class Puffin {
         this.actionTicks++;
         if (this.actionTicks % 10 === 0) {
             this.x += this.vx;
-            // Carve terrain horizontally
             let carved = false;
-            let cx = Math.floor(this.x + (this.vx * 2));
+            let cx = Math.floor(this.x + (this.vx > 0 ? PUFFIN_W : 0));
             let cy = Math.floor(this.y + PUFFIN_CENTER_Y);
-            for (let y = -5; y <= 6; y++) {
-                for (let x = -2; x <= 2; x++) {
-                    if (canDigAt(cx+x, cy+y, this.vx)) {
-                        setTerrain(cx+x, cy+y, 0);
-                        carved = true;
-                    }
+            
+            let minX = cx, maxX = cx, minY = cy, maxY = cy;
+            
+            for (let pt of MASK_BASH) {
+                let tx = cx + (pt.x * this.vx);
+                let ty = cy + pt.y;
+                if (canDigAt(tx, ty, this.vx)) {
+                    setTerrain(tx, ty, 0);
+                    carved = true;
+                    if (typeof _activateSandAbove === 'function') _activateSandAbove(tx, ty);
+                    if (tx < minX) minX = tx;
+                    if (tx > maxX) maxX = tx;
+                    if (ty < minY) minY = ty;
+                    if (ty > maxY) maxY = ty;
                 }
             }
+            
             if (carved) {
-                updateTerrainPixels(cx - 2, cy - 5, 5, 12);
+                updateTerrainPixels(minX - 1, minY - 1, (maxX - minX) + 2, (maxY - minY) + 2);
                 createParticles(cx, cy, 3, [150,150,150]);
                 if (typeof createSparkParticles === 'function') createSparkParticles(cx, cy);
                 if (typeof playSound === 'function') playSound('bash');
             } else {
-                // Check if there's still solid terrain ahead - only exit if truly clear
-                let ahead = isSolidAt(Math.floor(this.x + this.vx), Math.floor(this.y + PUFFIN_CENTER_Y));
+                let ahead = false;
+                for(let pt of MASK_BASH) {
+                    if (isSolidAt(cx + (pt.x * this.vx), cy + pt.y)) { ahead = true; break; }
+                }
+                
                 if (ahead) {
-                    // Steel impact: spark, stop bashing, and turn away.
                     if (typeof createSparkParticles === 'function') createSparkParticles(cx, cy);
                     if (typeof playSound === 'function') playSound('bash');
                     this.state = ST_WALK;
                     this.isBasher = false;
                     this.vx *= -1;
                 } else {
-                    // Path is clear, return to normal walking (basher is consumed)
                     this.state = ST_WALK;
                     this.isBasher = false;
                 }
@@ -611,7 +660,6 @@ class Puffin {
     doDig() {
         this.actionTicks++;
         if (this.actionTicks % 10 === 0) {
-            // Blockers turn active diggers away before the next dig stroke.
             if (this.checkBlocker(Math.floor(this.x + this.vx * 2), this.y + PUFFIN_CENTER_Y)) {
                 this.state = ST_WALK;
                 this.vx *= -1;
@@ -619,24 +667,30 @@ class Puffin {
             }
 
             this.y += 1;
-            let cx = Math.floor(this.x);
+            let cx = Math.floor(this.x + PUFFIN_CENTER_X);
             let cy = Math.floor(this.y + PUFFIN_H);
             let carved = false;
             let blockedBySteel = false;
-            for (let y = 0; y <= 3; y++) {
-                for (let x = -3; x <= 3; x++) {
-                    const tx = cx + x;
-                    const ty = cy + y;
-                    if (canDigAt(tx, ty, this.vx)) {
-                        setTerrain(tx, ty, 0);
-                        carved = true;
-                    } else if (isSolidAt(tx, ty)) {
-                        blockedBySteel = true;
-                    }
+            let minX = cx, maxX = cx, minY = cy, maxY = cy;
+            
+            for (let pt of MASK_DIG) {
+                let tx = cx + pt.x;
+                let ty = cy + pt.y;
+                if (canDigAt(tx, ty, this.vx)) {
+                    setTerrain(tx, ty, 0);
+                    carved = true;
+                    if (typeof _activateSandAbove === 'function') _activateSandAbove(tx, ty);
+                    if (tx < minX) minX = tx;
+                    if (tx > maxX) maxX = tx;
+                    if (ty < minY) minY = ty;
+                    if (ty > maxY) maxY = ty;
+                } else if (isSolidAt(tx, ty)) {
+                    blockedBySteel = true;
                 }
             }
+            
             if (carved) {
-                updateTerrainPixels(cx - 3, cy, 7, 4);
+                updateTerrainPixels(minX - 1, minY - 1, (maxX - minX) + 2, (maxY - minY) + 2);
                 createParticles(cx, cy, 3, [150,150,150]);
                 if (typeof playSound === 'function') playSound('dig');
             } else {
@@ -644,8 +698,7 @@ class Puffin {
                     if (typeof createSparkParticles === 'function') createSparkParticles(cx, cy);
                     if (typeof playSound === 'function') playSound('bash');
                 }
-                // Stop digging: walk if standing, otherwise fall.
-                if (isSolidAt(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 1))) {
+                if (isSolidAt(Math.floor(this.x + PUFFIN_CENTER_X), Math.floor(this.y + PUFFIN_H + 1))) {
                     this.state = ST_WALK;
                 } else {
                     this.state = ST_FALL;
@@ -657,10 +710,8 @@ class Puffin {
     }
 
     doMine() {
-        // Diagonal digging downward and forward
         this.actionTicks++;
         if (this.actionTicks % 12 === 0) {
-            // Blockers should repel miners too.
             if (this.checkBlocker(Math.floor(this.x + this.vx * 4), this.y + PUFFIN_CENTER_Y)) {
                 this.state = ST_WALK;
                 this.vx *= -1;
@@ -669,34 +720,37 @@ class Puffin {
 
             this.y += 1;
             this.x += this.vx * 0.5;
-            let cx = Math.floor(this.x + this.vx * 3);
+            let cx = Math.floor(this.x + PUFFIN_CENTER_X + (this.vx > 0 ? 2 : -2));
             let cy = Math.floor(this.y + PUFFIN_H);
             let carved = false;
             let blockedBySteel = false;
-            // Dig diagonally downward in direction facing
-            for (let y = 0; y <= 4; y++) {
-                for (let x = 0; x <= 4; x++) {
-                    let tx = cx + (this.vx * x);
-                    let ty = cy + y;
-                    if (canDigAt(tx, ty, this.vx)) {
-                        setTerrain(tx, ty, 0);
-                        carved = true;
-                    } else if (isSolidAt(tx, ty)) {
-                        blockedBySteel = true;
-                    }
+            let minX = cx, maxX = cx, minY = cy, maxY = cy;
+            
+            for (let pt of MASK_MINE) {
+                let tx = cx + (pt.x * this.vx);
+                let ty = cy + pt.y;
+                if (canDigAt(tx, ty, this.vx)) {
+                    setTerrain(tx, ty, 0);
+                    carved = true;
+                    if (typeof _activateSandAbove === 'function') _activateSandAbove(tx, ty);
+                    if (tx < minX) minX = tx;
+                    if (tx > maxX) maxX = tx;
+                    if (ty < minY) minY = ty;
+                    if (ty > maxY) maxY = ty;
+                } else if (isSolidAt(tx, ty)) {
+                    blockedBySteel = true;
                 }
             }
+            
             if (carved) {
-                let startX = Math.min(cx, cx + this.vx * 4);
-                updateTerrainPixels(startX, cy, 5, 5);
+                updateTerrainPixels(minX - 1, minY - 1, (maxX - minX) + 2, (maxY - minY) + 2);
                 createParticles(cx, cy, 3, [150,150,150]);
             } else {
                 if (blockedBySteel) {
                     if (typeof createSparkParticles === 'function') createSparkParticles(cx, cy);
                     if (typeof playSound === 'function') playSound('bash');
                 }
-                // Stop mining: walk if standing, otherwise fall.
-                if (isSolidAt(Math.floor(this.x), Math.floor(this.y + PUFFIN_H + 1))) {
+                if (isSolidAt(Math.floor(this.x + PUFFIN_CENTER_X), Math.floor(this.y + PUFFIN_H + 1))) {
                     this.state = ST_WALK;
                 } else {
                     this.state = ST_FALL;
@@ -943,13 +997,34 @@ class Puffin {
             }
         }
         
-        // Larger explosion radius with more debris
-        digHole(Math.floor(this.x), Math.floor(this.y + PUFFIN_H/2), 20);
+        let cx = Math.floor(this.x + PUFFIN_CENTER_X);
+        let cy = Math.floor(this.y + PUFFIN_CENTER_Y);
+        let minX = cx, maxX = cx, minY = cy, maxY = cy;
+        
+        for (let pt of MASK_CRATER) {
+            let tx = cx + pt.x;
+            let ty = cy + pt.y;
+            if (canDigAt(tx, ty, this.vx)) {
+                setTerrain(tx, ty, 0);
+                if (tx < minX) minX = tx;
+                if (tx > maxX) maxX = tx;
+                if (ty < minY) minY = ty;
+                if (ty > maxY) maxY = ty;
+            }
+        }
+        
+        updateTerrainPixels(minX - 1, minY - 1, (maxX - minX) + 2, (maxY - minY) + 2);
 
-        // Ice-theme levels: melt dug-out terrain cells into liquid water.
-        // meltIceInRadius runs after digHole so it only fills now-empty cells.
+        if (typeof SAND_THEMES !== 'undefined' && typeof getCurrentThemeName === 'function' && typeof _activateSandAbove === 'function') {
+            if (SAND_THEMES.has(getCurrentThemeName())) {
+                for (let dx = -18; dx <= 18; dx++) {
+                    _activateSandAbove(cx + dx, cy - 18);
+                }
+            }
+        }
+
         if (typeof meltIceInRadius === 'function') {
-            meltIceInRadius(Math.floor(this.x), Math.floor(this.y + PUFFIN_H/2), 20);
+            meltIceInRadius(cx, cy, 18);
         }
         
         // Add extra debris particles

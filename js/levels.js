@@ -1,8 +1,8 @@
-﻿// Level Manager â€” all levels are loaded from individual JSON files via manifest.
+// Level Manager â€” all levels are loaded from individual JSON files via manifest.
 // Run  node scripts/bake-levels.mjs  to regenerate the JSON files from source.
 
 const LEVELS = [];
-const TOTAL_LEVELS = 99; // campaign levels loaded from manifest
+const TOTAL_LEVELS = 10; // campaign levels loaded from manifest
 let _externalLevelsLoaded = false;
 
 function decodeRLETerrain(rlePairs, size) {
@@ -22,8 +22,10 @@ function decodeRLETerrain(rlePairs, size) {
 
 function buildRuntimeLevelFromJson(data, fileName) {
     const terrainRLE = Array.isArray(data.terrain) ? data.terrain : (Array.isArray(data.data) ? data.data : []);
+    const bgTerrainRLE = Array.isArray(data.bgTerrain) ? data.bgTerrain : [];
     const defaultSkills = { floater: 0, bomber: 0, blocker: 0, builder: 0, basher: 0, digger: 0, climber: 0, miner: 0, platformer: 0 };
     const decoded = decodeRLETerrain(terrainRLE, GAME_WIDTH * GAME_HEIGHT);
+    const bgDecoded = bgTerrainRLE.length ? decodeRLETerrain(bgTerrainRLE, GAME_WIDTH * GAME_HEIGHT) : null;
     const lvl = {
         name:       data.name      || `[Level] ${fileName}`,
         total:      Number(data.total)     || 20,
@@ -36,10 +38,20 @@ function buildRuntimeLevelFromJson(data, fileName) {
         imageSource: data.imageSource || null,
         skills:     Object.assign({}, defaultSkills, data.skills || {}),
         importedFromFile: fileName,
-        buildTerrain: function(runtimeData) { runtimeData.set(decoded); },
+        buildTerrain: function(runtimeData) { 
+            runtimeData.set(decoded); 
+            if (Array.isArray(data.objects) && typeof stampTerrainObjects === 'function') {
+                stampTerrainObjects(data.objects);
+            }
+            // Load background terrain layer (visual-only, non-collision)
+            if (bgDecoded && typeof bgTerrainData !== 'undefined') {
+                bgTerrainData.set(bgDecoded);
+            }
+        },
     };
     if (Array.isArray(data.waterZones)) lvl.waterZones = data.waterZones;
     if (Array.isArray(data.props))      lvl.props      = data.props;
+    if (Array.isArray(data.steelZones)) lvl.steelZones = data.steelZones;
     return lvl;
 }
 
@@ -82,16 +94,19 @@ async function loadExternalLevels() {
 function getLevelTheme(levelNum) {
     const level = LEVELS[levelNum - 1];
     if (level && level.theme) return level.theme;
-    if (levelNum <= 3) return 'grass';
-    if (levelNum <= 6) return 'desert';
-    if (levelNum <= 9) return 'snow';
-    if (levelNum <= 12) return 'rock';
-    if (levelNum <= 15) return 'ice';
-    if (levelNum <= 18) return 'lava';
-    if (levelNum <= 21) return 'mud';
-    if (levelNum <= 24) return 'cave';
-    if (levelNum <= 27) return 'mossy';
-    return 'crystal';
+    
+    // Fallback logic for when JSON data is not yet loaded or missing
+    if (levelNum === 1) return 'grass';
+    if (levelNum === 2 || levelNum === 3) return 'snow';
+    if (levelNum === 4) return 'cave';
+    if (levelNum === 5) return 'rock';
+    if (levelNum === 6) return 'mud';
+    if (levelNum === 7) return 'grass';
+    if (levelNum === 8) return 'rock';
+    if (levelNum === 9) return 'crystal';
+    if (levelNum === 10) return 'ice';
+    
+    return 'grass';
 }
 
 // â”€â”€â”€ Inline level definitions removed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

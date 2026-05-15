@@ -172,7 +172,8 @@ let _edSettings = {
     spawnRate: 75,
     time: 9600,
     theme: 'grass',
-    skills: { climber: 5, floater: 5, bomber: 3, blocker: 3, builder: 5, basher: 5, miner: 5, digger: 5 }
+    skills: { climber: 5, floater: 5, bomber: 3, blocker: 3, builder: 5, basher: 5, miner: 5, digger: 5 },
+    imageSource: null
 };
 
 let _edDrawing = false;
@@ -918,6 +919,15 @@ function _edSetupPanel() {
     ${row('Spawn Rate (ticks)', num('spawnRate', _edSettings.spawnRate, 1, 180))}
     ${row('Time Limit (ticks)', num('time', _edSettings.time, 600, 36000))}
 </div>
+<div style="margin-bottom:12px;">
+    ${row('Image Source (Art)', `
+        <div style="display:flex;gap:8px;">
+            ${inp('imageSource', _edSettings.imageSource || '')}
+            <button onclick="_edSettings.imageSource=null;if(window.TerrainImage)window.TerrainImage.load(null);_edSwitchTab('setup')" 
+                style="${_b('#2a0a0a','#844')}min-width:60px;font-size:11px;">Clear</button>
+        </div>
+    `)}
+</div>
 <div style="color:#889;font-size:12px;margin-bottom:6px;">Skill counts</div>
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
     ${Object.entries(_edSettings.skills).map(([sk, cv]) => `
@@ -948,6 +958,7 @@ function _edFilePanel() {
     <button onclick="exportLevel()"         style="${_b('#0a1a3a','#37a')}min-height:48px;">📋 Export</button>
     <button onclick="importLevelPrompt()"   style="${_b('#1a0a2a','#67a')}min-height:48px;">📥 Import</button>
     <button onclick="_edImportFile()"       style="${_b('#1a0a2a','#67a')}min-height:48px;">📁 File Import</button>
+    <button onclick="_edImportImage()"      style="${_b('#3a0a2a','#a4a')}min-height:48px;">🖼️ Image Import</button>
 </div>
 <div style="color:#445;font-size:11px;margin-top:10px;">
     Export copies JSON to clipboard. Import pastes it back in. Share your map as text! Or use File Import to load a JSON file.
@@ -990,6 +1001,7 @@ function exportLevelData() {
         time:     _edSettings.time,
         theme:    _edSettings.theme,
         skills:   { ..._edSettings.skills },
+        imageSource: _edSettings.imageSource || null,
         entrance: { ...editorEntrance },
         exit:     { ...editorExit },
         data,
@@ -1037,7 +1049,8 @@ function importLevelData(data) {
     if (data.time)     _edSettings.time     = data.time;
     if (data.theme)    _edSettings.theme    = data.theme;
     if (data.skills)   _edSettings.skills   = { ..._edSettings.skills, ...data.skills };
-    if (window.TerrainImage) window.TerrainImage.load(data.imageSource || null);
+    _edSettings.imageSource = data.imageSource || null;
+    if (window.TerrainImage) window.TerrainImage.load(_edSettings.imageSource);
 
     // Lock solver if this JSON was exported/shared by another player
     _edImported = data.shared === true;
@@ -1079,6 +1092,68 @@ function _edImportFile() {
         const reader = new FileReader();
         reader.onload = ev => importLevel(ev.target.result);
         reader.readAsText(file);
+    };
+    input.click();
+}
+
+function _edImportImage() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png';
+    input.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const img = new Image();
+            img.onload = () => {
+                _edSaveUndo();
+                
+                // Create a processing canvas to extract terrain mask
+                const c = document.createElement('canvas');
+                c.width = GAME_WIDTH; 
+                c.height = GAME_HEIGHT;
+                const cx = c.getContext('2d');
+                cx.imageSmoothingEnabled = true;
+                cx.imageSmoothingQuality = 'high';
+                cx.drawImage(img, 0, 0, GAME_WIDTH, GAME_HEIGHT);
+                
+                const id = cx.getImageData(0, 0, GAME_WIDTH, GAME_HEIGHT);
+                
+                // Clear current base and placements to start fresh with image
+                _edBase.fill(0);
+                _edPlacements = [];
+                
+                for (let i = 0; i < _edBase.length; i++) {
+                    // If alpha > 128, it's solid terrain (Value 1)
+                    if (id.data[i * 4 + 3] > 128) {
+                        _edBase[i] = 1;
+                    }
+                }
+                
+                // Update settings
+                const fileName = file.name;
+                _edSettings.name = fileName.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
+                
+                // Prompt user for the final relative path to be stored in JSON
+                const defaultPath = "img/levels/" + fileName;
+                const finalPath = prompt("Image imported as mask.\nWhat should the 'art' asset path be in the final JSON?", defaultPath);
+                
+                if (finalPath) {
+                    _edSettings.imageSource = finalPath;
+                    // Use the DataURL for immediate session preview
+                    if (window.TerrainImage) window.TerrainImage.load(ev.target.result);
+                }
+                
+                _edRecompute();
+                
+                // Update setup panel UI
+                if (_edTab === 'setup') _edSwitchTab('setup');
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
     };
     input.click();
 }

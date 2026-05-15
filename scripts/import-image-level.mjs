@@ -61,7 +61,8 @@ function isBackground(r, g, b) {
   const bright = (r + g + b) / 3;
   if (sat > 18) return false;                      // has real colour → terrain
   if (bright > 240) return true;                   // near-white tile
-  if (bright >= 175 && bright <= 210) return true; // dark-gray tile
+  if (bright >= 175 && bright <= 210) return true;
+  if (bright < 40 && sat < 20) return true; // AI background // dark-gray tile
   return false;
 }
 

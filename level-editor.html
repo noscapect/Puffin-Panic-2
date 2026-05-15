@@ -127,6 +127,7 @@ button.icon{padding:4px 8px;min-width:28px;font-size:13px}
         <button class="tbtn"        data-tool="steel"    title="T — Steel (indestructible)">🔩<small>Steel</small></button>
         <button class="tbtn"        data-tool="oneway-r" title="&gt; — One-way right">→<small>1-Way→</small></button>
         <button class="tbtn"        data-tool="oneway-l" title="&lt; — One-way left">←<small>1-Way←</small></button>
+        <button class="tbtn"        data-tool="bg"       title="B — Background (visual only, no collision)">🖼<small>BG Layer</small></button>
         <button class="tbtn"        data-tool="entrance" title="N — Move entrance">🚪<small>Entrance</small></button>
         <button class="tbtn"        data-tool="exit"     title="X — Move exit">🏁<small>Exit</small></button>
       </div>
@@ -221,18 +222,176 @@ button.icon{padding:4px 8px;min-width:28px;font-size:13px}
 const W = 400, H = 220;
 const API = 'http://localhost:3747';
 
-const THEME_SOLID = {
-  grass:'#4a7c59',desert:'#b87c4a',snow:'#8db8cc',rock:'#6b7280',
-  ice:'#7ab8d0',lava:'#b84820',crystal:'#7c5cf0',water:'#2d6fa8',
-  mud:'#6b5c3e',cave:'#4a4458',mossy:'#4a7c59',cliff_chalk:'#c8bfa0',
-  slate_ledge:'#5a6878',frozen_mud:'#7a8a8c',packed_snow:'#8dbac8',
-  black_ice:'#4a7888',volcanic_ash:'#585250',obsidian_floor:'#2a2030',
-  salt_flats:'#c0b898',wet_cave_stone:'#4a5a60',rusty_metal:'#885040',
-  wood_planks:'#987858',mossy_ruin:'#507860',crystal_dense:'#6050c0',
-  fungus_glow:'#48a060',toxic_sludge:'#608840',sandstone:'#c09060',
-  deep_sea:'#1a3860',iron_ore:'#585868',coral:'#d07868',amber:'#c89040',
-  bone_white:'#c8c4b0',
+// Theme profiles: surface crust colour, subsurface terrain colour, texture tile-scale, noise amp, rim-light boost.
+const THEME_PROFILES = {
+  grass:          { surface:[34,139,34],   terrain:[139,69,19],   scale:4, noiseAmp:12, rimBoost:[18,22,26], surfaceBlend:0.82 },
+  desert:         { surface:[210,180,140], terrain:[188,143,143], scale:3, noiseAmp:11, rimBoost:[16,14,10], surfaceBlend:0.55 },
+  snow:           { surface:[255,250,250], terrain:[112,128,144], scale:3, noiseAmp:10, rimBoost:[26,30,34], surfaceBlend:0.70 },
+  rock:           { surface:[128,128,128], terrain:[64,64,64],    scale:3, noiseAmp:14, rimBoost:[14,16,18], surfaceBlend:0.45 },
+  ice:            { surface:[173,216,230], terrain:[70,130,180],  scale:3, noiseAmp:9,  rimBoost:[30,36,44], surfaceBlend:0.60 },
+  lava:           { surface:[255,69,0],    terrain:[139,0,0],     scale:3, noiseAmp:16, rimBoost:[22,10,4],  surfaceBlend:0.80 },
+  crystal:        { surface:[224,176,255], terrain:[148,103,189], scale:3, noiseAmp:12, rimBoost:[20,18,26], surfaceBlend:0.65 },
+  water:          { surface:[126,210,236], terrain:[56,122,166],  scale:3, noiseAmp:10, rimBoost:[22,30,36], surfaceBlend:0.60 },
+  mud:            { surface:[90,70,40],    terrain:[60,45,25],    scale:4, noiseAmp:10, rimBoost:[12,10,6],  surfaceBlend:0.50 },
+  cave:           { surface:[80,80,85],    terrain:[45,45,50],    scale:3, noiseAmp:15, rimBoost:[10,12,14], surfaceBlend:0.35 },
+  mossy:          { surface:[60,130,50],   terrain:[70,90,60],    scale:3, noiseAmp:11, rimBoost:[10,18,10], surfaceBlend:0.75 },
+  cliff_chalk:    { surface:[225,216,188], terrain:[178,166,138], scale:3, noiseAmp:11, rimBoost:[24,24,20], surfaceBlend:0.62 },
+  slate_ledge:    { surface:[126,132,142], terrain:[82,87,96],    scale:3, noiseAmp:13, rimBoost:[14,16,18], surfaceBlend:0.45 },
+  frozen_mud:     { surface:[152,154,164], terrain:[86,75,62],    scale:4, noiseAmp:11, rimBoost:[18,20,24], surfaceBlend:0.55 },
+  packed_snow:    { surface:[236,238,240], terrain:[152,162,172], scale:3, noiseAmp:9,  rimBoost:[26,30,34], surfaceBlend:0.68 },
+  black_ice:      { surface:[114,144,178], terrain:[52,74,98],    scale:3, noiseAmp:8,  rimBoost:[30,36,44], surfaceBlend:0.58 },
+  volcanic_ash:   { surface:[98,84,78],    terrain:[58,52,50],    scale:3, noiseAmp:14, rimBoost:[18,12,10], surfaceBlend:0.52 },
+  obsidian_floor: { surface:[118,96,112],  terrain:[54,43,60],    scale:3, noiseAmp:15, rimBoost:[22,16,18], surfaceBlend:0.56 },
+  salt_flats:     { surface:[228,220,198], terrain:[170,158,136], scale:3, noiseAmp:10, rimBoost:[24,22,18], surfaceBlend:0.62 },
+  wet_cave_stone: { surface:[88,98,108],   terrain:[44,52,60],    scale:3, noiseAmp:14, rimBoost:[12,16,18], surfaceBlend:0.42 },
+  rusty_metal:    { surface:[156,106,72],  terrain:[92,78,72],    scale:4, noiseAmp:10, rimBoost:[20,14,10], surfaceBlend:0.50 },
+  wood_planks:    { surface:[170,128,82],  terrain:[108,76,48],   scale:4, noiseAmp:11, rimBoost:[18,12,8],  surfaceBlend:0.58 },
+  mossy_ruin:     { surface:[92,132,84],   terrain:[84,92,82],    scale:3, noiseAmp:11, rimBoost:[12,18,12], surfaceBlend:0.72 },
+  crystal_dense:  { surface:[210,176,238], terrain:[124,92,168],  scale:3, noiseAmp:12, rimBoost:[22,20,28], surfaceBlend:0.67 },
+  fungus_glow:    { surface:[106,178,138], terrain:[64,92,78],    scale:3, noiseAmp:10, rimBoost:[16,28,22], surfaceBlend:0.70 },
+  toxic_sludge:   { surface:[122,152,78],  terrain:[78,98,52],    scale:4, noiseAmp:12, rimBoost:[14,22,10], surfaceBlend:0.62 },
+  sandstone:      { surface:[212,176,118], terrain:[168,132,80],  scale:3, noiseAmp:12, rimBoost:[22,18,12], surfaceBlend:0.68 },
+  deep_sea:       { surface:[48,84,118],   terrain:[28,54,80],    scale:3, noiseAmp:9,  rimBoost:[18,24,32], surfaceBlend:0.45 },
+  iron_ore:       { surface:[108,86,72],   terrain:[68,58,56],    scale:3, noiseAmp:14, rimBoost:[20,14,10], surfaceBlend:0.48 },
+  coral:          { surface:[220,140,100], terrain:[158,88,64],   scale:3, noiseAmp:10, rimBoost:[24,18,14], surfaceBlend:0.74 },
+  amber:          { surface:[224,172,72],  terrain:[160,110,40],  scale:3, noiseAmp:11, rimBoost:[24,18,8],  surfaceBlend:0.72 },
+  bone_white:     { surface:[220,212,196], terrain:[164,148,124], scale:3, noiseAmp:9,  rimBoost:[24,22,18], surfaceBlend:0.60 },
+  concept_999:    { surface:[200,180,140], terrain:[130,100,70],  scale:4, noiseAmp:11, rimBoost:[18,16,10], surfaceBlend:0.74 },
 };
+
+// ─── Level artwork image ────────────────────────────────────────
+let _levelImg = null; // ImageData (W×H) sampled from level's imageSource PNG
+
+function loadLevelImage(src, cb) {
+  _levelImg = null;
+  if (!src) { if (cb) cb(); return; }
+  const img = new Image();
+  img.onload = () => {
+    try {
+      const c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const cx = c.getContext('2d');
+      cx.imageSmoothingEnabled = true;
+      cx.imageSmoothingQuality = 'high';
+      cx.drawImage(img, 0, 0, W, H);
+      _levelImg = cx.getImageData(0, 0, W, H);
+    } catch(e) { _levelImg = null; }
+    if (cb) cb();
+  };
+  img.onerror = () => { _levelImg = null; if (cb) cb(); };
+  img.src = src;
+}
+
+// ─── Texture cache ─────────────────────────────────────────────
+const _texCache = {};
+
+function preloadTexture(theme, cb) {
+  if (_texCache[theme]) { if (cb) cb(); return; }
+  const img = new Image();
+  img.onload = () => {
+    try {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const cx = c.getContext('2d');
+      cx.drawImage(img, 0, 0);
+      const id = cx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
+      _texCache[theme] = { data: id.data, w: img.naturalWidth, h: img.naturalHeight };
+    } catch(e) { /* CORS/file:// fallback — procedural rendering will be used */ }
+    if (cb) cb();
+  };
+  img.onerror = () => { if (cb) cb(); };
+  img.src = `img/generated/${theme}.png`;
+}
+
+function preloadAllTextures() {
+  for (const theme of Object.keys(THEME_PROFILES)) preloadTexture(theme, () => render());
+}
+
+function hashNoise2D(x, y) {
+  let n = (x * 374761393 + y * 668265263) | 0;
+  n = (n ^ (n >> 13)) | 0;
+  n = (n * 1274126177) | 0;
+  return (((n ^ (n >> 16)) >>> 0) / 4294967295);
+}
+
+function sampleTexture(theme, x, y) {
+  const t = _texCache[theme];
+  if (!t) return null;
+  const scale = THEME_PROFILES[theme]?.scale || 3;
+  const tx = (((x * scale) % t.w) + t.w) % t.w;
+  const ty = (((y * scale) % t.h) + t.h) % t.h;
+  const i  = (Math.floor(ty) * t.w + Math.floor(tx)) * 4;
+  return [t.data[i], t.data[i+1], t.data[i+2]];
+}
+
+function clamp(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+
+function getPixelColor(x, y, cell) {
+  if (cell === 0)  return [8, 8, 15];
+  if (cell === 10) return [130, 94, 60];
+  if (cell === 11 || cell === 12) {
+    const base = [72, 102, 138];
+    const bright  = ((x + y) % 6) < 2;
+    const shifted = cell === 11 ? ((x - y) % 10 + 10) % 10 : ((x + y) % 10 + 10) % 10;
+    const chevron = shifted <= 1 || shifted >= 8;
+    return [
+      clamp(base[0] + (bright?18:0) + (chevron?34:0)),
+      clamp(base[1] + (bright?20:0) + (chevron?38:0)),
+      clamp(base[2] + (bright?24:0) + (chevron?44:0)),
+    ];
+  }
+
+  // If level has artwork, sample it directly (same behaviour as in-game)
+  if (cell === 1 && _levelImg) {
+    const pi = (y * W + x) * 4;
+    return [_levelImg.data[pi], _levelImg.data[pi+1], _levelImg.data[pi+2]];
+  }
+
+  const theme = level?.theme || 'grass';
+  const prof  = THEME_PROFILES[theme] || THEME_PROFILES.grass;
+
+  const isSurface  = get(x, y-1) === 0;
+  const edgeLeft   = get(x-1, y) === 0;
+  const edgeRight  = get(x+1, y) === 0;
+  const edgeBottom = get(x, y+1) === 0;
+
+  const coarse = Math.sin(x*0.11+y*0.05) + Math.cos(x*0.07-y*0.13);
+  const fine   = (hashNoise2D(x, y) - 0.5) * 2;
+  const noise  = coarse*(prof.noiseAmp*0.03) + fine*(prof.noiseAmp*0.03);
+  const depth  = (y / H) * 0.08 * 12;
+
+  let r, g, b;
+  const tex = sampleTexture(theme, x, y);
+
+  if (tex) {
+    const blend = 0.92;
+    const pr = prof.terrain[0]+noise-depth, pg = prof.terrain[1]+noise*0.95-depth*0.9, pb = prof.terrain[2]+noise*0.9-depth*0.8;
+    r = tex[0]*blend + pr*(1-blend);
+    g = tex[1]*blend + pg*(1-blend);
+    b = tex[2]*blend + pb*(1-blend);
+    if (isSurface) {
+      const crust = 8 + Math.sin(x*0.4)*5 + (hashNoise2D(x*2,y*2)-0.5)*6;
+      const sb = prof.surfaceBlend;
+      r = (prof.surface[0]+crust)*sb + r*(1-sb);
+      g = (prof.surface[1]+crust)*sb + g*(1-sb);
+      b = (prof.surface[2]+crust)*sb + b*(1-sb);
+    }
+  } else {
+    r = prof.terrain[0]+noise-depth;
+    g = prof.terrain[1]+noise*0.95-depth*0.9;
+    b = prof.terrain[2]+noise*0.9-depth*0.8;
+    if (isSurface) {
+      const crust = 8 + Math.sin(x*0.4)*5 + (hashNoise2D(x*2,y*2)-0.5)*6;
+      r = prof.surface[0]+crust; g = prof.surface[1]+crust; b = prof.surface[2]+crust;
+    }
+  }
+
+  if (edgeLeft)   { r+=prof.rimBoost[0]; g+=prof.rimBoost[1]; b+=prof.rimBoost[2]; }
+  if (edgeRight)  { r-=10; g-=12; b-=14; }
+  if (edgeBottom) { r-=16; g-=18; b-=20; }
+
+  return [clamp(r), clamp(g), clamp(b)];
+}
 
 const SKILLS = [
   {id:'climber',  lb:'Climber 🧗'},
@@ -252,6 +411,7 @@ const ctx    = canvas.getContext('2d');
 let imgData  = null; // ImageData (W × H)
 
 let terrain  = new Uint8Array(W * H);
+let bgTerrain = new Uint8Array(W * H); // background terrain (visual-only, no collision)
 let level    = null;   // parsed JSON
 let levelN   = 1;
 let dirty    = false;
@@ -265,12 +425,33 @@ let undoQ    = [], redoQ = [];
 
 // ─── Terrain helpers ───────────────────────────────────────────
 const get = (x, y) => (x<0||x>=W||y<0||y>=H) ? 0 : terrain[y*W+x];
+const getBg = (x, y) => (x<0||x>=W||y<0||y>=H) ? 0 : bgTerrain[y*W+x];
 function set(x, y, v) { if(x>=0&&x<W&&y>=0&&y<H) terrain[y*W+x]=v; }
+function setBg(x, y, v) { if(x>=0&&x<W&&y>=0&&y<H) bgTerrain[y*W+x]=v; }
 
 function paintBrush(x, y, v) {
   const h = Math.floor(brushSz/2);
-  for (let dy=-h; dy<brushSz-h; dy++)
-    for (let dx=-h; dx<brushSz-h; dx++) set(x+dx, y+dy, v);
+  if (tool === 'bg') {
+    // Background tool: set bgTerrain and clear foreground
+    for (let dy=-h; dy<brushSz-h; dy++)
+      for (let dx=-h; dx<brushSz-h; dx++) {
+        if (v !== 0) {
+          setBg(x+dx, y+dy, 1);
+          set(x+dx, y+dy, 0); // bg replaces fg
+        } else {
+          setBg(x+dx, y+dy, 0); // erasing bg
+        }
+      }
+  } else {
+    for (let dy=-h; dy<brushSz-h; dy++)
+      for (let dx=-h; dx<brushSz-h; dx++) {
+        set(x+dx, y+dy, v);
+        // Painting solid foreground over bg removes the bg pixel;
+        // Erasing (v===0) also clears any background at this position
+        if (v !== 0) setBg(x+dx, y+dy, 0);
+        else if (tool === 'erase') setBg(x+dx, y+dy, 0);
+      }
+  }
 }
 
 function toolVal() {
@@ -281,6 +462,7 @@ function toolVal() {
   if (tool==='erase')    return 0;
   if (tool==='rect')     return 1;
   if (tool==='fill')     return 1;
+  if (tool==='bg')       return 1; // bg layer uses value 1 in bgTerrain array
   return 1;
 }
 
@@ -323,15 +505,9 @@ function encodeRLE(data) {
 }
 
 // ─── Render ────────────────────────────────────────────────────
-function hexToRgb(h) {
-  return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
-}
-
 function render(rectPrev=null) {
   if (!imgData) imgData = ctx.createImageData(W, H);
   const d = imgData.data;
-  const theme = level?.theme || 'grass';
-  const sc = hexToRgb(THEME_SOLID[theme]||'#6b8fa8');
 
   for (let y=0; y<H; y++) {
     for (let x=0; x<W; x++) {
@@ -339,20 +515,22 @@ function render(rectPrev=null) {
       if (rectPrev && x>=rectPrev.x1&&x<=rectPrev.x2&&y>=rectPrev.y1&&y<=rectPrev.y2)
         cell = rectPrev.v;
 
-      let r,g,b;
-      if      (cell===0)  { r=8;  g=8;  b=15; }
-      else if (cell===1)  { [r,g,b]=sc; }
-      else if (cell===10) { r=148;g=155;b=163; }  // steel — silver
-      else if (cell===11) { r=212;g=165;b=32; }   // one-way right — amber
-      else if (cell===12) { r=192;g=128;b=16; }   // one-way left — dark amber
-      else                { [r,g,b]=sc; }
-
+      let r, g, b;
+      if (cell === 0 && bgTerrain[y*W+x] !== 0) {
+        // Background layer pixel: render dimmed with a blue-ish tint
+        const BG_DIM = 0.50;
+        const [cr,cg,cb] = getPixelColor(x, y, bgTerrain[y*W+x]);
+        r = Math.round(cr * BG_DIM * 0.85);
+        g = Math.round(cg * BG_DIM * 0.90);
+        b = Math.round(Math.min(255, cb * BG_DIM * 1.15)); // slight blue shift
+      } else {
+        [r, g, b] = getPixelColor(x, y, cell);
+      }
       const pi = (y*W+x)*4;
       d[pi]=r; d[pi+1]=g; d[pi+2]=b; d[pi+3]=255;
     }
   }
 
-  // Scale up: CSS zoom already handles visual scaling; putImageData at 1×1
   ctx.putImageData(imgData, 0, 0);
   drawOverlays(rectPrev);
 }
@@ -447,17 +625,23 @@ function applyZoom() {
 
 // ─── Undo / Redo ───────────────────────────────────────────────
 function saveUndo() {
-  undoQ.push(new Uint8Array(terrain));
+  undoQ.push({ fg: new Uint8Array(terrain), bg: new Uint8Array(bgTerrain) });
   if (undoQ.length > 60) undoQ.shift();
   redoQ = [];
 }
 function undo() {
   if (!undoQ.length) return;
-  redoQ.push(new Uint8Array(terrain)); terrain.set(undoQ.pop()); markDirty(); render();
+  redoQ.push({ fg: new Uint8Array(terrain), bg: new Uint8Array(bgTerrain) });
+  const snap = undoQ.pop();
+  terrain.set(snap.fg); bgTerrain.set(snap.bg);
+  markDirty(); render();
 }
 function redo() {
   if (!redoQ.length) return;
-  undoQ.push(new Uint8Array(terrain)); terrain.set(redoQ.pop()); markDirty(); render();
+  undoQ.push({ fg: new Uint8Array(terrain), bg: new Uint8Array(bgTerrain) });
+  const snap = redoQ.pop();
+  terrain.set(snap.fg); bgTerrain.set(snap.bg);
+  markDirty(); render();
 }
 
 // ─── Mouse / pointer events ────────────────────────────────────
@@ -494,7 +678,8 @@ canvas.addEventListener('mousedown', e => {
 canvas.addEventListener('mousemove', e => {
   const {x,y} = cellAt(e);
   document.getElementById('scoord').textContent = `x:${x} y:${y}`;
-  document.getElementById('scell').textContent  = `cell:${get(x,y)}`;
+  const bgVal = getBg(x,y);
+  document.getElementById('scell').textContent  = `cell:${get(x,y)}` + (bgVal ? ` bg:${bgVal}` : '');
 
   if (!drawing) return;
   if (tool==='rect' && rectSt) {
@@ -545,6 +730,7 @@ async function loadLevel(n) {
     levelN       = n;
     level        = data;
     terrain      = decodeRLE(data.terrain);
+    bgTerrain    = data.bgTerrain ? decodeRLE(data.bgTerrain) : new Uint8Array(W * H);
     undoQ=[]; redoQ=[];
     dirty = false;
     document.getElementById('dirty').style.display = 'none';
@@ -553,6 +739,8 @@ async function loadLevel(n) {
     syncZones();
     updateLvlSel();
     imgData = null;
+    preloadTexture(data.theme || 'grass', () => {});
+    loadLevelImage(data.imageSource || null, () => { imgData = null; render(); });
     render();
     setStatus('ok', `Loaded: ${data.name}`);
     document.getElementById('slvl').textContent = `Level ${n} / 99`;
@@ -616,6 +804,7 @@ function importFromFile() {
       level = {
         version: data.version ?? 1,
         name: data.name || file.name.replace(/\.json$/i, ''),
+        imageSource: data.imageSource || null,
         total: data.total ?? 20,
         required: data.required ?? 15,
         spawnRate: data.spawnRate ?? 60,
@@ -626,13 +815,16 @@ function importFromFile() {
         skills: data.skills ?? {},
         waterZones: data.waterZones,
         lavaZones: data.lavaZones,
+        bgTerrain: data.bgTerrain,
       };
       terrain = decodeRLE(rle);
+      bgTerrain = data.bgTerrain ? decodeRLE(data.bgTerrain) : new Uint8Array(W * H);
       undoQ = []; redoQ = [];
       syncFormFromLevel();
       syncSkillsFromLevel();
       syncZones();
       imgData = null;
+      loadLevelImage(data.imageSource || null, () => { imgData = null; render(); });
       render();
       markDirty();
       setStatus('ok', `Imported: ${level.name}`);
@@ -682,11 +874,22 @@ function importFromImage() {
 // ─── Serialization ─────────────────────────────────────────────
 function serializeLevel() {
   const clone = {...level, terrain: encodeRLE(terrain)};
+  // Only include bgTerrain if it has any non-zero data
+  const hasBg = bgTerrain.some(v => v !== 0);
+  if (hasBg) clone.bgTerrain = encodeRLE(bgTerrain);
   const terrain_ = clone.terrain;
+  const bgTerrain_ = clone.bgTerrain;
   delete clone.terrain;
-  const lines = terrain_.map(p => `    [${p[0]},${p[1]}]`).join(',\n');
-  return JSON.stringify(clone, null, 2).slice(0,-1)
-    + `,\n  "terrain": [\n${lines}\n  ]\n}`;
+  delete clone.bgTerrain;
+  let json = JSON.stringify(clone, null, 2).slice(0,-1);
+  const fgLines = terrain_.map(p => `    [${p[0]},${p[1]}]`).join(',\n');
+  json += `,\n  "terrain": [\n${fgLines}\n  ]`;
+  if (hasBg) {
+    const bgLines = bgTerrain_.map(p => `    [${p[0]},${p[1]}]`).join(',\n');
+    json += `,\n  "bgTerrain": [\n${bgLines}\n  ]`;
+  }
+  json += '\n}';
+  return json;
 }
 
 // ─── Form sync ─────────────────────────────────────────────────
@@ -868,6 +1071,10 @@ function wire() {
   // Settings live sync
   ['s-ex','s-ey','s-xx','s-xy','s-xw','s-xh','s-theme'].forEach(id =>
     $(id).addEventListener('change', liveSync));
+  $('s-theme').addEventListener('change', e => {
+    imgData = null; // force full re-render with new theme colours
+    preloadTexture(e.target.value, render);
+  });
   document.querySelectorAll('#tab-settings input, #tab-settings select').forEach(el =>
     el.addEventListener('input', markDirty));
 
@@ -890,7 +1097,7 @@ function wire() {
     if (e.ctrlKey && (e.key==='y'||e.key==='Z')) { e.preventDefault(); redo(); return; }
     if (e.ctrlKey && e.key==='s') { e.preventDefault(); saveToDisk(); return; }
     if (inInput) return;
-    const map = {s:'solid',e:'erase',t:'steel',f:'fill',r:'rect',n:'entrance',x:'exit',
+    const map = {s:'solid',e:'erase',t:'steel',f:'fill',r:'rect',b:'bg',n:'entrance',x:'exit',
                  '>':'oneway-r','<':'oneway-l','.':'next',',':'prev'};
     const action = map[e.key];
     if (!action) return;
@@ -913,6 +1120,7 @@ async function init() {
   canvas.width  = W;
   canvas.height = H;
   applyZoom();
+  preloadAllTextures();
   render();
   setStatus('load', 'Connecting to server…');
   const ok = await loadLevelList();
