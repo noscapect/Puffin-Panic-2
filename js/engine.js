@@ -7,7 +7,7 @@ let currentReleaseRate = 50;
 const MIN_RELEASE_RATE = 1;
 const MAX_RELEASE_RATE = 99;
 const MIN_SPAWN_INTERVAL = 3;
-const MAX_SPAWN_INTERVAL = FPS * 2;
+const MAX_SPAWN_INTERVAL = FPS * 8;
 let ENTRANCE = { x: 70, y: 20 };
 let EXIT = { x: 340, y: 78, w: 20, h: 12 };
 let loopId = null;
@@ -1028,6 +1028,21 @@ function cancelSkill() {
     playSound('click');
 }
 
+function assignSkillToPuffin(target, skillId, options = {}) {
+    if (!target || !skillId) return false;
+    if (currentSkillCounts[skillId] <= 0) return false;
+    if (!target.canAcceptSkill(skillId)) return false;
+
+    target.assignSkill(skillId);
+    currentSkillCounts[skillId]--;
+    if (typeof Achievements !== 'undefined' && !options.skipAchievements) {
+        Achievements.trackSkill(skillId);
+    }
+    updateUI();
+    if (!options.silent) playSound('skillAssign');
+    return true;
+}
+
 // Shared pointer-down logic used by both mouse and touch
 function handleGamePointerDown(gameX, gameY) {
     if (editorMode || !gameState.active || gameState.paused) return;
@@ -1043,11 +1058,7 @@ function handleGamePointerDown(gameX, gameY) {
     if (activeSkill) {
         if (currentSkillCounts[activeSkill] <= 0) return;
         if (target && target.canAcceptSkill(activeSkill)) {
-            target.assignSkill(activeSkill);
-            currentSkillCounts[activeSkill]--;
-            if (typeof Achievements !== 'undefined') Achievements.trackSkill(activeSkill);
-            updateUI();
-            playSound('skillAssign');
+            assignSkillToPuffin(target, activeSkill);
         }
     }
 }
@@ -1243,8 +1254,8 @@ function loadLevel(index) {
     
     TOTAL_PUFFINS = lvl.total;
     REQUIRED_PUFFINS = lvl.required;
-    currentReleaseRate = releaseRateFromSpawnInterval(lvl.spawnRate);
-    SPAWN_RATE = spawnIntervalFromReleaseRate(currentReleaseRate);
+    SPAWN_RATE = Math.max(MIN_SPAWN_INTERVAL, Math.min(MAX_SPAWN_INTERVAL, Number(lvl.spawnRate) || MAX_SPAWN_INTERVAL));
+    currentReleaseRate = releaseRateFromSpawnInterval(SPAWN_RATE);
     // Copy spawn objects so runtime physics does not mutate level definitions.
     ENTRANCE = { ...lvl.entrance };
     EXIT = { ...lvl.exit };
@@ -1493,7 +1504,7 @@ function update() {
     
     // Hover logic
     hoveredPuffin = getBestPuffinAt(mouseX, mouseY, activeSkill);
-    
+
     // Update entities
     // ── Wind (gentle oscillation around theme base value) ──────────
     _windX = (THEME_WIND[getCurrentThemeName()] || 0) * (0.9 + 0.2 * Math.sin(gameState.ticks * 0.009));
@@ -2842,4 +2853,3 @@ function draw() {
         Achievements.draw(ctx);
     }
 }
-

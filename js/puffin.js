@@ -60,7 +60,7 @@ window.PuffinRender = {
 // --- Destructible Masks ---
 const MASK_BASH = [];
 for (let y = -7; y <= 6; y++) {
-    for (let x = 0; x <= 5; x++) {
+    for (let x = -4; x <= 5; x++) {
         if (x === 5 && (y < -4 || y > 4)) continue;
         if (x === 4 && (y < -5 || y > 5)) continue;
         MASK_BASH.push({x, y});

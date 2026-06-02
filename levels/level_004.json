@@ -1,11 +1,21 @@
 {
-  "total": 20,
-  "spawnRate": 60,
-  "time": 18000,
-  "terrain": [],
-  "name": "Level 4: Now use Miners and Climbers",
-  "theme": "cave",
+  "version": 1,
+  "name": "4: Diagonal Thinking",
+  "total": 16,
   "required": 10,
+  "spawnRate": 50,
+  "time": 3600,
+  "entrance": {
+    "x": 58,
+    "y": 76
+  },
+  "exit": {
+    "x": 250,
+    "y": 148,
+    "w": 20,
+    "h": 12
+  },
+  "theme": "cave",
   "skills": {
     "floater": 0,
     "bomber": 0,
@@ -13,34 +23,26 @@
     "builder": 0,
     "basher": 0,
     "digger": 0,
-    "climber": 10,
-    "miner": 10
-  },
-  "entrance": {
-    "x": 60,
-    "y": 60
-  },
-  "exit": {
-    "x": 220,
-    "y": 108,
-    "w": 20,
-    "h": 12
+    "climber": 0,
+    "miner": 5,
+    "platformer": 0
   },
   "objects": [
     {
       "type": "dirt_floor",
       "x": 0,
-      "y": 120
+      "y": 110
     },
     {
-      "type": "dirt_pillar",
-      "x": 110,
-      "y": 56
+      "type": "dirt_floor",
+      "x": 0,
+      "y": 160
     },
     {
-      "type": "dirt_block",
-      "x": 126,
-      "y": 88
+      "type": "dirt_column",
+      "x": 360,
+      "y": 110
     }
-  ]
+  ],
+  "terrain": []
 }

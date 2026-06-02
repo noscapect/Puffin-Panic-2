@@ -1,51 +1,34 @@
 {
-  "total": 20,
-  "spawnRate": 60,
+  "total": 18,
+  "spawnRate": 65,
   "time": 18000,
   "terrain": [],
-  "name": "Level 8: Not as complicated as it looks",
+  "name": "8: Down, Then Through",
   "theme": "rock",
-  "required": 10,
+  "required": 12,
   "skills": {
     "floater": 0,
     "bomber": 0,
-    "blocker": 5,
-    "builder": 5,
-    "basher": 5,
-    "digger": 5,
+    "blocker": 1,
+    "builder": 0,
+    "basher": 3,
+    "digger": 3,
     "climber": 0,
     "miner": 0
   },
   "entrance": {
-    "x": 60,
-    "y": 60
+    "x": 54,
+    "y": 52
   },
   "exit": {
-    "x": 280,
+    "x": 208,
     "y": 108,
     "w": 20,
     "h": 12
   },
   "objects": [
-    {
-      "type": "dirt_floor",
-      "x": 0,
-      "y": 120
-    },
-    {
-      "type": "dirt_column",
-      "x": 120,
-      "y": 0
-    },
-    {
-      "type": "steel_plate",
-      "x": 128,
-      "y": 88
-    },
-    {
-      "type": "dirt_column",
-      "x": 200,
-      "y": 0
-    }
+    { "type": "dirt_slab_long", "x": 16, "y": 96 },
+    { "type": "dirt_floor", "x": 0, "y": 120 },
+    { "type": "dirt_column", "x": 144, "y": 0 }
   ]
 }

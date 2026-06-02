@@ -1,30 +1,31 @@
 {
-  "total": 20,
-  "spawnRate": 60,
-  "time": 18000,
-  "terrain": [],
-  "name": "Level 5: You need Bashers this time",
+  "version": 1,
+  "name": "5: Knock Through",
+  "total": 16,
+  "required": 11,
+  "spawnRate": 48,
+  "time": 3600,
+  "entrance": {
+    "x": 58,
+    "y": 96
+  },
+  "exit": {
+    "x": 260,
+    "y": 108,
+    "w": 20,
+    "h": 12
+  },
   "theme": "rock",
-  "required": 10,
   "skills": {
     "floater": 0,
     "bomber": 0,
     "blocker": 0,
     "builder": 0,
-    "basher": 10,
+    "basher": 3,
     "digger": 0,
     "climber": 0,
-    "miner": 0
-  },
-  "entrance": {
-    "x": 60,
-    "y": 60
-  },
-  "exit": {
-    "x": 240,
-    "y": 108,
-    "w": 20,
-    "h": 12
+    "miner": 0,
+    "platformer": 0
   },
   "objects": [
     {
@@ -34,8 +35,14 @@
     },
     {
       "type": "dirt_column",
-      "x": 140,
+      "x": 144,
       "y": 0
+    },
+    {
+      "type": "dirt_slab",
+      "x": 208,
+      "y": 120
     }
-  ]
+  ],
+  "terrain": []
 }

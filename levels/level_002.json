@@ -1,41 +1,48 @@
 {
-  "total": 20,
-  "spawnRate": 60,
-  "time": 18000,
-  "terrain": [],
-  "name": "Level 2: Only Floaters Can Survive This",
+  "version": 1,
+  "name": "2: Umbrellas, Quickly!",
+  "total": 14,
+  "required": 9,
+  "spawnRate": 42,
+  "time": 3000,
+  "entrance": {
+    "x": 70,
+    "y": -10
+  },
+  "exit": {
+    "x": 255,
+    "y": 138,
+    "w": 20,
+    "h": 12
+  },
   "theme": "rock",
-  "required": 10,
   "skills": {
-    "floater": 10,
+    "floater": 9,
     "bomber": 0,
     "blocker": 0,
     "builder": 0,
     "basher": 0,
     "digger": 0,
     "climber": 0,
-    "miner": 0
-  },
-  "entrance": {
-    "x": 80,
-    "y": -10
-  },
-  "exit": {
-    "x": 200,
-    "y": 118,
-    "w": 20,
-    "h": 12
+    "miner": 0,
+    "platformer": 0
   },
   "objects": [
     {
       "type": "dirt_slab",
-      "x": 50,
-      "y": 40
+      "x": 45,
+      "y": 44
     },
     {
       "type": "dirt_floor",
       "x": 0,
-      "y": 130
+      "y": 150
+    },
+    {
+      "type": "dirt_pillar",
+      "x": 18,
+      "y": 86
     }
-  ]
+  ],
+  "terrain": []
 }

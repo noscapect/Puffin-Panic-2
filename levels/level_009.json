@@ -1,56 +1,35 @@
 {
-  "total": 20,
-  "spawnRate": 60,
+  "total": 18,
+  "spawnRate": 70,
   "time": 18000,
   "terrain": [],
-  "name": "Level 9: As long as you try your best",
+  "name": "9: Steel Says No",
   "theme": "crystal",
-  "required": 10,
+  "required": 12,
   "skills": {
-    "floater": 5,
-    "bomber": 5,
-    "blocker": 5,
-    "builder": 5,
-    "basher": 5,
-    "digger": 5,
+    "floater": 0,
+    "bomber": 0,
+    "blocker": 1,
+    "builder": 4,
+    "basher": 0,
+    "digger": 0,
     "climber": 5,
-    "miner": 5
+    "miner": 4
   },
   "entrance": {
-    "x": 60,
-    "y": 60
+    "x": 58,
+    "y": 76
   },
   "exit": {
-    "x": 340,
-    "y": 108,
+    "x": 250,
+    "y": 148,
     "w": 20,
     "h": 12
   },
   "objects": [
-    {
-      "type": "dirt_floor",
-      "x": 0,
-      "y": 120
-    },
-    {
-      "type": "steel_block",
-      "x": 120,
-      "y": 88
-    },
-    {
-      "type": "dirt_block",
-      "x": 152,
-      "y": 88
-    },
-    {
-      "type": "dirt_slab_long",
-      "x": 200,
-      "y": 60
-    },
-    {
-      "type": "steel_plate_h",
-      "x": 220,
-      "y": 44
-    }
+    { "type": "dirt_floor", "x": 0, "y": 110 },
+    { "type": "steel_block", "x": 118, "y": 78 },
+    { "type": "dirt_floor", "x": 0, "y": 160 },
+    { "type": "dirt_column", "x": 360, "y": 110 }
   ]
 }

@@ -1,15 +1,15 @@
 {
-  "total": 20,
-  "spawnRate": 60,
+  "total": 18,
+  "spawnRate": 65,
   "time": 18000,
   "terrain": [],
-  "name": "Level 6: A task for Blockers and Bombers",
+  "name": "6: Hold, Then Boom",
   "theme": "mud",
-  "required": 10,
+  "required": 11,
   "skills": {
     "floater": 0,
-    "bomber": 10,
-    "blocker": 10,
+    "bomber": 3,
+    "blocker": 3,
     "builder": 0,
     "basher": 0,
     "digger": 0,
@@ -17,11 +17,11 @@
     "miner": 0
   },
   "entrance": {
-    "x": 60,
+    "x": 56,
     "y": 60
   },
   "exit": {
-    "x": 220,
+    "x": 292,
     "y": 108,
     "w": 20,
     "h": 12
@@ -34,8 +34,13 @@
     },
     {
       "type": "dirt_pillar",
-      "x": 150,
+      "x": 156,
       "y": 56
+    },
+    {
+      "type": "dirt_slab",
+      "x": 212,
+      "y": 120
     }
   ]
 }

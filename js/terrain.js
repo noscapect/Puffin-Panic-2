@@ -176,6 +176,17 @@ function loadLevelImage(src) {
             cx.imageSmoothingQuality = 'high';
             cx.drawImage(img, 0, 0, GAME_WIDTH, GAME_HEIGHT);
             _levelImgData = cx.getImageData(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            
+            // --- Sync collision map from image alpha ---
+            // This allows organic levels where the PNG is the source of truth for both art AND collision.
+            if (typeof terrainData !== 'undefined') {
+                for (let i = 0; i < terrainData.length; i++) {
+                    // If alpha > 128, treat as solid.
+                    if (_levelImgData.data[i * 4 + 3] > 128) {
+                        terrainData[i] = 1;
+                    }
+                }
+            }
         } catch (e) {
             console.error('[Terrain] loadLevelImage failed (CORS? serve via HTTP):', e);
             _levelImgData = null;

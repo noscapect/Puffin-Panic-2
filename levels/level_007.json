@@ -1,16 +1,16 @@
 {
-  "total": 20,
+  "total": 18,
   "spawnRate": 60,
   "time": 18000,
   "terrain": [],
-  "name": "Level 7: Builders will help you here",
+  "name": "7: First Bridge",
   "theme": "grass",
-  "required": 10,
+  "required": 12,
   "skills": {
     "floater": 0,
     "bomber": 0,
     "blocker": 0,
-    "builder": 10,
+    "builder": 6,
     "basher": 0,
     "digger": 0,
     "climber": 0,
@@ -21,8 +21,8 @@
     "y": 60
   },
   "exit": {
-    "x": 220,
-    "y": 88,
+    "x": 132,
+    "y": 100,
     "w": 20,
     "h": 12
   },
@@ -34,13 +34,8 @@
     },
     {
       "type": "dirt_slab",
-      "x": 180,
-      "y": 100
-    },
-    {
-      "type": "dirt_slab",
-      "x": 244,
-      "y": 100
+      "x": 108,
+      "y": 112
     }
   ]
 }

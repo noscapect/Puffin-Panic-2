@@ -3,6 +3,10 @@
   "scripts": {
     "editor": "node scripts/level-editor-server.mjs",
     "level:generate": "node scripts/generate-level.mjs",
+    "level:route": "node scripts/route-analyze.mjs",
+    "level:playtest": "node scripts/playtest-agent.mjs --campaign",
+    "level:skill-qc": "node scripts/skill-qc.mjs",
+    "release-rate:qc": "node scripts/release-rate-qc.mjs",
     "campaign:generate": "node scripts/generate-campaign.mjs"
   },
   "dependencies": {

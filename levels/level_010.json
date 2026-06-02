@@ -1,66 +1,35 @@
 {
   "total": 20,
-  "spawnRate": 60,
+  "spawnRate": 70,
   "time": 18000,
   "terrain": [],
-  "name": "Level 10: Smile if you love puffins",
+  "name": "10: The Little Rescue",
   "theme": "ice",
-  "required": 10,
+  "required": 14,
   "skills": {
-    "floater": 10,
-    "bomber": 10,
-    "blocker": 10,
-    "builder": 10,
-    "basher": 10,
-    "digger": 10,
-    "climber": 10,
-    "miner": 10
+    "floater": 2,
+    "bomber": 1,
+    "blocker": 2,
+    "builder": 4,
+    "basher": 2,
+    "digger": 2,
+    "climber": 0,
+    "miner": 2
   },
   "entrance": {
-    "x": 40,
-    "y": 20
+    "x": 44,
+    "y": 36
   },
   "exit": {
-    "x": 340,
-    "y": 28,
+    "x": 220,
+    "y": 140,
     "w": 20,
     "h": 12
   },
   "objects": [
-    {
-      "type": "dirt_floor",
-      "x": 0,
-      "y": 120
-    },
-    {
-      "type": "dirt_slab",
-      "x": 20,
-      "y": 80
-    },
-    {
-      "type": "dirt_block",
-      "x": 100,
-      "y": 88
-    },
-    {
-      "type": "dirt_small",
-      "x": 150,
-      "y": 60
-    },
-    {
-      "type": "dirt_small",
-      "x": 200,
-      "y": 60
-    },
-    {
-      "type": "dirt_slab",
-      "x": 155,
-      "y": 90
-    },
-    {
-      "type": "dirt_slab",
-      "x": 320,
-      "y": 40
-    }
+    { "type": "dirt_slab_long", "x": 12, "y": 84 },
+    { "type": "dirt_pillar", "x": 150, "y": 88 },
+    { "type": "steel_plate", "x": 166, "y": 104 },
+    { "type": "dirt_floor", "x": 0, "y": 152 }
   ]
 }

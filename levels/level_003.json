@@ -1,36 +1,43 @@
 {
-  "total": 20,
-  "spawnRate": 60,
-  "time": 18000,
-  "terrain": [],
-  "name": "Level 3: Tailor-made for Blockers",
+  "version": 1,
+  "name": "3: Turn the Tide",
+  "total": 14,
+  "required": 10,
+  "spawnRate": 45,
+  "time": 3000,
+  "entrance": {
+    "x": 132,
+    "y": 88
+  },
+  "exit": {
+    "x": 86,
+    "y": 108,
+    "w": 20,
+    "h": 12
+  },
   "theme": "snow",
-  "required": 7,
   "skills": {
     "floater": 0,
     "bomber": 0,
-    "blocker": 10,
+    "blocker": 2,
     "builder": 0,
     "basher": 0,
     "digger": 0,
     "climber": 0,
-    "miner": 0
-  },
-  "entrance": {
-    "x": 130,
-    "y": 60
-  },
-  "exit": {
-    "x": 90,
-    "y": 108,
-    "w": 20,
-    "h": 12
+    "miner": 0,
+    "platformer": 0
   },
   "objects": [
     {
       "type": "dirt_slab_long",
       "x": 70,
       "y": 120
+    },
+    {
+      "type": "dirt_pillar",
+      "x": 52,
+      "y": 104
     }
-  ]
+  ],
+  "terrain": []
 }
