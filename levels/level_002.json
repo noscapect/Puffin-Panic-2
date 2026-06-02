@@ -27,6 +27,12 @@
     "miner": 0,
     "platformer": 0
   },
+  "props": [
+    { "type": "windSock", "x": 54, "y": 44, "dir": "right" },
+    { "type": "sign", "x": 92, "y": 150, "text": "FLOAT" },
+    { "type": "stones", "x": 168, "y": 150, "count": 7 },
+    { "type": "lantern", "x": 22, "y": 86, "radius": 13 }
+  ],
   "objects": [
     {
       "type": "dirt_slab",

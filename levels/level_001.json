@@ -27,6 +27,13 @@
     "miner": 0,
     "platformer": 0
   },
+  "props": [
+    { "type": "torch", "x": 44, "y": 82 },
+    { "type": "torch", "x": 332, "y": 151, "radius": 16 },
+    { "type": "stones", "x": 118, "y": 151, "count": 6 },
+    { "type": "sign", "x": 88, "y": 82, "text": "DIG" },
+    { "type": "crystalCluster", "x": 386, "y": 151, "scale": 0.75, "color": "cyan" }
+  ],
   "objects": [
     {
       "type": "dirt_floor",

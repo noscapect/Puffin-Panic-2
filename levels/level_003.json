@@ -27,6 +27,12 @@
     "miner": 0,
     "platformer": 0
   },
+  "props": [
+    { "type": "snowDrift", "x": 74, "y": 120, "w": 56 },
+    { "type": "snowDrift", "x": 145, "y": 120, "w": 42 },
+    { "type": "sign", "x": 128, "y": 120, "text": "TURN" },
+    { "type": "crystalCluster", "x": 42, "y": 120, "scale": 0.65, "color": "ice" }
+  ],
   "objects": [
     {
       "type": "dirt_slab_long",

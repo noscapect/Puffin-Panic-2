@@ -16,6 +16,13 @@
     "climber": 0,
     "miner": 2
   },
+  "props": [
+    { "type": "snowDrift", "x": 38, "y": 96, "w": 44 },
+    { "type": "snowDrift", "x": 142, "y": 148, "w": 52 },
+    { "type": "crystalCluster", "x": 96, "y": 148, "scale": 0.75, "color": "ice" },
+    { "type": "crystalCluster", "x": 338, "y": 148, "scale": 0.9, "color": "ice" },
+    { "type": "sign", "x": 214, "y": 148, "text": "HOME" }
+  ],
   "entrance": {
     "x": 44,
     "y": 36

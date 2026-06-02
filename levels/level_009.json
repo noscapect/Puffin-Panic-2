@@ -16,6 +16,13 @@
     "climber": 5,
     "miner": 4
   },
+  "props": [
+    { "type": "crystalCluster", "x": 48, "y": 110, "scale": 0.75, "color": "violet" },
+    { "type": "crystalCluster", "x": 152, "y": 160, "scale": 1.05, "color": "violet" },
+    { "type": "crystalCluster", "x": 318, "y": 160, "scale": 0.8, "color": "cyan" },
+    { "type": "sign", "x": 134, "y": 110, "text": "STEEL" },
+    { "type": "lantern", "x": 220, "y": 160, "radius": 15 }
+  ],
   "entrance": {
     "x": 58,
     "y": 76

@@ -16,6 +16,12 @@
     "climber": 0,
     "miner": 0
   },
+  "props": [
+    { "type": "mushroomCluster", "x": 56, "y": 150, "count": 5, "glow": true },
+    { "type": "reeds", "x": 196, "y": 150, "count": 6 },
+    { "type": "sign", "x": 112, "y": 150, "text": "BOOM" },
+    { "type": "stones", "x": 316, "y": 150, "count": 5 }
+  ],
   "entrance": {
     "x": 56,
     "y": 60

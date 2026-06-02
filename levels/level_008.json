@@ -16,6 +16,13 @@
     "climber": 0,
     "miner": 0
   },
+  "props": [
+    { "type": "torch", "x": 42, "y": 92 },
+    { "type": "sign", "x": 92, "y": 92, "text": "DOWN" },
+    { "type": "sign", "x": 196, "y": 150, "text": "THRU" },
+    { "type": "stones", "x": 272, "y": 150, "count": 7 },
+    { "type": "lantern", "x": 360, "y": 150, "radius": 13 }
+  ],
   "entrance": {
     "x": 54,
     "y": 52

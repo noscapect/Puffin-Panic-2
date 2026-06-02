@@ -16,6 +16,13 @@
     "climber": 0,
     "miner": 0
   },
+  "props": [
+    { "type": "grassPatch", "x": 36, "y": 120, "count": 9 },
+    { "type": "grassPatch", "x": 124, "y": 112, "count": 8, "color": "#7ac95c" },
+    { "type": "rope", "x1": 38, "y1": 120, "x2": 126, "y2": 112, "sag": 9 },
+    { "type": "sign", "x": 72, "y": 120, "text": "BUILD" },
+    { "type": "mushroomCluster", "x": 153, "y": 112, "count": 3 }
+  ],
   "entrance": {
     "x": 60,
     "y": 60

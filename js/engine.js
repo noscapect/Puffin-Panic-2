@@ -1740,6 +1740,187 @@ function drawSignPost(ctx, prop) {
     ctx.textAlign = 'left';
 }
 
+function drawPropGlow(ctx, x, y, radius, color, alpha = 0.32) {
+    const glow = ctx.createRadialGradient(x, y, 1, x, y, radius);
+    glow.addColorStop(0, color.replace('ALPHA', alpha));
+    glow.addColorStop(1, color.replace('ALPHA', 0));
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    ctx.restore();
+}
+
+function drawTorch(ctx, prop, ticks) {
+    const { x, y } = prop;
+    const wobble = Math.sin((ticks + x * 13) * 0.18) * 0.7;
+    drawPropGlow(ctx, x + 1, y - 13, prop.radius || 19, 'rgba(255, 138, 45, ALPHA)', 0.36);
+    ctx.fillStyle = '#4a250b';
+    ctx.fillRect(x, y - 10, 2, 15);
+    ctx.fillStyle = '#8a501c';
+    ctx.fillRect(x - 2, y - 9, 6, 2);
+    ctx.fillStyle = '#ffb12d';
+    ctx.beginPath();
+    ctx.moveTo(x + 1, y - 18);
+    ctx.lineTo(x + 5 + wobble, y - 10);
+    ctx.lineTo(x + 1, y - 7);
+    ctx.lineTo(x - 3 - wobble, y - 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#fff0a8';
+    ctx.fillRect(x, y - 13, 2, 5);
+}
+
+function drawLantern(ctx, prop, ticks) {
+    const { x, y } = prop;
+    const pulse = 0.26 + Math.sin((ticks + x * 5) * 0.08) * 0.05;
+    drawPropGlow(ctx, x, y - 9, prop.radius || 16, 'rgba(255, 196, 82, ALPHA)', pulse);
+    ctx.strokeStyle = '#3a2512';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 20);
+    ctx.lineTo(x, y - 15);
+    ctx.stroke();
+    ctx.fillStyle = '#5b3514';
+    ctx.fillRect(x - 4, y - 14, 8, 9);
+    ctx.fillStyle = '#ffcf68';
+    ctx.fillRect(x - 2, y - 12, 4, 5);
+    ctx.fillStyle = '#2d1a0d';
+    ctx.fillRect(x - 5, y - 6, 10, 2);
+}
+
+function drawCrystalCluster(ctx, prop) {
+    const { x, y, scale = 1, color = 'cyan' } = prop;
+    const palette = color === 'violet'
+        ? ['#8c55ff', '#c79cff', '#f4eaff']
+        : color === 'ice'
+            ? ['#6dc8ff', '#b9edff', '#ffffff']
+            : ['#26d7d1', '#8ff7ec', '#e8fffb'];
+    drawPropGlow(ctx, x, y - 9 * scale, 18 * scale, 'rgba(112, 225, 255, ALPHA)', 0.18);
+
+    const shards = [
+        [-8, 0, -5, -13, -1, 0],
+        [-2, 0, 2, -21, 7, 0],
+        [5, 0, 11, -15, 14, 0],
+        [-13, 0, -11, -8, -7, 0]
+    ];
+    for (const s of shards) {
+        ctx.fillStyle = palette[0];
+        ctx.beginPath();
+        ctx.moveTo(x + s[0] * scale, y + s[1] * scale);
+        ctx.lineTo(x + s[2] * scale, y + s[3] * scale);
+        ctx.lineTo(x + s[4] * scale, y + s[5] * scale);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = palette[1];
+        ctx.beginPath();
+        ctx.moveTo(x + s[2] * scale, y + s[3] * scale);
+        ctx.lineTo(x + (s[2] + 2) * scale, y + (s[3] + 7) * scale);
+        ctx.lineTo(x + s[4] * scale, y + s[5] * scale);
+        ctx.closePath();
+        ctx.fill();
+    }
+    ctx.fillStyle = palette[2];
+    ctx.fillRect(x + 1 * scale, y - 18 * scale, 2 * scale, 3 * scale);
+}
+
+function drawMushroomCluster(ctx, prop) {
+    const { x, y, count = 4 } = prop;
+    for (let i = 0; i < count; i++) {
+        const ox = (i - count / 2) * 5 + (i % 2) * 2;
+        const h = 5 + (i % 3) * 2;
+        const cap = prop.glow ? '#7dffb2' : '#d64e50';
+        ctx.fillStyle = '#e7d1a0';
+        ctx.fillRect(x + ox, y - h, 2, h);
+        ctx.fillStyle = cap;
+        ctx.beginPath();
+        ctx.ellipse(x + ox + 1, y - h, 4, 3, 0, Math.PI, 0);
+        ctx.fill();
+        ctx.fillStyle = prop.glow ? '#e6fff0' : '#ffd2b5';
+        ctx.fillRect(x + ox, y - h - 2, 1, 1);
+    }
+    if (prop.glow) drawPropGlow(ctx, x, y - 7, 13, 'rgba(100, 255, 168, ALPHA)', 0.2);
+}
+
+function drawGrassPatch(ctx, prop) {
+    const { x, y, count = 7, color = '#65b64a' } = prop;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < count; i++) {
+        const ox = (i - count / 2) * 2;
+        const h = 5 + (i % 4);
+        ctx.beginPath();
+        ctx.moveTo(x + ox, y);
+        ctx.lineTo(x + ox + (i % 2 ? 2 : -2), y - h);
+        ctx.stroke();
+    }
+}
+
+function drawReeds(ctx, prop) {
+    const { x, y, count = 5 } = prop;
+    ctx.strokeStyle = '#4f7c43';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < count; i++) {
+        const ox = (i - count / 2) * 4;
+        const h = 10 + (i % 3) * 3;
+        ctx.beginPath();
+        ctx.moveTo(x + ox, y);
+        ctx.lineTo(x + ox + (i % 2 ? 1 : -1), y - h);
+        ctx.stroke();
+        ctx.fillStyle = '#8b6b2e';
+        ctx.fillRect(x + ox - 1, y - h - 3, 2, 4);
+    }
+}
+
+function drawStones(ctx, prop) {
+    const { x, y, count = 5 } = prop;
+    const colors = ['#5f5b55', '#78716a', '#403d3a'];
+    for (let i = 0; i < count; i++) {
+        const ox = (i - count / 2) * 5;
+        const w = 5 + (i % 3) * 2;
+        const h = 3 + (i % 2) * 2;
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.fillRect(x + ox, y - h, w, h);
+        ctx.fillStyle = 'rgba(255,255,255,0.14)';
+        ctx.fillRect(x + ox + 1, y - h, Math.max(1, w - 3), 1);
+    }
+}
+
+function drawSnowDrift(ctx, prop) {
+    const { x, y, w = 34 } = prop;
+    const grad = ctx.createLinearGradient(x, y - 8, x, y + 2);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+    grad.addColorStop(1, 'rgba(170, 218, 245, 0.72)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + w * 0.18, y - 9, x + w * 0.36, y - 3);
+    ctx.quadraticCurveTo(x + w * 0.58, y - 13, x + w * 0.78, y - 4);
+    ctx.quadraticCurveTo(x + w * 0.92, y - 7, x + w, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillRect(x + 5, y - 5, Math.max(4, w * 0.25), 1);
+}
+
+function drawWindSock(ctx, prop, ticks) {
+    const { x, y, dir = 'right' } = prop;
+    const side = dir === 'left' ? -1 : 1;
+    const flutter = Math.sin((ticks + x) * 0.12) * 2;
+    ctx.fillStyle = '#4a2a0f';
+    ctx.fillRect(x, y - 17, 2, 18);
+    ctx.fillStyle = '#e15a3b';
+    ctx.beginPath();
+    ctx.moveTo(x + side * 2, y - 17);
+    ctx.lineTo(x + side * (20 + flutter), y - 14);
+    ctx.lineTo(x + side * (16 + flutter), y - 8);
+    ctx.lineTo(x + side * 2, y - 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ffe7c2';
+    ctx.fillRect(x + side * 7, y - 15, side * 4, 5);
+}
+
 function drawWaterZone(ctx, prop, ticks) {
     const { x, y, w, h } = prop;
     const t = ticks * 0.06;
@@ -1778,6 +1959,15 @@ function drawSceneProps(ctx) {
         for (const prop of lvl.props) {
             if (prop.type === 'rope')      drawRopeBridge(ctx, prop);
             else if (prop.type === 'sign') drawSignPost(ctx, prop);
+            else if (prop.type === 'torch') drawTorch(ctx, prop, gameState.ticks);
+            else if (prop.type === 'lantern') drawLantern(ctx, prop, gameState.ticks);
+            else if (prop.type === 'crystal' || prop.type === 'crystalCluster') drawCrystalCluster(ctx, prop);
+            else if (prop.type === 'mushroom' || prop.type === 'mushroomCluster') drawMushroomCluster(ctx, prop);
+            else if (prop.type === 'grass' || prop.type === 'grassPatch') drawGrassPatch(ctx, prop);
+            else if (prop.type === 'reeds') drawReeds(ctx, prop);
+            else if (prop.type === 'stones') drawStones(ctx, prop);
+            else if (prop.type === 'snowDrift') drawSnowDrift(ctx, prop);
+            else if (prop.type === 'windSock') drawWindSock(ctx, prop, gameState.ticks);
             // 'water' props are handled by liquid simulation — skip them here
         }
     }

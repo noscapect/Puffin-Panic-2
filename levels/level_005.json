@@ -27,6 +27,12 @@
     "miner": 0,
     "platformer": 0
   },
+  "props": [
+    { "type": "sign", "x": 86, "y": 145, "text": "BASH" },
+    { "type": "stones", "x": 142, "y": 145, "count": 8 },
+    { "type": "stones", "x": 226, "y": 145, "count": 5 },
+    { "type": "lantern", "x": 338, "y": 145, "radius": 14 }
+  ],
   "objects": [
     {
       "type": "dirt_floor",
