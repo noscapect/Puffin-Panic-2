@@ -136,6 +136,11 @@ function playtestFile(relFile, options) {
     }
   }
 
+  const floaterBuilderTemplate = tryFloaterThenBuilder(baseGrid, level);
+  if (floaterBuilderTemplate) {
+    return pass(level, 'floater-then-builder template opens a crowd route', floaterBuilderTemplate.plan, notes);
+  }
+
   if ((level.skills?.blocker || 0) > 0) {
     const blockerRoute = crowdCanReachExit(baseGrid, level, { floater: false, initialDirs: [1, -1] });
     if (blockerRoute.reachable) {
@@ -164,6 +169,11 @@ function playtestFile(relFile, options) {
     return pass(level, 'first-gap builder template opens a crowd route', builderTemplate.plan, notes);
   }
 
+  const builderBasherTemplate = tryBuilderThenBasher(baseGrid, level);
+  if (builderBasherTemplate) {
+    return pass(level, 'builder-then-basher template opens a crowd route', builderBasherTemplate.plan, notes);
+  }
+
   const diggerBasherTemplate = tryDiggerThenBasher(baseGrid, level);
   if (diggerBasherTemplate) {
     return pass(level, 'digger-then-basher template opens a crowd route', diggerBasherTemplate.plan, notes);
@@ -176,6 +186,28 @@ function playtestFile(relFile, options) {
 
   notes.push('The current agent is template-based; a failure may be a tooling gap, not proof the level is unsolvable.');
   return { pass: false, level, reason: 'no plausible route found by AI playtester', plan: [], notes };
+}
+
+function tryFloaterThenBuilder(baseGrid, level) {
+  if ((level.skills?.floater || 0) < level.required || (level.skills?.builder || 0) <= 0) return null;
+  const states = reachableStates(baseGrid, level, { floater: true, initialDirs: [1], limit: 3000 });
+  for (const state of states) {
+    if (!hasGapAhead(baseGrid, state)) continue;
+    const grid = baseGrid.slice();
+    const applied = simulateBuilder(grid, state);
+    if (!applied.changed) continue;
+    const route = crowdCanReachExit(grid, level, { floater: true, initialDirs: [1, -1] });
+    if (route.reachable) {
+      return {
+        plan: [
+          { skill: 'floater', x: level.entrance.x, y: level.entrance.y },
+          { skill: 'builder', x: Math.round(state.x), y: Math.round(state.y), vx: state.vx || 1 },
+        ],
+        grid,
+      };
+    }
+  }
+  return null;
 }
 
 function tryDiggerThenBasher(baseGrid, level) {
@@ -199,6 +231,35 @@ function tryDiggerThenBasher(baseGrid, level) {
         return {
           plan: [
             { skill: 'digger', x: Math.round(dig.x), y: Math.round(dig.y), vx: dig.vx || 1 },
+            { skill: 'basher', x: Math.round(wall.x), y: Math.round(wall.y), vx: wall.vx || 1 },
+          ],
+          grid,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function tryBuilderThenBasher(baseGrid, level) {
+  if ((level.skills?.builder || 0) <= 0 || (level.skills?.basher || 0) <= 0) return null;
+  const bridgeStates = reachableStates(baseGrid, level, { floater: false, initialDirs: [1], limit: 3000 });
+  for (const bridge of bridgeStates) {
+    if (!hasGapAhead(baseGrid, bridge)) continue;
+    const gridAfterBridge = baseGrid.slice();
+    const bridgeApplied = simulateBuilder(gridAfterBridge, bridge);
+    if (!bridgeApplied.changed) continue;
+    const wallStates = reachableStates(gridAfterBridge, level, { floater: false, initialDirs: [1, -1], limit: 4000 });
+    for (const wall of wallStates) {
+      if (!hasWallAhead(gridAfterBridge, wall)) continue;
+      const grid = gridAfterBridge.slice();
+      const bashApplied = simulateBasher(grid, wall);
+      if (!bashApplied.changed) continue;
+      const route = crowdCanReachExit(grid, level, { floater: false, initialDirs: [1, -1] });
+      if (route.reachable) {
+        return {
+          plan: [
+            { skill: 'builder', x: Math.round(bridge.x), y: Math.round(bridge.y), vx: bridge.vx || 1 },
             { skill: 'basher', x: Math.round(wall.x), y: Math.round(wall.y), vx: wall.vx || 1 },
           ],
           grid,

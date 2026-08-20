@@ -1,7 +1,7 @@
 {
   "total": 18,
   "spawnRate": 70,
-  "time": 18000,
+  "time": 5400,
   "terrain": [],
   "name": "9: Steel Says No",
   "theme": "crystal",
@@ -13,7 +13,7 @@
     "builder": 4,
     "basher": 0,
     "digger": 0,
-    "climber": 5,
+    "climber": 0,
     "miner": 4
   },
   "props": [

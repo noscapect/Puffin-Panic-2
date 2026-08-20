@@ -6,6 +6,7 @@
     "level:route": "node scripts/route-analyze.mjs",
     "level:playtest": "node scripts/playtest-agent.mjs --campaign",
     "level:skill-qc": "node scripts/skill-qc.mjs",
+    "level:preview": "node scripts/render-level-preview.mjs",
     "release-rate:qc": "node scripts/release-rate-qc.mjs",
     "campaign:generate": "node scripts/generate-campaign.mjs"
   },

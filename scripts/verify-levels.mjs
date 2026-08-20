@@ -101,10 +101,13 @@ function hasExitSupport(grid, exit) {
   return supported >= Math.ceil((endX - startX) * 0.5);
 }
 
-console.log("Running QA Verification Sweep on first 10 levels...");
+const manifestPath = path.join('levels', 'manifest.json');
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+const campaignFiles = Array.isArray(manifest.levels) ? manifest.levels : [];
 
-for (let i = 1; i <= 10; i++) {
-  const filename = `level_${String(i).padStart(3, '0')}.json`;
+console.log(`Running QA Verification Sweep on ${campaignFiles.length} manifest level(s)...`);
+
+for (const filename of campaignFiles) {
   const filePath = path.join('levels', filename);
   
   if (fs.existsSync(filePath)) {

@@ -9,7 +9,9 @@
     "level_007.json",
     "level_008.json",
     "level_009.json",
-    "level_010.json"
+    "level_010.json",
+    "level_011.json",
+    "level_012.json"
   ],
   "spawnRate": 75
 }
