@@ -1,305 +1,150 @@
 # Puffins Panic!
 
-A Lemmings-inspired puzzle game where you guide puffins to safety through dangerous terrain. Built with vanilla JavaScript and HTML5 Canvas. No dependencies, no build step — serve via HTTP and play.
+A Lemmings-inspired puzzle game about guiding cheerful puffins to safety across grassy coastal cliffs and seaside ruins. Built with vanilla JavaScript, HTML5 Canvas and optional WebGL rendering.
 
-![Puffins Panic!](https://img.shields.io/badge/Genre-Puzzle%20%2F%20Strategy-blue)
-![JavaScript](https://img.shields.io/badge/Language-JavaScript-yellow)
-![Status](https://img.shields.io/badge/Status-Beta-orange)
-![License](https://img.shields.io/badge/License-MIT-green)
+The browser game needs no build step. Serve the repository over HTTP and play.
 
-## 🎮 Game Overview
+## Running the game
 
-Puffins emerge from an entrance and walk blindly through hazardous environments. Your job is to assign special skills to individual puffins to help them navigate obstacles and reach the exit safely. Save enough puffins before time runs out to complete each level.
-
-## ✨ Features
-
-- **99 Playable Campaign Levels** across a wide range of themes and difficulties
-- **Image-Based Level Art** — levels can use a full-resolution PNG as their terrain texture, converting pixel artwork directly into playable terrain
-- **9 Classic Lemmings-Style Skills** — Climber, Floater, Bomber, Blocker, Builder, Basher, Miner, Digger, Platformer
-- **34 Terrain Themes** with AI-generated pixel textures (grass, snow, lava, crystal, deep sea, and more)
-- **Volumetric Liquid Simulation** — Water flows, pools, and floods cavities; ice levels melt into water on explosion
-- **Falling Sand Simulation** — Desert/mud terrain pours downward when dislodged by explosions
-- **Liquid Lava** — Lava flows slowly, reacts with water (creates stone + steam), kills puffins on contact
-- **Crumbling Bridges** — Unsupported terrain spans collapse under repeated puffin weight
-- **Theme Wind** — Floaters and airborne particles are drifted by the level's ambient wind direction
-- **Built-in Level Editor** — Create, tweak, export and import custom maps as JSON
-- **High-DPI Rendering** — Crisp pixel art on Retina / high-density displays
-- **Touch Controls** — Full touch support for mobile and tablet
-- **Procedural Audio** — Sound effects and background music via Web Audio API (no external files)
-- **Speed Control** — 1x / 2x / 4x game speed
-- **Nuke Mode** — Emergency option to clear remaining puffins
-- **Achievements System** — Tracks in-game milestones
-
-## 🛠️ Skills
-
-| Skill | Icon | Description |
-|-------|------|-------------|
-| **Climber** | 🧗 | Scales vertical walls instead of turning around |
-| **Floater** | ☂️ | Deploys an umbrella — survives any fall height |
-| **Bomber** | 💣 | Becomes a timed bomb; explodes after 5 seconds, destroying terrain |
-| **Blocker** | 🛑 | Stands still and turns other puffins around |
-| **Builder** | 🧱 | Lays a brick staircase that other puffins can walk up |
-| **Basher** | 🥊 | Punches horizontally through walls |
-| **Miner** | ⚒️ | Digs diagonally downward |
-| **Digger** | ⛏️ | Digs straight down |
-| **Platformer** | 🏗 | Lays a horizontal platform |
-
-## 🎯 How to Play
-
-### Controls
-
-| Input | Action |
-|-------|--------|
-| **Left click / Tap** | Assign selected skill to a puffin |
-| **Right click / ✕ Cancel button** | Deselect the current skill |
-| **Long-press a puffin** | Show puffin state tooltip |
-| **Escape** | Deselect skill, or pause the game |
-| **N** | Activate nuke |
-| **[ − / ] +** | Decrease / increase release rate |
-
-### Gameplay Loop
-
-1. Select a skill from the skill panel
-2. Click or tap a puffin to assign the skill
-3. Watch the puffins react and adapt as needed
-4. Guide enough puffins through the exit before time runs out
-
-### Tips
-
-- Puffins splat after falling more than ~70 pixels — use **Floaters** on high drops
-- **Blockers** redirect traffic; combine with a **Bomber** for a one-way door
-- **Builders** create ramps that every puffin behind them will use
-- **Climbers** can permanently scale walls — pair with Floater for full vertical freedom
-- **Miners** are ideal for diagonal shortcuts through thick terrain
-- In ice levels, explosion craters fill with meltwater — plan swim routes accordingly
-- Bombing in desert/mud levels causes sand to cascade into newly-opened gaps
-- **Floaters** are affected by wind — account for drift when aiming at the exit
-
-## 🌊 Physics & Environment Simulation
-
-### Volumetric Water
-Water is a full cellular automaton stored in a parallel pixel grid. It falls under gravity, equalises sideways, and floods newly-dug cavities. Puffins swim at the live surface.
-
-| Mechanic | Details |
-|----------|---------|
-| Flow rate | 4 units/cell/simulation step; runs every 2 game ticks |
-| Gravity | Bottom-to-top sweep — liquid cascades the full column in one pass |
-| Equalisation | Alternating-direction sideways pass prevents left/right bias |
-| Puffin swim | Buoyant at live surface; seeks exit; climbs shore automatically |
-| Explosion | Liquid in blast radius is displaced outward; water flows into the cavity on next tick |
-
-### Ice Melting
-Bombing an ice-theme level converts the blast crater into meltwater:
-
-| Theme | Water yield |
-|-------|------------|
-| `ice`, `black_ice` | Full (100%) |
-| `packed_snow` | ~65% |
-| `frozen_mud` | ~50% |
-| `snow` | ~35% |
-
-### Falling Sand
-`desert`, `sandstone`, `mud`, and `toxic_sludge` themes have loose material. An explosion dislodges cells above the blast; each grain falls straight down or slides diagonally if blocked.
-
-### Liquid Lava
-Levels may define `"lavaZones": [{x,y,w,h}]`. Lava flows at 1/8th water speed. Cross-material reactions:
-- **Lava + water** → both consumed; lava cell becomes solid rock + steam particle burst
-- **Lava + puffin** → instant death + fire particles
-
-### Crumbling Bridges
-Every puffin walking or blocking on a terrain cell accumulates *bridge stress*. Once stress exceeds **600 puffin-frames** and the cell has no solid support below, it crumbles with a debris burst.
-
-### Wind
-
-| Theme | Direction |
-|-------|-----------|
-| `desert`, `sandstone`, `black_ice` | Rightward |
-| `snow`, `packed_snow`, `ice` | Leftward |
-| All others | Calm |
-
-## 🗺️ Level Editor & Custom Maps
-
-Press **🛠️ Level Editor** on the start screen to enter the editor.
-
-- **Draw / Erase** terrain with mouse or touch
-- **Set** entrance, exit, theme, skill counts, puffin totals and time limit
-- **📋 Export** — copies the level as JSON to clipboard
-- **📥 Import** — paste any JSON to load a shared level
-- **💾 Save / 📂 Load** — stores levels in browser localStorage
-
-### Adding Water or Lava to Custom Levels
-
-Add a `waterZones` or `lavaZones` array to the exported JSON before importing:
-
-```json
-{
-  "waterZones": [{ "x": 120, "y": 180, "w": 80, "h": 20 }],
-  "lavaZones":  [{ "x": 300, "y": 160, "w": 60, "h": 30 }]
-}
-```
-
-## 🖼️ Image-Based Level Import
-
-Levels can use a full pixel-art PNG as their terrain texture instead of the procedural theme system. The image's non-background pixels become solid terrain; its artwork is rendered directly in-game at 1:1 fidelity.
-
-### How it works
-
-1. Drop a PNG into `img/levels/` (e.g. `level_05.png`)
-2. Run the importer:
+With Python installed, run this from the repository root:
 
 ```bash
-node scripts/import-image-level.mjs \
-  --input  img/levels/level_05.png \
-  --output levels/level_005.json \
-  --name   "5: My Level"
-```
-
-3. Add the output filename to `levels/manifest.json`
-
-The script:
-- Detects the checkerboard background by colour (near-gray pixels with low saturation) and marks those cells as air
-- Area-averages the source image down to the 400×220 grid
-- RLE-encodes the resulting collision bitmap
-- Writes a `"imageSource"` field into the JSON so the engine loads the original PNG as the visual texture
-
-At runtime the engine downscales the PNG to 400×220 in a temp canvas and samples each solid cell's pixel directly — no procedural rendering at all.
-
-**Requirements:** the game must be served via HTTP (not `file://`) for `getImageData` to work on the loaded image.
-
-### Level JSON fields added by the importer
-
-| Field | Description |
-|-------|-------------|
-| `imageSource` | Web-root-relative path to the PNG (`img/levels/level_05.png`) |
-| `terrain` | RLE-encoded 400×220 collision bitmap |
-| `theme` | Fallback theme used when no image is loaded |
-
-## 🧱 Terrain Themes
-
-34 themes, each with a generated texture and matching sky/atmosphere:
-
-`grass` · `desert` · `snow` · `rock` · `ice` · `lava` · `crystal` · `water` · `mud` · `cave` · `mossy` · `cliff_chalk` · `slate_ledge` · `frozen_mud` · `packed_snow` · `black_ice` · `volcanic_ash` · `obsidian_floor` · `salt_flats` · `wet_cave_stone` · `rusty_metal` · `wood_planks` · `mossy_ruin` · `crystal_dense` · `fungus_glow` · `toxic_sludge` · `sandstone` · `deep_sea` · `iron_ore` · `coral` · `amber` · `bone_white`
-
-Textures are loaded from `img/generated/` at runtime.
-
-## 🖼️ Texture Generation
-
-Texture prompts are managed in `scripts/texture-presets.json` and generated via ComfyUI:
-
-```bash
-python scripts/generate-textures.py --preset black_ice
-```
-
-This writes a canonical in-game texture to `img/generated/<theme>.png`.
-
-## 🧪 Level QA Tools
-
-```bash
-# Lint a level (validates RLE, spawn/exit clearance, fragments)
-npm run level:lint -- --file levels/level_001.json
-
-# Generate SVG preview + metrics JSON
-npm run level:preview -- --file levels/level_001.json
-
-# Heuristic route analysis (estimates required skills)
-npm run level:route -- --file levels/level_001.json
-
-# Run all three in one go
-npm run level:qa:full
-
-# Lint + preview all campaign levels
-npm run levels:qa
-
-# Finalize campaign maps (portal fixes + solvability QA + budget tuning)
-npm run levels:finalize
-```
-
-Reports are written to `reports/` (gitignored).
-
-## 📁 Project Structure
-
-```
-Puffin-Panic-2/
-├── index.html              # Game shell — canvas, UI, script tags
-├── img/
-│   ├── background.jpeg     # Start screen background
-│   ├── generated/          # Terrain textures (one PNG per theme)
-│   └── levels/             # Source artwork for image-based levels
-├── js/
-│   ├── constants.js        # Game constants, sprites, skill defs, physics thresholds
-│   ├── engine.js           # Game loop, rendering, input, UI, bridge collapse, wind
-│   ├── levels.js           # Campaign level loader (fetches levels/ JSON files)
-│   ├── levelEditor.js      # Built-in level editor with export/import
-│   ├── particle.js         # Particle system (sparks, dust, shockwave, portals, steam)
-│   ├── puffin.js           # Puffin class — AI state machine, skills, swimming, drawing
-│   ├── sound.js            # Procedural audio (Web Audio API)
-│   └── terrain.js          # Terrain rendering, image texture, liquid/lava/sand simulation
-├── levels/
-│   ├── manifest.json       # Ordered list of campaign level files
-│   └── level_001.json … level_099.json
-├── scripts/
-│   ├── import-image-level.mjs  # Convert a PNG into a playable level JSON
-│   ├── generate-level.mjs      # AI-driven level generator (requires ANTHROPIC_API_KEY)
-│   ├── generate-campaign.mjs   # Batch AI campaign generator
-│   ├── qa-all-levels.mjs       # Batch lint + preview all campaign levels
-│   ├── lint-level.mjs          # Level validator
-│   ├── preview-level.mjs       # SVG preview generator
-│   ├── route-analyze.mjs       # Heuristic path solver
-│   ├── generate-texture.mjs    # Single texture generator (Node)
-│   ├── generate-textures.py    # ComfyUI texture pipeline
-│   └── texture-presets.json    # Prompt presets per theme
-├── package.json
-└── README.md
-```
-
-## 🚀 Running the Game
-
-**Quickest way — double-click `Puffins_Panic.bat`** (Windows). This runs `npx serve .` and opens a local server.
-
-Or start a server manually:
-
-```bash
-# Node.js
-npx serve .
-
-# Python
 python -m http.server 8000
 ```
 
-Then open `http://localhost:8000` in a browser.
+Or use Node.js and npm:
 
-> Serving via HTTP is required — browser security blocks `getImageData` on `file://` URLs.
+```bash
+npx serve . --listen 8000
+```
 
-## 🏗️ Technical Notes
+Open [http://localhost:8000](http://localhost:8000). Keep the terminal running while playing. Opening `index.html` directly with `file://` prevents the campaign files from loading correctly.
 
-| Detail | Value |
-|--------|-------|
-| Internal resolution | 400 × 220 |
-| Canvas resolution | 1600 × 880 (4× scale) |
-| High-DPI | Canvas rescaled by `devicePixelRatio` (capped at 2×) |
-| Game loop | `requestAnimationFrame` with elapsed-time pacing at 30 FPS |
-| Rendering | `imageSmoothingEnabled = false` + CSS `image-rendering: pixelated` |
-| Terrain | Pixel-based destructible bitmap with RLE-compressed level storage |
-| Image levels | Source PNG downscaled to 400×220 via canvas; solid cells sample it directly |
-| Liquid/lava/sand | Parallel `Uint8Array` grids; rendered to offscreen canvas, blit at 4× scale |
-| Puffin sprites | Pre-rendered to offscreen canvases per animation variant |
-| Bridge stress | `Uint16Array` — accumulated per cell, checked every 30 ticks |
-| Touch | `touchstart/move/end` with `passive: false`; 44px minimum tap targets |
-| Audio | Web Audio API, procedural — no external sound files |
-| Dependencies | `pngjs` (level import script only) — game itself is pure vanilla JS |
+On Windows, `Puffins_Panic.bat` runs `npx serve .`. Open the URL printed in its terminal.
 
-## 🤝 Contributing
+## Campaign
 
-Fork the repository and submit pull requests. Custom levels built with the editor or image importer are especially welcome.
+Ten levels adapt the first ten Fun levels from the original DOS Lemmings. The original layouts and skill progression provide the puzzle references. Distances and release timing are adapted to the 400 × 220 collision grid and larger puffins.
 
-## 📄 License
+The setting is an outdoor coast, with bright skies, sea views, grass-edged rocks, carved ruins and open straw nests. Arriving puffins dive into the nest while a chick greets them. A wooden entrance hatch opens before the first puffin drops.
 
-MIT — free to use, modify, and distribute.
+| Level | Name | Main skill or decision |
+|-------|------|------------------------|
+| 1 | Just dig! | Dig through the upper ledge |
+| 2 | Only floaters can survive this | Prepare for a high drop |
+| 3 | Tailor-made for blockers | Redirect the crowd along alternating ledges |
+| 4 | Now use miners and climbers | Mine down and climb the final obstacle |
+| 5 | You need bashers this time | Open a passage through the wall |
+| 6 | A task for blockers and bombers | Open the holding area with a timed explosion |
+| 7 | Builders will help you here | Bridge the gap |
+| 8 | Not as complicated as it looks | Turn the crowd towards the nest |
+| 9 | As long as you try your best | Choose a way through the dividing wall |
+| 10 | Smile if you love lemmings | Combine skills among suspended masonry |
 
-## 🙏 Acknowledgments
+Counts, rescue targets and skill inventories follow the DOS references. The builder tutorial gives builders a longer staircase to allow earlier placement. The active campaign is defined by `levels/manifest.json`. Other level files are excluded from that list.
 
-Inspired by **Lemmings** by DMA Design (1991). All code and assets are original implementations.
+## How to play
 
----
+Choose a level on the start screen and click **Start Game**. Select a skill, then click or tap a puffin to assign it. Save the required number before time runs out.
 
-**Enjoy guiding those puffins to safety! 🐧**
+| Input | Action |
+|-------|--------|
+| Left click / tap | Assign the selected skill |
+| Right click / Cancel | Deselect the skill |
+| Click a blocker with no skill selected | Release it back into the crowd |
+| Long press on a puffin | Show its state |
+| Escape | Deselect the skill, or pause/resume |
+| Minus / plus, or square brackets | Lower / raise the release rate |
+| Speed button | Switch between 1×, 2× and 4× |
+| Sound button | Toggle sound |
+| N | Activate nuke |
+
+The release rate controls how quickly new puffins enter the level. Audio starts with the game. If the browser has suspended audio, starting a level or enabling sound attempts to resume it.
+
+## Skills
+
+| Skill | Effect |
+|-------|--------|
+| Climber | Scales vertical walls |
+| Floater | Opens an umbrella to survive high falls |
+| Bomber | Explodes after five seconds, destroying nearby terrain |
+| Blocker | Stands still and turns other puffins around |
+| Builder | Constructs a staircase |
+| Basher | Opens horizontal passages through walls |
+| Miner | Digs diagonally downward |
+| Digger | Digs straight down |
+| Platformer | Builds a horizontal platform |
+
+Falls exceeding 70 simulation pixels are fatal without a floater. Assign skills before the danger, and allow the crowd time to follow a newly opened route. Hovering over a puffin with a skill selected shows its direction.
+
+## Level editor and engine features
+
+Choose **Level Editor** from the start screen to draw and erase terrain, place entrance and exit points, configure skills and rescue targets, and import or export JSON maps. Editor saves use browser localStorage.
+
+The engine also supports terrain themes and image-based terrain, flowing water and lava, swimming, falling sand, ice melting, wind, bridge stress, achievements, procedural sound and high-DPI rendering. These features are available for custom levels and are used according to each map's configuration.
+
+For image import, install the script dependency with `npm install`, then run:
+
+```bash
+node scripts/import-image-level.mjs --input img/levels/my-level.png --output levels/my-level.json --name "My Level"
+```
+
+Add the resulting filename to `levels/manifest.json` to include it in the campaign. The importer creates the terrain bitmap and `imageSource` reference. Custom maps use the 400 × 220 grid.
+
+## Verification and replays
+
+Run the available checks from the repository root with Node.js:
+
+```bash
+# Structural checks for the ten campaign files
+node scripts/verify-levels.mjs
+
+# Release-rate control checks
+node scripts/release-rate-qc.mjs
+
+# Approximate route analysis
+node scripts/route-analyze.mjs --file levels/level_001.json
+
+# Geometry-based campaign playtester
+node scripts/playtest-agent.mjs --campaign
+```
+
+The geometry playtester estimates routes using a simplified model. Its results complement testing in the actual game engine.
+
+To replay a strategy in the actual engine, open the running game's developer console and run:
+
+```js
+await import('./scripts/replay-classic.mjs').then(module => module.play(7))
+```
+
+Choose any level number from 2 through 10. The replay starts that level and replaces the current attempt. It advances the simulation and assigns skills through normal pointer targeting, then throws if the rescue target is missed.
+
+All nine replays reached **LEVEL COMPLETE** in Chrome during development. Results for levels 2–10 were respectively 10/10, 48/50, 10/10, 50/50, 49/50, 50/50, 79/80, 80/80 and 20/20 rescued. These results establish playable solutions. First-time player testing remains part of tuning difficulty and readability.
+
+Recent fixes initialize audio when levels start and check ground support before walking puffins turn at walls. The latter prevents puffins from hovering in narrow dug shafts.
+
+## Project structure
+
+| Path | Purpose |
+|------|---------|
+| `index.html` | Game page and controls |
+| `level-editor.html` | Standalone editor page |
+| `js/engine.js` | Game loop, rendering, controls and level transitions |
+| `js/puffin.js` | Movement, skill behavior and puffin drawing |
+| `js/terrain.js` | Terrain rendering and environmental simulation |
+| `js/levels.js` | JSON campaign loader |
+| `js/sound.js` | Procedural Web Audio sound and music |
+| `js/levelEditor.js` | Editor logic |
+| `levels/manifest.json` | Ordered list of the ten campaign levels |
+| `img/` | Start-screen art and terrain assets |
+| `scripts/replay-classic.mjs` | Real-engine browser replays for levels 2–10 |
+| `scripts/verify-levels.mjs` | Structural campaign checks |
+| `package.json` | Node.js tooling and scripts |
+
+The simulation runs at 30 ticks per second on a 400 × 220 destructible bitmap. The canvas uses a 4× base scale and high-DPI adjustments. The browser game has no third-party JavaScript runtime dependencies. `pngjs` supports image-processing scripts.
+
+## References and licensing
+
+Inspired by **Lemmings**, developed by DMA Design in 1991. Campaign layouts and parameters reference the [DOS Fun levels in the Lemmings Level Database](https://lldb.camanis.net/levelpack/473/DOS-Fun). Puffins Panic provides its own engine and coastal presentation.
+
+The previous README described the project as MIT licensed. This checkout has no LICENSE file declaring those terms.
