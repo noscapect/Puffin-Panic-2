@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { readFileSync } from 'node:fs';
+
 const FPS = 30;
 const MIN_RELEASE_RATE = 1;
 const MAX_RELEASE_RATE = 99;
@@ -22,7 +24,7 @@ function releaseRateFromSpawnInterval(interval) {
   return clampReleaseRate(Math.round(MIN_RELEASE_RATE + t * (MAX_RELEASE_RATE - MIN_RELEASE_RATE)));
 }
 
-const levelSevenDefaultInterval = 60;
+const levelSevenDefaultInterval = JSON.parse(readFileSync(new URL('../levels/level_007.json', import.meta.url), 'utf8')).spawnRate;
 const defaultReleaseRate = releaseRateFromSpawnInterval(levelSevenDefaultInterval);
 const slowestInterval = spawnIntervalFromReleaseRate(MIN_RELEASE_RATE);
 const fastestInterval = spawnIntervalFromReleaseRate(MAX_RELEASE_RATE);

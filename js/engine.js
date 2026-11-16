@@ -15,13 +15,17 @@ let inputsSetup = false;
 let gameSpeed = 1;
 let soundEnabled = true;
 
-function toggleSound() {
+function startLevelAudio() {
     Sound.init();
+    Sound.startBGM();
+}
+
+function toggleSound() {
     soundEnabled = !soundEnabled;
     let btn = document.getElementById('btn-sound');
     if (btn) btn.innerText = soundEnabled ? '🔊 Sound' : '🔇 Muted';
     if (soundEnabled) {
-        Sound.startBGM();
+        startLevelAudio();
     } else {
         Sound.stopBGM();
     }
@@ -303,6 +307,7 @@ function _initWeatherSeeds() {
 }
 
 function _getWeatherTypeForTheme(theme) {
+    if (LEVELS[currentLevelIndex]?.scenery === 'coast') return;
     if (['snow', 'packed_snow', 'black_ice', 'frozen_mud', 'ice'].includes(theme)) return 'snow';
     if (['desert', 'sandstone', 'salt_flats'].includes(theme)) return 'sandstorm';
     if (['lava', 'volcanic_ash', 'obsidian_floor'].includes(theme)) return 'ash';
@@ -822,6 +827,9 @@ function getBestPuffinAt(x, y, skillId = activeSkill) {
 }
 
 function getThemeSkyColors() {
+    if (LEVELS[currentLevelIndex]?.scenery === 'coast') {
+        return { top: '#79b9dc', mid: '#b5dce6', bot: '#e1ebe0', veil: 'rgba(255, 236, 184, 0.04)' };
+    }
     const theme = getCurrentThemeName();
     const skies = {
         grass:   { top: '#1f4f88', mid: '#254d74', bot: '#1b3858', veil: 'rgba(145, 195, 235, 0.12)' },
@@ -859,6 +867,7 @@ function getThemeSkyColors() {
 }
 
 function emitPortalAmbience() {
+    if (['coast', 'grotto'].includes(LEVELS[currentLevelIndex]?.scenery)) return;
     if (!gameState.active || gameState.paused) return;
     if (typeof createPortalParticles !== 'function') return;
 
@@ -1239,6 +1248,7 @@ function hideGameUI() {
 }
 
 function loadLevel(index) {
+    if (soundEnabled) startLevelAudio();
     currentLevelIndex = index;
     const lvl = LEVELS[currentLevelIndex];
 
@@ -1280,10 +1290,7 @@ function loadLevel(index) {
     // Init skills
     SKILLS.forEach(s => { currentSkillCounts[s.id] = lvl.skills[s.id] || 0; });
     
-    // Always add the same amount of bombers to a level as there are blockers
-    if (currentSkillCounts['blocker'] > 0) {
-        currentSkillCounts['bomber'] += currentSkillCounts['blocker'];
-    }
+
 
     activeSkill = null;
     gameSpeed = 1;
@@ -1945,6 +1952,31 @@ function drawWaterZone(ctx, prop, ticks) {
     }
 }
 
+function drawCarvedColumn(ctx, prop) {
+    const { x, y, w, h } = prop;
+    ctx.save();
+    const shade = ctx.createLinearGradient(x, 0, x + w, 0);
+    shade.addColorStop(0, 'rgba(15, 22, 30, 0.28)');
+    shade.addColorStop(0.3, 'rgba(245, 217, 166, 0.16)');
+    shade.addColorStop(0.75, 'rgba(15, 22, 30, 0.08)');
+    shade.addColorStop(1, 'rgba(15, 22, 30, 0.32)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(x, y, w, h);
+    for (let dx = 3; dx < w - 2; dx += 5) {
+        ctx.fillStyle = 'rgba(22, 24, 28, 0.18)';
+        ctx.fillRect(x + dx, y + 6, 1, h - 12);
+        ctx.fillStyle = 'rgba(245, 217, 166, 0.15)';
+        ctx.fillRect(x + dx + 1, y + 6, 1, h - 12);
+    }
+    ctx.fillStyle = 'rgba(247, 219, 172, 0.28)';
+    ctx.fillRect(x, y + 2, w, 1);
+    ctx.fillRect(x, y + h - 5, w, 1);
+    ctx.fillStyle = 'rgba(25, 26, 33, 0.4)';
+    ctx.fillRect(x, y + 4, w, 1);
+    ctx.fillRect(x, y + h - 3, w, 2);
+    ctx.restore();
+}
+
 function drawSceneProps(ctx) {
     const theme = getCurrentThemeName();
     const lvl = LEVELS[currentLevelIndex];
@@ -1957,7 +1989,8 @@ function drawSceneProps(ctx) {
     // Level-specific declared props (ropes, signs; water props now rendered via liquid layer)
     if (lvl && lvl.props) {
         for (const prop of lvl.props) {
-            if (prop.type === 'rope')      drawRopeBridge(ctx, prop);
+            if (prop.type === 'carvedColumn') drawCarvedColumn(ctx, prop);
+            else if (prop.type === 'rope')      drawRopeBridge(ctx, prop);
             else if (prop.type === 'sign') drawSignPost(ctx, prop);
             else if (prop.type === 'torch') drawTorch(ctx, prop, gameState.ticks);
             else if (prop.type === 'lantern') drawLantern(ctx, prop, gameState.ticks);
@@ -2021,6 +2054,7 @@ function drawSceneProps(ctx) {
 }
 
 function drawThemeAtmosphere(ctx, layer) {
+    if (LEVELS[currentLevelIndex]?.scenery === 'coast') return;
     const theme = getCurrentThemeName();
     const t = gameState.ticks;
     const isFront = layer === 'front';
@@ -2138,6 +2172,148 @@ function drawThemeAtmosphere(ctx, layer) {
             ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
         }
     }
+}
+
+// Keep distant land low-contrast so its edges read separately from walkable chalk.
+function drawCoastalBackground(ctx, ticks) {
+    ctx.fillStyle = '#99b9bd';
+    ctx.fillRect(0, 95, GAME_WIDTH, GAME_HEIGHT - 95);
+    ctx.fillStyle = '#7e9da3';
+    for (const [x, y, w] of [[0, 85, 22], [19, 88, 18], [32, 91, 26],
+                              [274, 89, 11], [277, 80, 6], [294, 92, 28],
+                              [320, 86, 38], [350, 78, 50]]) {
+        ctx.fillRect(x, y, w, 95 - y);
+    }
+    for (let row = 0; row < 13; row++) {
+        const y = 98 + row * 9;
+        ctx.fillStyle = row % 2 ? '#abc8c9' : '#91afb4';
+        for (let x = (row * 37 + Math.floor(ticks / 12)) % 61 - 61; x < GAME_WIDTH; x += 61) {
+            ctx.fillRect(x, y, 4 + row, 1);
+        }
+    }
+}
+
+function drawGrottoBackground(ctx) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+    gradient.addColorStop(0, '#141f2b');
+    gradient.addColorStop(0.5, '#293f47');
+    gradient.addColorStop(1, '#152630');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    // Recessed rock columns establish depth behind the playable silhouette.
+    for (let column = 0; column < 13; column++) {
+        const x = column * 34 - 12;
+        const width = 18 + hashNoise2D(column, 2) * 16;
+        ctx.fillStyle = column % 2 ? '#253740' : '#21323c';
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x + width, 0);
+        ctx.lineTo(x + width - 6, 68);
+        ctx.lineTo(x + width + 4, 132);
+        ctx.lineTo(x + width - 2, GAME_HEIGHT);
+        ctx.lineTo(x - 5, GAME_HEIGHT);
+        ctx.lineTo(x + 6, 121);
+        ctx.closePath();
+        ctx.fill();
+    }
+    const light = ctx.createRadialGradient(185, 70, 8, 185, 83, 155);
+    light.addColorStop(0, 'rgba(182, 173, 117, 0.12)');
+    light.addColorStop(1, 'rgba(24, 35, 45, 0)');
+    ctx.fillStyle = light;
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+}
+
+function drawEntranceHatch(ctx) {
+    const center = Math.round(ENTRANCE.x + PUFFIN_W / 2);
+    // For sky drops, leave the underside of the hatch visible at the top edge.
+    const sill = Math.max(2, Math.round(ENTRANCE.y));
+    const remaining = gameState.spawned ? 0 : gameState.spawnCountdown;
+    const phase = Math.max(0, 1 - remaining / 15);
+    const angle = phase * phase * Math.PI / 2;
+    ctx.save();
+    ctx.translate(center, sill);
+
+    // A timber head rail with iron straps, over a recessed chute.
+    ctx.fillStyle = '#28262a';
+    ctx.fillRect(-12, -12, 24, 13);
+    ctx.fillRect(-13, -11, 26, 4);
+    ctx.fillStyle = '#694b3a';
+    ctx.fillRect(-12, -11, 24, 3);
+    ctx.fillStyle = '#ce9b63';
+    ctx.fillRect(-12, -11, 24, 1);
+    ctx.fillStyle = '#94714f';
+    ctx.fillRect(-11, -7, 3, 7);
+    ctx.fillRect(8, -7, 3, 7);
+    ctx.fillStyle = '#181c22';
+    ctx.fillRect(-8, -7, 16, 7);
+
+    // Both leaves pivot at the outside jambs. Integer steps keep the edges crisp.
+    for (const side of [-1, 1]) {
+        const hinge = side * 10;
+        for (let plank = 0; plank < 10; plank++) {
+            const x = hinge - side * Math.round((plank + 0.5) * Math.cos(angle));
+            const y = Math.round(plank * Math.sin(angle));
+            ctx.fillStyle = plank % 4 === 3 ? '#5a4134' : '#aa7951';
+            ctx.fillRect(x, y - 1, 2, 2);
+            ctx.fillStyle = '#503b32';
+            ctx.fillRect(x, y + 1, 2, 1);
+        }
+        ctx.fillStyle = '#464c53';
+        ctx.fillRect(hinge - 1, -11, 3, 4);
+        ctx.fillRect(hinge - 1, -2, 3, 4);
+        ctx.fillStyle = '#b1b9ae';
+        ctx.fillRect(hinge, -10, 1, 1);
+        ctx.fillRect(hinge, -1, 1, 1);
+    }
+    ctx.restore();
+}
+
+function drawBurrow(ctx, exit) {
+    const { x, y, w, h } = exit;
+    // An open nest of dry grass, resting on the coastal turf.
+    ctx.fillStyle = '#527d3d';
+    ctx.fillRect(x - 4, y + h - 2, w + 8, 3);
+    ctx.fillStyle = '#8c633c';
+    ctx.fillRect(x - 2, y + h - 7, w + 4, 5);
+    ctx.fillRect(x + 1, y + h - 2, w - 2, 2);
+    ctx.fillStyle = '#d9b572';
+    ctx.fillRect(x, y + h - 6, w, 2);
+    ctx.fillRect(x + 2, y + h - 3, w - 4, 1);
+    ctx.fillStyle = '#a47a48';
+    ctx.fillRect(x + 3, y + h - 7, w - 6, 2);
+    ctx.fillStyle = '#eed39a';
+    for (let dx = 0; dx < w; dx += 4) ctx.fillRect(x + dx, y + h - 5, 2, 1);
+    ctx.fillStyle = '#e2e8d8';
+    ctx.fillRect(x + 4, y + h - 9, 3, 4);
+    ctx.fillRect(x + 8, y + h - 10, 3, 5);
+}
+
+// Each arrival can lift the same chick, including when several adults arrive together.
+function drawGreetingChick(ctx, exit, coastal) {
+    let lift = 0;
+    for (const p of puffins) {
+        if (p.state !== ST_EXITED) continue;
+        const age = gameState.ticks - p.arrivalTick;
+        if (age < 8 || age >= 35) continue;
+        lift = Math.max(lift, Math.min(1, (age - 8) / 6, (35 - age) / 9));
+    }
+    if (!coastal && !lift) return;
+    const base = exit.y + exit.h - 2;
+    const head = base - (coastal ? 2 : 0) - Math.round(6 * lift);
+    const x = exit.x + exit.w - 9;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x - 3, base - 10, 10, 10);
+    ctx.clip();
+    ctx.fillStyle = '#48515a';
+    ctx.fillRect(x, head, 5, 8);
+    ctx.fillStyle = '#cecbb7';
+    ctx.fillRect(x, head + 1, 4, 4);
+    ctx.fillStyle = '#222e35';
+    ctx.fillRect(x + 1, head + 1, 1, 1);
+    ctx.fillStyle = '#efa354';
+    ctx.fillRect(x - 2, head + 3, 3, 2);
+    ctx.restore();
 }
 
 function drawThemeBackground(ctx) {
@@ -2392,6 +2568,7 @@ function drawThemeBackground(ctx) {
 }
 
 function drawThemeMist(ctx) {
+    if (LEVELS[currentLevelIndex]?.scenery === 'coast') return;
     const theme = getCurrentThemeName();
     const t = gameState.ticks;
     const mistBase  = 0.14 + Math.sin(t * 0.009) * 0.03;
@@ -2467,63 +2644,55 @@ function draw() {
 
     ctx.scale(SCALE, SCALE);
 
-    drawThemeBackground(ctx);
+    const coastal = LEVELS[currentLevelIndex]?.scenery === 'coast';
+    const grotto = LEVELS[currentLevelIndex]?.scenery === 'grotto';
+    const naturalExit = coastal || grotto;
+    if (grotto) drawGrottoBackground(ctx);
+    else if (coastal) drawCoastalBackground(ctx, gameState.ticks);
+    else drawThemeBackground(ctx);
 
-    let ex = ENTRANCE.x, ey = ENTRANCE.y;
-    ctx.fillStyle = '#5a3010';
-    ctx.fillRect(ex - 12, ey - 10, 24, 5);
-    ctx.fillStyle = '#7a4820';
-    ctx.fillRect(ex - 10, ey - 9, 9, 3);
-    ctx.fillStyle = '#8a5528';
-    ctx.fillRect(ex + 1, ey - 9, 9, 3);
-    ctx.fillStyle = '#1a0800';
-    ctx.fillRect(ex - 1, ey - 9, 2, 3);
-    ctx.fillStyle = '#030308';
-    ctx.fillRect(ex - 9, ey - 4, 18, 9);
-    let hatchWarmth = 0.18 + Math.sin(gameState.ticks * 0.07) * 0.06;
-    ctx.fillStyle = `rgba(255, 200, 80, ${hatchWarmth})`;
-    ctx.fillRect(ex - 7, ey - 3, 14, 7);
-    let arrowBob = Math.floor(Math.sin(gameState.ticks * 0.12) * 2);
-    ctx.fillStyle = '#ffee00';
-    ctx.fillRect(ex - 1, ey - 17 + arrowBob, 2, 5);
-    ctx.fillRect(ex - 3, ey - 14 + arrowBob, 6, 2);
+    drawEntranceHatch(ctx);
 
-    let exitGlow = 0.5 + Math.sin(gameState.ticks * 0.08) * 0.28;
-    ctx.fillStyle = `rgba(0, 255, 80, ${exitGlow * 0.10})`;
-    ctx.fillRect(EXIT.x - 6, EXIT.y - 8, EXIT.w + 12, EXIT.h + 12);
-    ctx.fillStyle = '#3a2a18';
-    ctx.fillRect(EXIT.x - 3, EXIT.y - 2, EXIT.w + 6, EXIT.h + 3);
-    ctx.fillStyle = '#553c24';
-    ctx.fillRect(EXIT.x - 2, EXIT.y - 1, EXIT.w + 4, EXIT.h + 2);
-    let exitG = Math.floor(160 + 90 * exitGlow);
-    ctx.fillStyle = `rgb(0, ${exitG}, ${Math.floor(30 + 20 * exitGlow)})`;
-    ctx.fillRect(EXIT.x, EXIT.y, EXIT.w, EXIT.h);
-    ctx.fillStyle = `rgba(200, 255, 200, ${0.12 + exitGlow * 0.08})`;
-    ctx.fillRect(EXIT.x + 1, EXIT.y + 1, Math.floor(EXIT.w / 2) - 1, EXIT.h - 2);
-    ctx.fillStyle = '#221508';
-    ctx.fillRect(EXIT.x - 1, EXIT.y - 6, EXIT.w + 2, 4);
-    if (Math.floor(gameState.ticks / 12) % 2) {
-        ctx.fillStyle = `rgba(0, 255, 80, ${exitGlow})`;
-        ctx.fillRect(EXIT.x + EXIT.w / 2 - 3, EXIT.y - 5, 6, 2);
+    if (naturalExit) {
+        drawBurrow(ctx, EXIT);
+    } else {
+        let exitGlow = 0.5 + Math.sin(gameState.ticks * 0.08) * 0.28;
+        ctx.fillStyle = `rgba(0, 255, 80, ${exitGlow * 0.10})`;
+        ctx.fillRect(EXIT.x - 6, EXIT.y - 8, EXIT.w + 12, EXIT.h + 12);
+        ctx.fillStyle = '#3a2a18';
+        ctx.fillRect(EXIT.x - 3, EXIT.y - 2, EXIT.w + 6, EXIT.h + 3);
+        ctx.fillStyle = '#553c24';
+        ctx.fillRect(EXIT.x - 2, EXIT.y - 1, EXIT.w + 4, EXIT.h + 2);
+        let exitG = Math.floor(160 + 90 * exitGlow);
+        ctx.fillStyle = `rgb(0, ${exitG}, ${Math.floor(30 + 20 * exitGlow)})`;
+        ctx.fillRect(EXIT.x, EXIT.y, EXIT.w, EXIT.h);
+        ctx.fillStyle = `rgba(200, 255, 200, ${0.12 + exitGlow * 0.08})`;
+        ctx.fillRect(EXIT.x + 1, EXIT.y + 1, Math.floor(EXIT.w / 2) - 1, EXIT.h - 2);
+        ctx.fillStyle = '#221508';
+        ctx.fillRect(EXIT.x - 1, EXIT.y - 6, EXIT.w + 2, 4);
+        if (Math.floor(gameState.ticks / 12) % 2) {
+            ctx.fillStyle = `rgba(0, 255, 80, ${exitGlow})`;
+            ctx.fillRect(EXIT.x + EXIT.w / 2 - 3, EXIT.y - 5, 6, 2);
+        }
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        let portalGlow = ctx.createRadialGradient(
+            EXIT.x + EXIT.w / 2,
+            EXIT.y + EXIT.h / 2,
+            2,
+            EXIT.x + EXIT.w / 2,
+            EXIT.y + EXIT.h / 2,
+            18
+        );
+        portalGlow.addColorStop(0, `rgba(100, 255, 180, ${0.25 + exitGlow * 0.22})`);
+        portalGlow.addColorStop(0.45, `rgba(40, 220, 150, ${0.12 + exitGlow * 0.16})`);
+        portalGlow.addColorStop(1, 'rgba(0, 120, 90, 0)');
+        ctx.fillStyle = portalGlow;
+        ctx.beginPath();
+        ctx.arc(EXIT.x + EXIT.w / 2, EXIT.y + EXIT.h / 2, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
     }
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    let portalGlow = ctx.createRadialGradient(
-        EXIT.x + EXIT.w / 2,
-        EXIT.y + EXIT.h / 2,
-        2,
-        EXIT.x + EXIT.w / 2,
-        EXIT.y + EXIT.h / 2,
-        18
-    );
-    portalGlow.addColorStop(0, `rgba(100, 255, 180, ${0.25 + exitGlow * 0.22})`);
-    portalGlow.addColorStop(0.45, `rgba(40, 220, 150, ${0.12 + exitGlow * 0.16})`);
-    portalGlow.addColorStop(1, 'rgba(0, 120, 90, 0)');
-    ctx.fillStyle = portalGlow;
-    ctx.beginPath();
-    ctx.arc(EXIT.x + EXIT.w / 2, EXIT.y + EXIT.h / 2, 18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
 
     let terrainHandledByWebGL = false;
     if (useHybridWebGLBase && typeof renderer.renderTerrainLiquidLayer === 'function') {
@@ -2693,6 +2862,8 @@ function draw() {
         particles.forEach(p => p.draw(ctx));
     }
 
+    drawGreetingChick(ctx, EXIT, naturalExit);
+
     const bomberTrailPoints = _isWebGLEffectEnabled('bomberTrailWisps')
         ? _buildBomberTrailCloud(gameState.ticks)
         : [];
@@ -2746,6 +2917,17 @@ function draw() {
     }
 
     if (activeSkill && currentSkillCounts[activeSkill] > 0) {
+        if (hoveredPuffin && hoveredPuffin.vx) {
+            const dir = Math.sign(hoveredPuffin.vx);
+            const x = Math.round(hoveredPuffin.x + PUFFIN_CENTER_X);
+            const y = Math.round(hoveredPuffin.y - 10);
+            ctx.fillStyle = '#172934';
+            ctx.fillRect(x - 5, y - 3, 11, 7);
+            ctx.fillStyle = '#ffe49a';
+            ctx.fillRect(x - 3, y, 7, 1);
+            ctx.fillRect(x + dir, y - 2, 1, 5);
+            ctx.fillRect(x + dir * 2, y - 1, 1, 3);
+        }
         ctx.strokeStyle = hoveredPuffin ? '#0f0' : '#fff';
         ctx.strokeRect(mouseX - 5, mouseY - 5, 10, 10);
         ctx.beginPath();
@@ -2826,7 +3008,7 @@ function draw() {
     for (let i = 0; i < terrainContactLights.length; i++) {
         dynamicLights.push(terrainContactLights[i]);
     }
-    dynamicLights.push({
+    if (!naturalExit) dynamicLights.push({
         x: (EXIT.x + EXIT.w / 2) * SCALE,
         y: (EXIT.y + EXIT.h / 2) * SCALE,
         radius: 46,
@@ -2935,7 +3117,7 @@ function draw() {
 
 
     const portalCharge = Math.max(0, Math.min(1, gameState.saved / Math.max(1, REQUIRED_PUFFINS)));
-    const portalEffect = {
+    const portalEffect = naturalExit ? null : {
         x: (EXIT.x + EXIT.w / 2) * SCALE,
         y: (EXIT.y + EXIT.h / 2) * SCALE,
         radius: (18 + portalCharge * 8) * SCALE,
@@ -2947,12 +3129,12 @@ function draw() {
     };
 
     let portalFxHandledByWebGL = false;
-    if (useHybridWebGLBase && typeof renderer.renderPortalEffect === 'function') {
+    if (portalEffect && useHybridWebGLBase && typeof renderer.renderPortalEffect === 'function') {
         portalFxHandledByWebGL = _runWebGLEffect('portalEffect', () =>
             renderer.renderPortalEffect(ctx, drawW, drawH, portalEffect)
         );
     }
-    if (!portalFxHandledByWebGL) {
+    if (portalEffect && !portalFxHandledByWebGL) {
         const px = portalEffect.x;
         const py = portalEffect.y;
         const pr = portalEffect.radius;
@@ -2992,7 +3174,7 @@ function draw() {
         );
     }
 
-    const portalSparkles = _isWebGLEffectEnabled('portalSparkles')
+    const portalSparkles = !naturalExit && _isWebGLEffectEnabled('portalSparkles')
         ? _buildPortalSparkleCloud(gameState.ticks, portalCharge)
         : [];
     let portalSparklesHandledByWebGL = false;

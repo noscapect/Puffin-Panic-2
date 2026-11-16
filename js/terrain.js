@@ -445,6 +445,30 @@ function getTerrainPixelColor(x, y, theme, profile, themeName) {
 
     let r, g, b;
 
+    if (['grotto', 'coast'].includes(LEVELS[currentLevelIndex]?.scenery)) {
+        // Broad sandstone strata, with restrained grain and carved rock edges.
+        const row = Math.floor((y + 2 * Math.sin(x * 0.035)) / 9);
+        const cell = Math.floor((x + (row % 2) * 11) / 24);
+        const facet = hashNoise2D(cell, row);
+        const band = Math.sin(y * 0.16 + Math.sin(x * 0.025)) * 6;
+        const grain = (hashNoise2D(x, y) - 0.5) * 3;
+        const seam = (y + Math.round(2 * Math.sin(x * 0.035))) % 9 === 0;
+        let light = facet * 15 + band + grain - (seam ? 11 : 0);
+        let nearTop = 6;
+        for (let dy = 1; dy <= 5 && y >= dy; dy++) {
+            if (!terrainData[i - dy * GAME_WIDTH]) { nearTop = dy; break; }
+        }
+        light += nearTop < 6 ? (6 - nearTop) * 5 : 0;
+        light -= edgeBottom ? 24 : 0;
+        light += edgeLeft ? 8 : 0;
+        light -= edgeRight ? 10 : 0;
+        if (isSurface) return [145 + facet * 16, 153 + facet * 12, 92 + facet * 10, 255];
+        const palette = LEVELS[currentLevelIndex].artPalette;
+        const base = ({temple: [133, 108, 64], rose: [133, 88, 83],
+            frost: [62, 105, 129], slate: [84, 88, 98]})[palette] || [105, 79, 62];
+        return [clampColor(base[0] + light), clampColor(base[1] + light * 0.85), clampColor(base[2] + light * 0.7), 255];
+    }
+
     // Use photo texture as base if loaded; fall back to procedural
     const texSample = sampleTerrainTexture(themeName || '', x, y);
     if (texSample) {

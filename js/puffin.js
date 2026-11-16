@@ -273,9 +273,9 @@ class Puffin {
                 puffinTop <= exitBottom;
 
             if (overlapsExit) {
+                this.arrivalTick = GameContext.gameState.ticks;
                 this.state = ST_EXITED;
                 GameContext.gameState.saved++;
-                createParticles(this.x, this.y, 20, PALETTE[7], true, 7);
                 if (typeof playSound === 'function') playSound('exitCheer');
             }
         }
@@ -519,6 +519,18 @@ class Puffin {
             return;
         }
         
+        // Gravity must run before wall turns: a narrow shaft can have walls
+        // on both sides after its floor has been dug away.
+        const footX = Math.floor(this.x + PUFFIN_CENTER_X);
+        const footY = Math.floor(this.y + PUFFIN_H);
+        const supported = [0, 1, 2, 3].some(dy => isSolidAt(footX, footY + dy));
+        if (!supported) {
+            this.state = this.isFloater ? ST_FLOAT : ST_FALL;
+            this.fallStartY = this.y;
+            this.vy = 0;
+            return;
+        }
+
         // Move horizontal
         if (this.animFrame % 2 === 0) {
             let nextX = this.x + this.vx;
@@ -846,8 +858,8 @@ class Puffin {
                 Achievements.trackBuild();
             }
 
-            // Canonical Lemmings: hard stop at 12 bricks, shrug, then resume walking
-            if (this.bricksLayed >= 12) {
+            // Custom levels can give the builder a longer staircase.
+            if (this.bricksLayed >= (GameContext.LEVELS[GameContext.currentLevelIndex]?.builderBricks ?? 12)) {
                 this.shrugTicks = 20; // ~0.6s shrug pause
                 this.state = ST_WALK;
                 if (typeof createDustParticles === 'function') createDustParticles(this.x, this.y + PUFFIN_H);
@@ -1341,8 +1353,33 @@ class Puffin {
         }
     }
 
+    drawHomecoming(ctx) {
+        const age = GameContext.gameState.ticks - this.arrivalTick;
+        if (age >= 17) return;
+        const t = age / 17;
+        const exit = GameContext.EXIT;
+        const targetX = exit.x + exit.w / 2;
+        const startX = this.x + PUFFIN_W / 2;
+        const centerX = Math.round(startX + (targetX - startX) * t);
+        const feetY = Math.round(this.y + PUFFIN_H +
+            (exit.y + exit.h - this.y - PUFFIN_H) * t - 5 * Math.sin(Math.PI * t));
+        const size = 1 - 0.75 * t * t;
+        const facing = targetX >= startX ? 1 : -1;
+        ctx.save();
+        ctx.translate(centerX, feetY);
+        ctx.scale(facing * size, size);
+        ctx.rotate(0.65 * t);
+        ctx.translate(-PUFFIN_W / 2, -PUFFIN_H);
+        this._drawBodyFromCache(ctx);
+        ctx.restore();
+    }
+
     draw(ctx, options = null) {
-        if (this.state === ST_DEAD || this.state === ST_EXITED) return;
+        if (this.state === ST_EXITED) {
+            this.drawHomecoming(ctx);
+            return;
+        }
+        if (this.state === ST_DEAD) return;
         const skipBodyOnly = !!(options && options.skipBody);
 
         // Ground shadow (skipped when airborne)
