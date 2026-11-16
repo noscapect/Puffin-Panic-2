@@ -566,6 +566,7 @@ function getTerrainPixelColor(x, y, theme, profile, themeName) {
 }
 
 function updateTerrainPixels(x, y, w, h) {
+    if (typeof CoastalArt !== "undefined") CoastalArt.invalidate();
     if (x === undefined) {
         renderTerrainToOffscreen();
         return;
@@ -687,6 +688,7 @@ function getThemeColors() {
 }
 
 function renderTerrainToOffscreen() {
+    if (typeof CoastalArt !== "undefined") CoastalArt.invalidate();
     // Check if editor override exists and editor mode is active
     if (typeof window.Editor !== 'undefined' && window.Editor.isActive()) {
         renderTerrainForEditor();

@@ -2006,7 +2006,7 @@ function drawSceneProps(ctx) {
     }
 
     // Auto terrain-edge details (every 3rd column)
-    const isIcy  = icyThemes.has(theme);
+    const isIcy  = icyThemes.has(theme) && LEVELS[currentLevelIndex]?.artStyle !== 'coastal-remake';
     const isGrass = grassThemes.has(theme);
     for (let x = 1; x < GAME_WIDTH - 1; x += 3) {
         let passedTop = false;
@@ -2647,13 +2647,18 @@ function draw() {
     const coastal = LEVELS[currentLevelIndex]?.scenery === 'coast';
     const grotto = LEVELS[currentLevelIndex]?.scenery === 'grotto';
     const naturalExit = coastal || grotto;
-    if (grotto) drawGrottoBackground(ctx);
+    const coastalRemake = typeof CoastalArt !== 'undefined' && CoastalArt.enabled();
+    if (coastalRemake) CoastalArt.background(ctx, gameState.ticks);
+    else if (grotto) drawGrottoBackground(ctx);
     else if (coastal) drawCoastalBackground(ctx, gameState.ticks);
     else drawThemeBackground(ctx);
 
-    drawEntranceHatch(ctx);
+    if (coastalRemake) CoastalArt.entrance(ctx, gameState.ticks, gameState.spawnCountdown, gameState.spawned);
+    else drawEntranceHatch(ctx);
 
-    if (naturalExit) {
+    if (coastalRemake) {
+        CoastalArt.nest(ctx);
+    } else if (naturalExit) {
         drawBurrow(ctx, EXIT);
     } else {
         let exitGlow = 0.5 + Math.sin(gameState.ticks * 0.08) * 0.28;
@@ -2695,7 +2700,11 @@ function draw() {
     }
 
     let terrainHandledByWebGL = false;
-    if (useHybridWebGLBase && typeof renderer.renderTerrainLiquidLayer === 'function') {
+    if (coastalRemake) {
+        CoastalArt.drawTerrain(ctx);
+        terrainHandledByWebGL = true;
+    }
+    if (!terrainHandledByWebGL && useHybridWebGLBase && typeof renderer.renderTerrainLiquidLayer === 'function') {
         terrainHandledByWebGL = _runWebGLEffect('terrainComposite', () =>
             renderer.renderTerrainLiquidLayer(ctx, offscreenCanvas, liquidCanvas, GAME_WIDTH, GAME_HEIGHT)
         );
@@ -2758,7 +2767,9 @@ function draw() {
         if (_atmFront) ctx.drawImage(_atmFront, 0, 0); else drawThemeAtmosphere(ctx, 'front');
     }
 
-    const terrainEdgePoints = _isWebGLEffectEnabled('terrainEdgeFx')
+    if (coastalRemake) CoastalArt.foreground(ctx);
+
+    const terrainEdgePoints = !coastalRemake && _isWebGLEffectEnabled('terrainEdgeFx')
         ? _getTerrainEdgeGlowPoints(currentTheme, gameState.ticks)
         : [];
     let terrainEdgeHandledByWebGL = false;

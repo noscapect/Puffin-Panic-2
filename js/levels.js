@@ -36,6 +36,7 @@ function buildRuntimeLevelFromJson(data, fileName) {
         exit:       data.exit      || { x: 340, y: 78, w: 20, h: 12 },
         theme:      data.theme     || 'grass',
         builderBricks: Number.isInteger(data.builderBricks) && data.builderBricks > 0 ? data.builderBricks : 12,
+        artStyle: data.artStyle || null,
         artPalette: data.artPalette || 'earth',
         scenery:    data.scenery || null,
         imageSource: data.imageSource || null,

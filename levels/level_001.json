@@ -5722,5 +5722,6 @@
       21808
     ]
   ],
-  "scenery": "coast"
+  "scenery": "coast",
+  "artStyle": "coastal-remake"
 }
