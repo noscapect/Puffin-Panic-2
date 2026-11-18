@@ -136,9 +136,17 @@ const CoastalArt = (() => {
             ctx.fillStyle = '#adc9ba';
             ctx.fillRect(x + 4, y - 1, w - 9, 2);
         }
-        if (style) {
+        const harbourView = LEVELS[currentLevelIndex]?.scenery === 'harbour-view';
+        const horizonStyle = harbourView ? CoastStyles.harbour : style;
+        if (horizonStyle) {
             const rect = (x, y, w, h, color) => { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
-            style.horizon(rect, ctx, ticks);
+            ctx.save();
+            if (harbourView) {
+                ctx.translate(321, 38);
+                ctx.scale(0.65, 0.65);
+            }
+            horizonStyle.horizon(rect, ctx, ticks);
+            ctx.restore();
         }
         for (let row = 0; row < 22; row++) {
             const y = 109 + row * 5;

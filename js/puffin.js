@@ -997,7 +997,7 @@ class Puffin {
                 }
                 
                 if (color) {
-                    let p = new Particle(x, y, color, true, col);
+                    let p = new Particle(x, y, color);
                     // Give explosion pixels more dramatic kick
                     let angle = Math.random() * Math.PI * 2;
                     let speed = 3 + Math.random() * 10;

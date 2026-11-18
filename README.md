@@ -20,7 +20,7 @@ npx serve . --listen 8000
 
 Open [http://localhost:8000](http://localhost:8000). Keep the terminal running while playing. Opening `index.html` directly with `file://` prevents the campaign files from loading correctly.
 
-On Windows, `Puffins_Panic.bat` runs `npx serve .`. Open the URL printed in its terminal.
+On Windows, `Puffins_Panic.bat` starts a local server with Windows PowerShell and opens the game in your default browser. Close the launcher window to stop it.
 
 ## Campaign
 
@@ -117,9 +117,9 @@ To replay a strategy in the actual engine, open the running game's developer con
 await import('./scripts/replay-classic.mjs').then(module => module.play(7))
 ```
 
-Choose any level number from 2 through 10. The replay starts that level and replaces the current attempt. It advances the simulation and assigns skills through normal pointer targeting, then throws if the rescue target is missed.
+Choose any level number from 1 through 15. The replay starts that level and replaces the current attempt. It advances the simulation and assigns skills through normal pointer targeting, then checks the rescue target and the skill assignments for the reference route.
 
-All nine replays reached **LEVEL COMPLETE** in Chrome during development. Results for levels 2–10 were respectively 10/10, 48/50, 10/10, 50/50, 49/50, 50/50, 79/80, 80/80 and 20/20 rescued. These results establish playable solutions. First-time player testing remains part of tuning difficulty and readability.
+For each new campaign level, identify the corresponding level in the original DOS campaign and consult its Intended Solution in the [Lemmings Level Database](https://lldb.camanis.net/levelpack/473/DOS-Fun). Preserve the release population, rescue target, skill inventory, obstacle sequence and role of each skill. Keep coastal artwork and tune placement tolerance around that route. Add the reference skill counts and pointer replay to the campaign test, run it in the game, and try bypassing the defining obstacle before accepting the level. For Fun 13, specifically test one shared shaft as well as twenty individual diggers.
 
 Recent fixes initialize audio when levels start and check ground support before walking puffins turn at walls. The latter prevents puffins from hovering in narrow dug shafts.
 
@@ -137,7 +137,7 @@ Recent fixes initialize audio when levels start and check ground support before 
 | `js/levelEditor.js` | Editor logic |
 | `levels/manifest.json` | Ordered list of the ten campaign levels |
 | `img/` | Start-screen art and terrain assets |
-| `scripts/replay-classic.mjs` | Real-engine browser replays for levels 2–10 |
+| `scripts/replay-classic.mjs` | Real-engine browser replays for levels 1–15 |
 | `scripts/verify-levels.mjs` | Structural campaign checks |
 | `package.json` | Node.js tooling and scripts |
 

@@ -11,7 +11,10 @@
     "level_009.json",
     "level_010.json",
     "level_011_feathers.json",
-    "level_012_patience.json"
+    "level_012_patience.json",
+    "level_013_harbour_view.json",
+    "level_014.json",
+    "level_015.json"
   ],
   "spawnRate": 75
 }
