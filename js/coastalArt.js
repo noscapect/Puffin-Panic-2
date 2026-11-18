@@ -6,6 +6,10 @@ const CoastalArt = (() => {
     terrain.height = plants.height = GAME_HEIGHT * 2;
     let dirty = true;
 
+    function coastStyle() {
+        return CoastStyles[LEVELS[currentLevelIndex]?.coast];
+    }
+
     function enabled() {
         return !Editor.isActive() && LEVELS[currentLevelIndex]?.artStyle === 'coastal-remake';
     }
@@ -18,6 +22,7 @@ const CoastalArt = (() => {
     function rebuild() {
         const ctx = terrain.getContext('2d');
         const foliage = plants.getContext('2d');
+        const style = coastStyle();
         const image = ctx.createImageData(terrain.width, terrain.height);
         foliage.clearRect(0, 0, plants.width, plants.height);
         foliage.save();
@@ -51,6 +56,17 @@ const CoastalArt = (() => {
                 if (above <= 2 && below > 3) {
                     color = above === 1 ? [110 + facet, 155 + facet, 61 + facet] : [91 + facet, 112 + facet, 52 + facet];
                 }
+                if (style) {
+                    const surface = above <= 2 && below > 3;
+                    const base = surface ? style.rim : style.stone;
+                    const tint = surface ? facet : light + style.texture(x, y);
+                    color = [base[0] + tint, base[1] + tint, base[2] + tint];
+                }
+                const material = terrainData[Math.floor(y) * GAME_WIDTH + Math.floor(x)];
+                if (material === 12 && above > 3) {
+                    const chevron = (x + Math.abs(y % 10 - 5)) % 14;
+                    if (chevron < 2) color = [125, 78, 58];
+                }
                 image.data[i] = color[0];
                 image.data[i + 1] = color[1];
                 image.data[i + 2] = color[2];
@@ -64,6 +80,7 @@ const CoastalArt = (() => {
             for (let y = 8; y < GAME_HEIGHT - 2; y++) {
                 if (!solid(x, y) || solid(x, y - 1) || !solid(x, y + 3)) continue;
                 const seed = hashNoise2D(x, y);
+                if (style === CoastStyles.harbour || style === CoastStyles.basalt) continue;
                 if (patch > 0.2 && seed > 0.3) {
                     foliage.fillStyle = seed > 0.7 ? '#799b3d' : '#557c36';
                     foliage.fillRect(x, y - 1 - seed * 3, 0.5, 2 + seed * 3);
@@ -72,7 +89,7 @@ const CoastalArt = (() => {
                 if (patch > 0.8 && seed > 0.88) {
                     foliage.fillStyle = '#65883d';
                     foliage.fillRect(x, y - 4, 0.5, 4);
-                    foliage.fillStyle = seed > 0.96 ? '#dd997c' : '#fff0c1';
+                    foliage.fillStyle = style === CoastStyles.flowers ? '#f399bb' : seed > 0.96 ? '#dd997c' : '#fff0c1';
                     foliage.fillRect(x - 0.5, y - 4.5, 1.5, 1);
                     foliage.fillStyle = '#e2b64e';
                     foliage.fillRect(x, y - 4, 0.5, 0.5);
@@ -84,10 +101,11 @@ const CoastalArt = (() => {
     }
 
     function background(ctx, ticks) {
+        const style = coastStyle();
         const sky = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-        sky.addColorStop(0, '#72bddb');
-        sky.addColorStop(0.54, '#d0e7df');
-        sky.addColorStop(1, '#66b1b9');
+        sky.addColorStop(0, style?.sky[0] ?? '#72bddb');
+        sky.addColorStop(0.54, style?.sky[1] ?? '#d0e7df');
+        sky.addColorStop(1, style?.sky[2] ?? '#66b1b9');
         ctx.fillStyle = sky;
         ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
         const sun = ctx.createRadialGradient(63, 22, 3, 63, 22, 45);
@@ -107,9 +125,9 @@ const CoastalArt = (() => {
             ctx.fillRect(x + 2, cy + 7, width - 3, 1);
         }
         const sea = ctx.createLinearGradient(0, 107, 0, GAME_HEIGHT);
-        sea.addColorStop(0, '#96c8c9');
-        sea.addColorStop(0.45, '#67aeb8');
-        sea.addColorStop(1, '#3c859a');
+        sea.addColorStop(0, style?.sea[0] ?? '#96c8c9');
+        sea.addColorStop(0.45, style?.sea[1] ?? '#67aeb8');
+        sea.addColorStop(1, style?.sea[2] ?? '#3c859a');
         ctx.fillStyle = sea;
         ctx.fillRect(0, 107, GAME_WIDTH, GAME_HEIGHT - 107);
         for (const [x, y, w] of [[10, 95, 40], [45, 100, 26], [274, 96, 41], [321, 87, 77]]) {
@@ -117,6 +135,10 @@ const CoastalArt = (() => {
             ctx.fillRect(x, y, w, 108 - y);
             ctx.fillStyle = '#adc9ba';
             ctx.fillRect(x + 4, y - 1, w - 9, 2);
+        }
+        if (style) {
+            const rect = (x, y, w, h, color) => { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
+            style.horizon(rect, ctx, ticks);
         }
         for (let row = 0; row < 22; row++) {
             const y = 109 + row * 5;

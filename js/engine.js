@@ -1414,7 +1414,7 @@ function checkEndCondition() {
     
     let activePuffins = puffins.filter(p => p.state !== ST_DEAD && p.state !== ST_EXITED).length;
     
-    if (gameState.timeLeft <= 0 || (gameState.spawned === TOTAL_PUFFINS && activePuffins === 0)) {
+    if (gameState.timeLeft <= 0 || ((nukeActivated || gameState.spawned === TOTAL_PUFFINS) && activePuffins === 0)) {
         gameState.ending = true;
     setTimeout(() => {
             gameState.active = false;
@@ -1500,7 +1500,7 @@ function update() {
     }
     
     // Spawning
-    if (gameState.spawned < TOTAL_PUFFINS) {
+    if (!nukeActivated && gameState.spawned < TOTAL_PUFFINS) {
         gameState.spawnCountdown--;
         if (gameState.spawnCountdown <= 0) {
             puffins.push(new Puffin(ENTRANCE.x, ENTRANCE.y));

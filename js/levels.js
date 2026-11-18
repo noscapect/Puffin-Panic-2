@@ -2,7 +2,7 @@
 // Run  node scripts/bake-levels.mjs  to regenerate the JSON files from source.
 
 const LEVELS = [];
-const TOTAL_LEVELS = 10; // campaign levels loaded from manifest
+const TOTAL_LEVELS = 12; // campaign levels loaded from manifest
 let _externalLevelsLoaded = false;
 
 function decodeRLETerrain(rlePairs, size) {
@@ -20,13 +20,16 @@ function decodeRLETerrain(rlePairs, size) {
     return out;
 }
 
-function buildRuntimeLevelFromJson(data, fileName) {
+function buildRuntimeLevelFromJson(data, fileName, campaignNumber) {
     const terrainRLE = Array.isArray(data.terrain) ? data.terrain : (Array.isArray(data.data) ? data.data : []);
     const bgTerrainRLE = Array.isArray(data.bgTerrain) ? data.bgTerrain : [];
     const defaultSkills = { floater: 0, bomber: 0, blocker: 0, builder: 0, basher: 0, digger: 0, climber: 0, miner: 0, platformer: 0 };
     const decoded = decodeRLETerrain(terrainRLE, GAME_WIDTH * GAME_HEIGHT);
     const bgDecoded = bgTerrainRLE.length ? decodeRLETerrain(bgTerrainRLE, GAME_WIDTH * GAME_HEIGHT) : null;
+    const visit = CampaignCoast.slot(campaignNumber);
     const lvl = {
+        campaignChapter: visit?.chapter ?? null,
+        coast: visit?.coast ?? null,
         name:       data.name      || `[Level] ${fileName}`,
         total:      Number(data.total)     || 20,
         required:   Number(data.required)  || 15,
@@ -36,7 +39,7 @@ function buildRuntimeLevelFromJson(data, fileName) {
         exit:       data.exit      || { x: 340, y: 78, w: 20, h: 12 },
         theme:      data.theme     || 'grass',
         builderBricks: Number.isInteger(data.builderBricks) && data.builderBricks > 0 ? data.builderBricks : 12,
-        artStyle: data.artStyle || null,
+        artStyle: data.artStyle || (campaignNumber >= 13 && visit ? 'coastal-remake' : null),
         artPalette: data.artPalette || 'earth',
         scenery:    data.scenery || null,
         imageSource: data.imageSource || null,
@@ -80,14 +83,14 @@ async function loadExternalLevels() {
         console.warn('[Levels] manifest.json not found - using fallback list.');
     }
 
-    for (const file of files) {
+    for (const [index, file] of files.entries()) {
         try {
             const response = await fetch(file);
             if (!response.ok) continue;
             const data     = await response.json();
             const fileName = file.split('/').pop() || file;
             const already  = LEVELS.some(l => l && l.importedFromFile === fileName);
-            if (!already) LEVELS.push(buildRuntimeLevelFromJson(data, fileName));
+            if (!already) LEVELS.push(buildRuntimeLevelFromJson(data, fileName, index + 1));
         } catch (e) {
             console.warn(`[Levels] Skipping ${file}:`, e.message);
         }

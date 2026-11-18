@@ -567,7 +567,7 @@ class Puffin {
 
             if (isWall) {
                 // Climbers scale vertical walls
-                if (this.isClimber) {
+                if (this.isClimber && !(this.isBasher && canDigAt(centerX, currentFootY - MAX_STEP - 1, this.vx))) {
                     this.state = ST_CLIMB;
                     this.actionTicks = 0;
                     return;
